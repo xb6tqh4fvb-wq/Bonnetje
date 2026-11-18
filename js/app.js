@@ -2,8 +2,8 @@ import {
   computeSplit, formatEuro, formatEuroShort, formatPlain, parseEuro, uid, unitsLeft, itemWeights,
   roundUpSuggestions, personRoundUps, splitLine,
 } from './calc.js';
-import { parseReceiptText } from './parse.js';
-import { readReceiptFile } from './ocr.js';
+import { parseReceiptText, UNSURE_BELOW } from './parse.js';
+import { readReceiptFile, APP_OCR } from './ocr.js';
 import { load, save } from './store.js';
 import { t, getLang, setLang, fmtDate, UI_LANGS } from './i18n.js';
 import { loadSettings, saveSettings, applySettings } from './settings.js';
@@ -237,13 +237,13 @@ async function importFile(file, b) {
     // 'Automatisch': eerst lezen in de taal van de app (één taalbestand, sneller en minder
     // downloaden); blijkt de bon in een andere taal, dan nog één keer met dat taalbestand.
     const first = receiptLang !== 'auto' ? receiptLang : getLang();
-    let res = await readReceiptFile(file, progress, first);
-    let parsed = parseReceiptText(res.text);
+    let res = await readReceiptFile(file, progress, first, APP_OCR);
+    let parsed = parseReceiptText(res.text, res.lines);
     let detected = receiptLang !== 'auto' ? receiptLang : detectLanguage(res.text, parsed.items.map((i) => i.name)) || first;
     if (receiptLang === 'auto' && detected !== first && !(res.source === 'pdf')) {
       progress({ label: t('ocrRetry', { lang: langName(detected) }), progress: 0 });
-      res = await readReceiptFile(file, progress, detected);
-      parsed = parseReceiptText(res.text);
+      res = await readReceiptFile(file, progress, detected, APP_OCR);
+      parsed = parseReceiptText(res.text, res.lines);
     }
     b.image = res.previewUrl;
     b.rawText = res.text;
@@ -421,6 +421,9 @@ function viewTranslation(b) {
   </section>`;
 }
 
+/** Bedrag onzeker gelezen (zekerheid van de tekstherkenning) en nog niet door de gebruiker bevestigd. */
+const isUnsure = (it) => it.amountConf != null && it.amountConf < UNSURE_BELOW && !it.checked;
+
 function viewBon(b, r) {
   const o = ui.ocr?.billId === b.id ? ui.ocr : null;
   const ocr = o
@@ -433,13 +436,14 @@ function viewBon(b, r) {
   const diff = b.receiptTotalCents != null ? r.itemsTotal - b.receiptTotalCents : 0;
   const rows = b.items
     .map(
-      (it) => `<div class="item-edit ${(it.coverage ?? 1) < 1 && b.translatedTo ? 'partial' : ''}">
+      (it) => `<div class="item-edit ${(it.coverage ?? 1) < 1 && b.translatedTo ? 'partial' : ''} ${isUnsure(it) ? 'unsure' : ''}">
         <input class="qty" type="number" min="1" step="1" inputmode="numeric" value="${it.qty}" data-action="item-field" data-field="qty" data-id="${it.id}" aria-label="${t('qty')}">
         <input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}" aria-label="${t('desc')}">
         <input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}" aria-label="${t('amount')}">
         <button class="icon-btn" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('x')}</button>
         ${showOrig(it) ? `<span class="orig">${t('original')}: ${esc(it.orig)}</span>` : ''}
         ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${t('split', { n: it.qty })}</button>` : ''}
+        ${isUnsure(it) ? `<span class="unsure-note">${t('lowConf')} <button class="link" data-action="confirm-line" data-id="${it.id}">${t('confirmLine')}</button></span>` : ''}
       </div>`
     )
     .join('');
@@ -843,6 +847,9 @@ $app.addEventListener('click', async (e) => {
       b.items.push({ id: uid(), name: '', qty: 1, priceCents: 0, assign: {} });
       commit();
       return document.querySelector('.item-edit:last-of-type .name')?.focus();
+    case 'confirm-line':
+      findItem(b, id).checked = true;
+      return commit();
     case 'item-del': {
       const name = findItem(b, id).name || t('desc');
       b.items = b.items.filter((i) => i.id !== id);
@@ -968,6 +975,7 @@ $app.addEventListener('change', (e) => {
         it.name = el.value.trim();
         it.coverage = 1;
       }
+      if (f === 'qty' || f === 'price') it.checked = true; // door de gebruiker bekeken
       if (f === 'qty') {
         it.qty = Math.max(1, Math.round(Number(el.value) || 1));
         const W = it.everyone ? 0 : Object.values(it.assign || {}).reduce((a, w) => a + w, 0);

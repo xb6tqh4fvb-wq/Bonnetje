@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="nl">
+<head><meta charset="utf-8"><title>Bonnetje – meting herkenning</title></head>
+<body>
+<p>Meetpagina voor de bonherkenning. Wordt aangestuurd door tests/ocr-bench/run.mjs.</p>
+<script type="module">
+  // Gebruikt exact dezelfde code als de app.
+  import { readReceiptFile, APP_OCR } from '../../js/ocr.js';
+  import { parseReceiptText } from '../../js/parse.js';
+
+  window.runOne = async (url, lang, opts = {}) => {
+    if (opts === 'app') opts = APP_OCR; // precies de instelling van de app
+    const blob = await (await fetch(url)).blob();
+    const file = new File([blob], url.split('/').pop(), { type: blob.type || 'image/jpeg' });
+    const t0 = performance.now();
+    const res = await readReceiptFile(file, () => {}, lang, opts);
+    const ms = Math.round(performance.now() - t0);
+    const parsed = parseReceiptText(res.text, res.lines, opts);
+    return { ms, text: res.text, items: parsed.items, totalCents: parsed.totalCents, chosen: res.chosen ?? null };
+  };
+  window.benchReady = true;
+</script>
+</body>
+</html>

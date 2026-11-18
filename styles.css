@@ -438,3 +438,7 @@ body.dragging::after {
 .item-edit .split { grid-column: 1 / -1; justify-self: start; }
 .assign-row .split { flex-basis: 100%; text-align: left; padding: 0 0.75rem 0.4rem; display: flex; align-items: center; gap: 0.3rem; }
 .support-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* bedrag onzeker gelezen (zekerheid van de tekstherkenning) */
+.item-edit.unsure .price { border: 2px solid var(--warn); }
+.item-edit .unsure-note { grid-column: 1 / -1; font-size: 0.85rem; font-weight: 600; color: var(--warn); }

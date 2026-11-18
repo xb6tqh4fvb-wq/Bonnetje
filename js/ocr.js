@@ -1,7 +1,16 @@
 // Uitlezen van een bon: foto via Tesseract (OCR op het toestel), PDF via pdf.js
 // (tekstlaag; valt terug op OCR als de PDF een scan is). Geen server, geen API-sleutel.
-import { linesFromPositioned } from './parse.js';
+import { linesFromPositioned, passQuality } from './parse.js';
 import { t } from './i18n.js';
+import { thresholdOtsu, thresholdSauvola, estimateSkew } from './image.js';
+
+/**
+ * Instelling waarmee de app leest (gekozen op basis van de meting in tests/ocr-bench):
+ * eerst de huidige voorbewerking met PSM 6; overtuigt die leespoging niet (geen totaal,
+ * som sluit niet aan of onzekere bedragen), dan een tweede passage met Sauvola-drempeling,
+ * en de beste van de twee op controles en zekerheid. Bedragen worden nooit aangepast.
+ */
+export const APP_OCR = { second: { pre: 'sauvola' } };
 
 const TESS_LANG = { nl: 'nld', es: 'spa', en: 'eng', auto: 'nld+spa+eng' };
 
@@ -48,9 +57,16 @@ function scaledCanvas(source, maxSide, minSide = 0) {
   return c;
 }
 
-/** Grijswaarden + contrast oprekken: helpt bij vaag thermisch bonpapier. */
-function preprocess(source) {
-  const c = scaledCanvas(source, 2200, 1600);
+/**
+ * Voorbewerking. opts.pre:
+ *  - 'stretch' (standaard): grijswaarden + contrast oprekken;
+ *  - 'otsu': daarna één globale zwart-witdrempel (Otsu);
+ *  - 'sauvola': daarna een lokale, adaptieve drempel (Sauvola).
+ * opts.deskew: scheefstand meten en rechtzetten.
+ */
+function preprocess(source, opts = {}) {
+  let c = scaledCanvas(source, 2200, 1600);
+  if (opts.deskew) c = deskewCanvas(c);
   const ctx = c.getContext('2d', { willReadFrequently: true });
   const img = ctx.getImageData(0, 0, c.width, c.height);
   const d = img.data;
@@ -70,11 +86,27 @@ function preprocess(source) {
     const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
     d[i] = d[i + 1] = d[i + 2] = v;
   }
+  if (opts.pre === 'otsu' || opts.pre === 'sauvola') {
+    const gray = new Uint8Array(n);
+    for (let i = 0, j = 0; j < n; i += 4, j++) gray[j] = d[i];
+    const bin = opts.pre === 'otsu' ? thresholdOtsu(gray) : thresholdSauvola(gray, c.width, c.height, opts.k ?? 0.2);
+    for (let i = 0, j = 0; j < n; i += 4, j++) d[i] = d[i + 1] = d[i + 2] = bin[j];
+  }
   ctx.putImageData(img, 0, 0);
   return c;
 }
 
-async function ocr(canvases, onProgress, lang = 'auto') {
+/** Tesseract-resultaat -> regels met tekst, zekerheid (0-100) en woorden met positie. */
+function linesFromData(data, yOffset = 0) {
+  const lines = (data.lines || []).map((l) => ({
+    text: l.text.replace(/\n$/, ''),
+    conf: Math.round(l.confidence),
+    words: (l.words || []).map((w) => ({ text: w.text, conf: Math.round(w.confidence), x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0 + yOffset, y1: w.bbox.y1 + yOffset })),
+  }));
+  return lines;
+}
+
+async function ocr(canvases, onProgress, lang = 'auto', opts = {}) {
   await loadScript(TESSERACT);
   onProgress({ label: t('ocrStart'), progress: 0 });
   let page = 0;
@@ -87,14 +119,16 @@ async function ocr(canvases, onProgress, lang = 'auto') {
       }
     },
   });
-  await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
+  await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: String(opts.psm ?? 6) });
   let text = '';
+  const lines = [];
   for (; page < canvases.length; page++) {
     const { data } = await worker.recognize(canvases[page]);
     text += data.text + '\n';
+    lines.push(...linesFromData(data, page * 100000));
   }
   await worker.terminate();
-  return text;
+  return { text, lines };
 }
 
 function stack(canvases) {
@@ -114,18 +148,53 @@ function stack(canvases) {
   return out;
 }
 
+/** Canvas rechtzetten volgens de gemeten scheefstand (wit opvullen). */
+function deskewCanvas(c) {
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  const gray = new Uint8Array(c.width * c.height);
+  for (let i = 0, j = 0; j < gray.length; i += 4, j++) gray[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+  const angle = estimateSkew(gray, c.width, c.height);
+  if (Math.abs(angle) < 0.3) return c;
+  const out = document.createElement('canvas');
+  out.width = c.width;
+  out.height = c.height;
+  const o = out.getContext('2d');
+  o.fillStyle = '#fff';
+  o.fillRect(0, 0, out.width, out.height);
+  o.translate(out.width / 2, out.height / 2);
+  o.rotate((-angle * Math.PI) / 180);
+  o.drawImage(c, -c.width / 2, -c.height / 2);
+  return out;
+}
+
 const preview = (source) => scaledCanvas(source, 1400).toDataURL('image/jpeg', 0.7);
 
-async function readImage(file, onProgress, lang) {
+async function readImage(file, onProgress, lang, opts) {
   onProgress({ label: t('ocrPhoto'), progress: 0 });
   const img = await loadImage(file);
   const previewUrl = preview(img);
-  const text = await ocr([preprocess(img)], onProgress, lang);
+  let res = await ocr([preprocess(img, opts)], onProgress, lang, opts);
+  let chosen = 1;
+  // Dubbele passage: overtuigt de eerste leespoging niet, lees dan nogmaals met een andere
+  // voorbewerking en kies de beste op controles en zekerheid (bedragen blijven ongewijzigd).
+  if (opts.second) {
+    const q1 = passQuality(res.text, res.lines, opts);
+    if (!q1.good) {
+      const o2 = { ...opts, ...opts.second, second: null };
+      const res2 = await ocr([preprocess(img, o2)], onProgress, lang, o2);
+      const q2 = passQuality(res2.text, res2.lines, opts);
+      if (q2.score > q1.score) {
+        res = res2;
+        chosen = 2;
+      }
+    }
+  }
   URL.revokeObjectURL(img.src);
-  return { text, previewUrl, source: 'foto' };
+  return { text: res.text, lines: res.lines, chosen, previewUrl, source: 'foto' };
 }
 
-async function readPdf(file, onProgress, lang) {
+async function readPdf(file, onProgress, lang, opts) {
   onProgress({ label: t('ocrPdf'), progress: 0 });
   await loadScript(PDFJS);
   const pdfjs = window.pdfjsLib;
@@ -154,14 +223,19 @@ async function readPdf(file, onProgress, lang) {
   const previewUrl = preview(sheet);
   if (text.replace(/\s/g, '').length < 20) {
     // Gescande PDF zonder tekstlaag: alsnog OCR.
-    text = await ocr(canvases.map(preprocess), onProgress, lang);
-    return { text, previewUrl, source: 'pdf-scan' };
+    const res = await ocr(canvases.map((c) => preprocess(c, opts)), onProgress, lang, opts);
+    return { text: res.text, lines: res.lines, previewUrl, source: 'pdf-scan' };
   }
-  return { text, previewUrl, source: 'pdf' };
+  return { text, lines: null, previewUrl, source: 'pdf' };
 }
 
-/** lang: 'nl' | 'es' | 'en' | 'auto' (alle drie; iets trager). */
-export function readReceiptFile(file, onProgress = () => {}, lang = 'auto') {
+/**
+ * lang: 'nl' | 'es' | 'en' | 'auto' (alle drie; iets trager).
+ * opts (optioneel, standaard = huidige werking): { pre, deskew, psm }.
+ * Geeft { text, lines, previewUrl, source } terug; lines = regels met zekerheid en
+ * woorden met positie (null bij een PDF met tekstlaag).
+ */
+export function readReceiptFile(file, onProgress = () => {}, lang = 'auto', opts = {}) {
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-  return isPdf ? readPdf(file, onProgress, lang) : readImage(file, onProgress, lang);
+  return isPdf ? readPdf(file, onProgress, lang, opts) : readImage(file, onProgress, lang, opts);
 }

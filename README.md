@@ -78,7 +78,7 @@ Find Bonnetje useful? A small contribution via the **Sponsor** button at the top
 
 ### Zo werkt het
 
-1. **Bon** – maak een foto van de rekening of kies een foto/PDF. De bon wordt op de telefoon zelf uitgelezen (Tesseract, Nederlands); een PDF met tekstlaag wordt direct gelezen. Controleer de regels naast de voorvertoning; het totaal op de bon wordt automatisch vergeleken met de som van de regels.
+1. **Bon** – maak een foto van de rekening of kies een foto/PDF. De bon wordt op de telefoon zelf uitgelezen (Tesseract, Nederlands); een PDF met tekstlaag wordt direct gelezen. Controleer de regels naast de voorvertoning; het totaal op de bon wordt automatisch vergeleken met de som van de regels. Overtuigt de eerste leespoging niet, dan leest de app de foto nog een keer met een andere beeldbewerking en kiest de beste. Bedragen die onzeker zijn gelezen krijgen een oranje rand: vergelijk ze met de foto en tik *Klopt* of verbeter ze. De app past zelf nooit bedragen aan.
 2. **Deelnemers** – namen invoeren (meerdere tegelijk met komma's).
 3. **Verdelen** – kies een persoon en tik aan wat die heeft gehad. Alleen regels van de bon zijn kiesbaar.
    - Een korte uitleg in twee stappen (*kies wie, tik wat*) bij het eerste gebruik.
@@ -142,6 +142,17 @@ npm test                      # unit tests rekenkern en bon-parser
 ```
 
 Geen build-stap: gewone HTML, CSS en JavaScript-modules.
+
+#### Meting bonherkenning
+
+```bash
+npm install                                   # tesseract.js + taalbestanden (alleen voor de meting)
+node tests/ocr-bench/make-images.mjs          # testbonnen renderen
+node tests/ocr-bench/run.mjs huidig app       # meten; resultaat ook in tests/ocr-bench/results/
+```
+
+Testset, definities en meetresultaten per wijziging: [`tests/ocr-bench/RESULTATEN.md`](tests/ocr-bench/RESULTATEN.md).
+Een wijziging aan de herkenning wordt alleen overgenomen als deze meting aantoonbaar beter uitvalt.
 
 ### Publiceren
 

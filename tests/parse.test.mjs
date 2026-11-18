@@ -136,3 +136,13 @@ test('totaalregels met btw-vermelding', () => {
   assert.deepEqual(r.items.map((i) => i.name), ['Cola', 'Bier']);
   assert.equal(r.totalCents, 790);
 });
+
+test('aantal achter de naam ("Coca-Cola x2")', () => {
+  const r = parseReceiptText('Coca-Cola x2   6.00€\nHelado x3   10.50€\nTOTAL: 16.50€');
+  assert.deepEqual(r.items.map((i) => [i.name, i.qty, i.priceCents]), [['Coca-Cola', 2, 600], ['Helado', 3, 1050]]);
+});
+
+test('getal vast aan een letter is geen bedrag ("Spa rood 0,75L")', () => {
+  const r = parseReceiptText('1x Spa rood 0,75L     6,50\nTotaal 6,50');
+  assert.deepEqual(r.items.map((i) => [i.name, i.qty, i.priceCents]), [['Spa rood 0,75L', 1, 650]]);
+});
