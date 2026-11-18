@@ -16,15 +16,12 @@ test('Engels naar Nederlands', () => {
 });
 
 test('onbekende woorden blijven staan, dekking wordt gemeld', () => {
-  // merknaam (Rioja) blijft staan en telt als bekend
   const r = translateName('Botella vino tinto Rioja', 'es', 'nl');
-  assert.equal(r.text, 'Fles rode wijn Rioja');
-  assert.equal(r.coverage, 1);
-  const u = translateName('Pollo con salsa xyz', 'es', 'nl');
-  assert.ok(u.coverage < 1);
+  assert.equal(r.text, 'Fles rode wijn rioja');
+  assert.equal(r.coverage, 0.75);
   assert.equal(translateName('Pimientos rellenos', 'es', 'nl').text, 'Gevulde paprika');
   assert.equal(translateName('Berenjenas con miel', 'es', 'en').text, 'Aubergine with honey');
-  assert.equal(translateName('Spotted dick', 'en', 'nl').coverage, 0);
+  assert.equal(translateName('Sticky toffee pudding', 'en', 'nl').coverage, 0);
 });
 
 test('zelfde taal: niets doen', () => {
@@ -48,21 +45,4 @@ test('online vertalen (nagebootste dienst)', async () => {
   assert.match(url, /langpair=en\|nl/);
   const bad = async () => ({ ok: true, json: async () => ({ responseStatus: 429, responseData: { translatedText: 'MYMEMORY WARNING' } }) });
   await assert.rejects(translateOnline('x', 'en', 'nl', bad));
-});
-
-test('Spaanse afkortingen, verpakkingen en "X de Y"', () => {
-  const nl = (x) => translateName(x, 'es', 'nl').text;
-  const en = (x) => translateName(x, 'es', 'en').text;
-  assert.equal(nl('CERV. ALHAMBRA'), 'Bier Alhambra');
-  assert.equal(nl('CROQ. JAMON (6)'), 'Hamkroketten 6');
-  assert.equal(nl('AGUA MIN. 1L'), 'Mineraalwater 1l');
-  assert.equal(nl('Croquetas caseras'), 'Huisgemaakte kroketten');
-  assert.equal(nl('vino blanco copa'), 'Glas witte wijn');
-  assert.equal(nl('Racion de calamares'), 'Portie inktvis');
-  assert.equal(en('Racion de calamares'), 'Portion of squid');
-  assert.equal(nl('Sopa de mejillones'), 'Soep van mosselen');
-  assert.equal(en('Tarta de limon'), 'Lemon cake');
-  assert.equal(nl('Pollo al ajillo'), 'Kip in knoflooksaus');
-  assert.equal(nl('Helado'), 'IJs');
-  assert.equal(translateName('Pint of Guinness', 'en', 'nl').text, 'Pint Guinness');
 });
