@@ -1,0 +1,11 @@
+name: "Idee of wens / Idea or request"
+description: "Iets wat de app beter of makkelijker zou maken / Something that would make the app better or easier"
+labels: ["idee"]
+body:
+  - type: textarea
+    id: idee
+    attributes:
+      label: "Wat zou je willen? / What would you like?"
+      description: "En in welke situatie heb je dat nodig? / And in what situation would you need it?"
+    validations:
+      required: true

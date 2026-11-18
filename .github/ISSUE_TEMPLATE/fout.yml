@@ -1,0 +1,21 @@
+name: "Fout melden / Report a problem"
+description: "Iets werkt niet goed, of de bon werd verkeerd gelezen / Something doesn't work, or the bill was read incorrectly"
+labels: ["fout"]
+body:
+  - type: textarea
+    id: wat
+    attributes:
+      label: "Wat ging er mis? / What went wrong?"
+      description: "Wat deed je, wat verwachtte je en wat gebeurde er? / What did you do, what did you expect and what happened?"
+    validations:
+      required: true
+  - type: textarea
+    id: bijlagen
+    attributes:
+      label: "Foto van de bon en screenshot / Photo of the bill and screenshot"
+      description: "Sleep afbeeldingen hierheen. Haal persoonlijke gegevens (pasnummer e.d.) weg. / Drag images here. Remove personal details (card number etc.)."
+  - type: input
+    id: toestel
+    attributes:
+      label: "Telefoon en browser / Phone and browser"
+      placeholder: "bv. / e.g. iPhone 15, Safari"

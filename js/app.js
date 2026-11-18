@@ -16,6 +16,7 @@ applySettings(display);
 const $app = document.getElementById('app');
 const $toast = document.getElementById('toast');
 const RL_KEY = 'bonnetje.receiptLang';
+const SUPPORT_URL = 'https://www.paypal.me/Inzane007';
 let receiptLang = (() => {
   try {
     return localStorage.getItem(RL_KEY) || 'auto';
@@ -358,6 +359,7 @@ function viewHome() {
     ${list ? `<section><h2 class="section-title">${t('earlier')}</h2><ul class="bill-list">${list}</ul></section>` : ''}
     <p class="foot muted desktop-only">${t('dropHint')}</p>
     <p class="foot muted">${t('privacy')}</p>
+    <p class="foot"><a class="support-link" href="${SUPPORT_URL}" target="_blank" rel="noopener">${t('support')}</a></p>
   </main>`;
 }
 
