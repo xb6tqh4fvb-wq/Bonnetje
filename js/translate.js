@@ -321,7 +321,7 @@ const MAX_PHRASE = 5;
 
 // Merken en streken: niet vertalen, wel als "bekend" tellen.
 const BRANDS = new Set(
-  'alhambra mahou estrella damm cruzcampo san miguel heineken amstel guinness peroni corona moretti coca-cola cocacola fanta sprite aquarius nestea schweppes pepsi rioja ribera rueda albarino verdejo tempranillo garnacha priorat txakoli cava moet'.split(' ')
+  'alhambra ambar moritz keler victoria turia mahou estrella damm cruzcampo san miguel heineken amstel guinness peroni corona moretti coca-cola cocacola fanta sprite aquarius nestea schweppes pepsi rioja ribera rueda albarino verdejo tempranillo garnacha priorat txakoli cava moet'.split(' ')
 );
 // Getallen en eenheden ("1l", "33cl", "(6)", "2x") laten staan; tellen niet mee.
 const UNIT = /^\(?\d+([.,]\d+)?(l|cl|ml|g|gr|kg|uds?|u|pcs?|x|p)?\)?$/;

@@ -204,10 +204,13 @@ async function translateRestOnline(b) {
   let ok = 0;
   try {
     for (const it of untranslated(b)) {
-      it.name = await translateOnline(it.orig, b.lang, b.translatedTo);
+      const out = await translateOnline(it.orig, b.lang, b.translatedTo);
       it.coverage = 1;
-      it.online = true; // zichtbaar gemaakt bij de regel
       delete it.suggest;
+      if (out.trim().toLowerCase() !== it.orig.trim().toLowerCase()) {
+        it.name = out;
+        it.online = true; // zichtbaar gemaakt bij de regel
+      }
       ok++;
     }
   } catch (e) {
@@ -417,7 +420,7 @@ function viewTranslation(b) {
       <select data-action="bill-lang" aria-label="${t('receiptLang')}">${RECEIPT_LANGS.map(
         (l) => `<option value="${l}" ${b.lang === l ? 'selected' : ''}>${langName(l)}</option>`
       ).join('')}</select></div>
-    <p class="muted small">${t('trDetected', { lang: langName(b.lang) })} ${translatedHere ? t('trTranslated') : ''}</p>
+    <p class="muted small">${t('trDetected', { lang: langName(b.lang) })} ${translatedHere ? t('trTranslated') : ''} ${t('trOnlineNote')}</p>
     <div class="row-wrap">
       ${
         translatedHere
@@ -427,7 +430,6 @@ function viewTranslation(b) {
             : `<button class="btn small-btn" data-action="tr-undo">${t('trUndo')}</button>`
       }
     </div>
-    <p class="muted small">${t('trOnlineNote')}</p>
     ${
       translatedHere && ui.trBusy
         ? `<div class="alert ok" role="status">${icon('globe')} ${t('trOnlineBusy')}</div>`
