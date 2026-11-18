@@ -100,3 +100,18 @@ Thank you!`);
     ['Service charge 12.5', 1, 422, true],
   ]);
 });
+
+test('bedragen boven 1000 met duizendtalscheiding', () => {
+  const r = parseReceiptText('Groepsmenu 24 pers   1.234,56\nWijnarrangement        315,00\nTotaal              1.549,56');
+  assert.deepEqual(r.items.map((i) => i.priceCents), [123456, 31500]);
+  assert.equal(r.totalCents, 154956);
+  const en = parseReceiptText('Group dinner   1,234.56\nTotal   1,234.56');
+  assert.equal(en.items[0].priceCents, 123456);
+});
+
+test('kortingsregel staat standaard op "iedereen"', () => {
+  const r = parseReceiptText('Biefstuk 24,50\nKorting -5,00\nTotaal 19,50');
+  assert.equal(r.items[1].priceCents, -500);
+  assert.equal(r.items[1].everyone, true);
+  assert.equal(r.items[0].everyone, false);
+});

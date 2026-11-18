@@ -41,6 +41,43 @@ function commit() {
   render();
 }
 
+// Na een achtergrondtaak (uitlezen, vertalen) niet opnieuw tekenen terwijl iemand typt:
+// dan pas bij het verlaten van het invoerveld.
+let pendingRender = false;
+function commitSoon() {
+  if (!save(state)) toast(t('storageFull'));
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT' && $app.contains(a)) pendingRender = true;
+  else render();
+}
+document.addEventListener('focusout', () => {
+  if (!pendingRender) return;
+  pendingRender = false;
+  setTimeout(render, 0);
+});
+
+// ---------- navigatie (terugknop van telefoon/browser) ----------
+let navPushed = false;
+function go(billId, tab) {
+  const fromHome = !state.currentId;
+  if (billId !== state.currentId) ui.person = null;
+  state.currentId = billId;
+  if (tab) ui.tab = tab;
+  const st = { billId, tab: ui.tab };
+  if (billId && fromHome) {
+    history.pushState(st, '');
+    navPushed = true;
+  } else history.replaceState(st, '');
+}
+window.addEventListener('popstate', (e) => {
+  const st = e.state || {};
+  state.currentId = st.billId && findBill(st.billId) ? st.billId : null;
+  ui.tab = st.tab || 'bon';
+  ui.settings = false;
+  navPushed = !!state.currentId;
+  commit();
+});
+
 let toastTimer;
 function toast(msg) {
   $toast.textContent = msg;
@@ -64,9 +101,7 @@ function newBill() {
     tip: { mode: 'none', amountCents: 0, paidTotalCents: null, distribution: 'proportional' },
   };
   state.bills.unshift(b);
-  state.currentId = b.id;
-  ui.tab = 'bon';
-  ui.person = null;
+  go(b.id, 'bon');
   return b;
 }
 
@@ -109,23 +144,32 @@ async function translateRestOnline(b) {
     toast(ok ? t('trOnlineDone', { n: ok }) : t('trOnlineFail'));
   }
   ui.trBusy = false;
-  commit();
+  commitSoon();
 }
 
+const ocrBusy = () => !!(ui.ocr && !ui.ocr.error);
+
 async function importFile(file, b) {
-  ui.ocr = { label: t('busy'), progress: 0 };
-  ui.tab = 'bon';
+  if (ocrBusy()) return toast(t('busy'));
+  ui.ocr = { billId: b.id, label: t('busy'), progress: 0 };
+  go(b.id, 'bon');
   render();
   try {
-    const res = await readReceiptFile(
-      file,
-      (p) => {
-        ui.ocr = p;
-        updateProgress();
-      },
-      receiptLang
-    );
-    const parsed = parseReceiptText(res.text);
+    const progress = (p) => {
+      ui.ocr = { billId: b.id, ...p };
+      updateProgress();
+    };
+    // 'Automatisch': eerst lezen in de taal van de app (één taalbestand, sneller en minder
+    // downloaden); blijkt de bon in een andere taal, dan nog één keer met dat taalbestand.
+    const first = receiptLang !== 'auto' ? receiptLang : getLang();
+    let res = await readReceiptFile(file, progress, first);
+    let parsed = parseReceiptText(res.text);
+    let detected = receiptLang !== 'auto' ? receiptLang : detectLanguage(res.text, parsed.items.map((i) => i.name)) || first;
+    if (receiptLang === 'auto' && detected !== first && !(res.source === 'pdf')) {
+      progress({ label: t('ocrRetry', { lang: langName(detected) }), progress: 0 });
+      res = await readReceiptFile(file, progress, detected);
+      parsed = parseReceiptText(res.text);
+    }
     b.image = res.previewUrl;
     b.rawText = res.text;
     const newItems = parsed.items.map((it) => ({ id: uid(), assign: {}, ...it, orig: it.name }));
@@ -133,7 +177,7 @@ async function importFile(file, b) {
     else b.items = newItems;
     if (parsed.totalCents != null) b.receiptTotalCents = parsed.totalCents;
     if (parsed.title && b.autoTitle) b.title = parsed.title;
-    b.lang = receiptLang !== 'auto' ? receiptLang : detectLanguage(res.text, parsed.items.map((i) => i.name)) || 'nl';
+    b.lang = detected;
     b.translatedTo = null;
     ui.ocr = null;
     if (b.lang !== getLang() && newItems.length) {
@@ -144,14 +188,15 @@ async function importFile(file, b) {
     }
   } catch (e) {
     console.error(e);
-    ui.ocr = { error: e.message || t('readFailed') };
+    ui.ocr = { billId: b.id, error: e.message || t('readFailed') };
   }
-  commit();
+  commitSoon();
 }
 
+// Alleen de voortgangsbalk bijwerken (als die in beeld is), nooit het hele scherm.
 function updateProgress() {
   const el = document.querySelector('.ocr');
-  if (!el || !ui.ocr) return render();
+  if (!el || !ui.ocr) return;
   el.querySelector('.ocr-label').textContent = ui.ocr.label;
   el.querySelector('.bar > span').style.width = `${Math.round((ui.ocr.progress || 0) * 100)}%`;
 }
@@ -297,11 +342,12 @@ function viewTranslation(b) {
 }
 
 function viewBon(b, r) {
-  const ocr = ui.ocr
-    ? ui.ocr.error
-      ? `<div class="alert error">${esc(ui.ocr.error)}</div>`
-      : `<div class="ocr card"><span class="ocr-label">${esc(ui.ocr.label)}</span>
-           <div class="bar"><span style="width:${Math.round((ui.ocr.progress || 0) * 100)}%"></span></div>
+  const o = ui.ocr?.billId === b.id ? ui.ocr : null;
+  const ocr = o
+    ? o.error
+      ? `<div class="alert error">${esc(o.error)}</div>`
+      : `<div class="ocr card" role="status"><span class="ocr-label">${esc(o.label)}</span>
+           <div class="bar"><span style="width:${Math.round((o.progress || 0) * 100)}%"></span></div>
            <p class="muted small">${t('langDownload')}</p></div>`
     : '';
   const diff = b.receiptTotalCents != null ? r.itemsTotal - b.receiptTotalCents : 0;
@@ -309,7 +355,7 @@ function viewBon(b, r) {
     .map(
       (it) => `<div class="item-edit ${(it.coverage ?? 1) < 1 && b.translatedTo ? 'partial' : ''}">
         <input class="qty" type="number" min="1" step="1" inputmode="numeric" value="${it.qty}" data-action="item-field" data-field="qty" data-id="${it.id}" aria-label="${t('qty')}">
-        <input class="name" value="${esc(it.name)}" data-action="item-field" data-field="name" data-id="${it.id}" aria-label="${t('desc')}">
+        <input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}" aria-label="${t('desc')}">
         <input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}" aria-label="${t('amount')}">
         <button class="icon-btn" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('x')}</button>
         ${showOrig(it) ? `<span class="orig">${t('original')}: ${esc(it.orig)}</span>` : ''}
@@ -324,8 +370,8 @@ function viewBon(b, r) {
   ${
     b.image
       ? `<details class="card preview" ${ui.open.preview === false ? '' : 'open'} data-action="preview-toggle">
-           <summary>${t('preview')}</summary><img src="${b.image}" alt="${t('photoAlt')}"></details>`
-      : !ui.ocr
+           <summary>${t('preview')}</summary><img src="${esc(b.image)}" alt="${t('photoAlt')}"></details>`
+      : !o
         ? `<section class="card"><h3>${t('readBill')}</h3><div class="stack">${fileButtons()}</div></section>`
         : ''
   }
@@ -408,7 +454,7 @@ function viewAssign(b, r) {
             : `<span class="pill ok">${t('assigned')}</span>`;
       return `<div class="assign-row ${mine ? 'mine' : ''}" style="--c:${colorOf(b, ui.person)}">
         <button class="assign-main" data-action="unit" data-delta="1" data-id="${it.id}">
-          <span class="assign-name">${it.qty > 1 ? `<b>${it.qty}×</b> ` : ''}${esc(it.name)}</span>
+          <span class="assign-name">${it.qty > 1 ? `<b>${it.qty}×</b> ` : ''}${esc(it.name) || `<em class="muted">${t('desc')}</em>`}</span>
           ${showOrig(it) ? `<span class="orig">${esc(it.orig)}</span>` : ''}
           <span class="assign-meta">${formatEuro(it.priceCents)} ${status}</span>
           <span class="badges">${badges}</span>
@@ -521,6 +567,12 @@ function personCard(b, p) {
       <div class="due"><strong>${formatEuro(p.dueCents)}</strong>
         ${p.method === 'tikkie' ? `<button class="link small" data-action="copy" data-cents="${p.dueCents}">${t('copyAmount')}</button>` : ''}</div>
     </header>
+    ${
+      p.paidDiffCents
+        ? `<div class="alert warn">${t(p.paidDiffCents > 0 ? 'paidMore' : 'paidLess', { paid: formatEuro(p.paidCents), d: formatEuro(Math.abs(p.paidDiffCents)) })}
+             <button class="link" data-action="paid-settle" data-id="${p.id}">${t('settled')}</button></div>`
+        : ''
+    }
     <details ${ui.open['p' + p.id] ? 'open' : ''} data-action="person-toggle" data-id="${p.id}">
       <summary class="muted small">${t('consumptions', { a: formatEuro(p.subtotalCents), b: formatEuro(p.tipCents) })}</summary>
       <ul class="lines">${lines || `<li class="muted">${t('nothingYet')}</li>`}
@@ -580,7 +632,11 @@ function personText(b, p) {
     t('msgSpec'),
     ...lines,
     '',
-    p.paid ? t('msgPaid') : b.payInfo ? t('msgPayVia', { info: b.payInfo }) : '',
+    p.paid && p.paidDiffCents <= 0
+      ? t('msgPaid')
+      : [p.paid ? t('msgStillDue', { d: formatEuro(p.paidDiffCents) }) : '', b.payInfo ? t('msgPayVia', { info: b.payInfo }) : '']
+          .filter(Boolean)
+          .join('\n'),
     t('msgThanks'),
   ]
     .filter((x, i, arr) => !(x === '' && arr[i - 1] === ''))
@@ -605,7 +661,7 @@ function shareText(b) {
   const r = computeSplit(b);
   const lines = r.persons.map((p) => {
     const tip = p.tipCents ? t('shareTip', { a: formatEuro(p.tipCents) }) : '';
-    return `• ${p.name}: ${formatEuro(p.dueCents)}${tip}${p.paid ? t('sharePaid') : ''}`;
+    return `• ${p.name}: ${formatEuro(p.dueCents)}${tip}${p.paid ? (p.paidDiffCents > 0 ? t('shareStillDue', { d: formatEuro(p.paidDiffCents) }) : t('sharePaid')) : ''}`;
   });
   return [
     `🧾 ${b.title} – ${fmtDate(b.createdAt, false)}`,
@@ -663,24 +719,23 @@ $app.addEventListener('click', async (e) => {
       newBill();
       return commit();
     case 'open': {
-      state.currentId = id;
-      ui.ocr = null;
       const ob = findBill(id);
-      ui.tab = ob.people.length ? 'overzicht' : ob.items.length ? 'deelnemers' : 'bon';
+      go(id, ob.people.length ? 'overzicht' : ob.items.length ? 'deelnemers' : 'bon');
       return commit();
     }
     case 'delete-bill':
       if (confirm(t('deleteBill'))) {
         state.bills = state.bills.filter((x) => x.id !== id);
+        if (ui.ocr?.billId === id && ui.ocr.error) ui.ocr = null;
         commit();
       }
       return;
     case 'home':
-      state.currentId = null;
-      ui.ocr = null;
+      if (navPushed) return history.back(); // popstate tekent het startscherm
+      go(null);
       return commit();
     case 'tab':
-      ui.tab = el.dataset.tab;
+      go(state.currentId, el.dataset.tab);
       render();
       return window.scrollTo(0, 0);
     case 'tr-do':
@@ -741,8 +796,11 @@ $app.addEventListener('click', async (e) => {
       return commit();
     case 'method': {
       const p = findPerson(b, id);
+      if (p.method === 'contant' && el.dataset.method !== 'contant') {
+        p.givenCents = null;
+        p.extraTipCents = 0; // was wisselgeld als fooi; zonder contant geen wisselgeld
+      }
       p.method = el.dataset.method;
-      if (p.method !== 'contant') p.givenCents = null;
       return commit();
     }
     case 'given-quick':
@@ -753,6 +811,11 @@ $app.addEventListener('click', async (e) => {
       const pr = computeSplit(b).persons.find((x) => x.id === id);
       p.extraTipCents = Math.max(0, p.givenCents - pr.subtotalCents);
       toast(t('toTip', { a: formatEuro(p.extraTipCents), name: p.name }));
+      return commit();
+    }
+    case 'paid-settle': {
+      const p = findPerson(b, id);
+      p.paidCents = computeSplit(b).persons.find((x) => x.id === id).dueCents;
       return commit();
     }
     case 'copy':
@@ -833,10 +896,15 @@ $app.addEventListener('change', (e) => {
     case 'extra-tip':
       findPerson(b, id).extraTipCents = Math.max(0, parseEuro(el.value) || 0);
       return commit();
-    case 'paid':
-      findPerson(b, id).paid = el.checked;
-      if (el.checked) toast(t('hasPaid', { name: findPerson(b, id).name }));
+    case 'paid': {
+      const p = findPerson(b, id);
+      p.paid = el.checked;
+      if (el.checked) {
+        p.paidCents = computeSplit(b).persons.find((x) => x.id === id).dueCents;
+        toast(t('hasPaid', { name: p.name }));
+      } else delete p.paidCents;
       return commit();
+    }
   }
 });
 
@@ -906,7 +974,7 @@ const receiptFileFrom = (list) =>
   [...(list || [])].find((f) => f && (/^image\//.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')));
 
 function acceptFile(file) {
-  if (!file || ui.ocr?.label) return;
+  if (!file) return;
   importFile(file, bill() || newBill());
 }
 
@@ -942,6 +1010,7 @@ document.addEventListener('drop', (e) => {
   acceptFile(receiptFileFrom(e.dataTransfer.files));
 });
 
+history.replaceState({ billId: state.currentId, tab: ui.tab }, '');
 render();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

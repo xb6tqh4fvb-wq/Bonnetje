@@ -164,3 +164,30 @@ test('"iedereen" op een regel met meerdere stuks verdeelt het hele bedrag', () =
   assert.equal(r.unassignedCents, 0);
   assert.equal(r.persons[0].lines[0].shared, true);
 });
+
+test('specificatie per persoon telt exact op tot het subtotaal', () => {
+  // 3 regels van 10,00 elk gedeeld door 3: per regel 3,3333 -> los afgerond 3 x 3,33 = 9,99
+  const items = ['x', 'y', 'z'].map((id) => ({ id, name: id, qty: 1, priceCents: 1000, assign: { a: 1, b: 1, c: 1 } }));
+  const r = computeSplit({ people: [P('a'), P('b'), P('c')], items, tip: { mode: 'none' } });
+  for (const p of r.persons) assert.equal(p.lines.reduce((s, l) => s + l.cents, 0), p.subtotalCents);
+  assert.equal(r.persons.reduce((s, p) => s + p.subtotalCents, 0), 3000);
+});
+
+test('betaald bedrag wordt vastgelegd; latere wijziging geeft een verschil', () => {
+  const bill = {
+    people: [P('a', { paid: true, paidCents: 2000 }), P('b')],
+    items: [{ id: '1', name: 'X', qty: 1, priceCents: 4400, assign: { a: 1, b: 1 } }],
+    tip: { mode: 'none' },
+  };
+  const r = computeSplit(bill);
+  assert.equal(r.persons[0].dueCents, 2200);
+  assert.equal(r.persons[0].paidDiffCents, 200);
+  assert.equal(r.paidTotal, 2000);
+  assert.equal(r.openTotal, 2400);
+});
+
+test('roundAlloc met afwijkend doel', () => {
+  assert.deepEqual(roundAlloc([3.4, 3.4, 3.4], 9), [3, 3, 3]);
+  assert.deepEqual(roundAlloc([3.4, 3.4, 3.4], 11), [4, 4, 3]);
+  assert.deepEqual(roundAlloc([3.6, 3.6, 3.6], 10), [4, 3, 3]);
+});

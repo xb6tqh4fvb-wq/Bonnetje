@@ -1,7 +1,8 @@
 // Zet (OCR- of PDF-)tekst van een kassabon om in losse regels met aantal en bedrag.
 // Heuristisch: de gebruiker controleert en corrigeert het resultaat altijd zelf.
 
-const AMOUNT = /(-\s?)?€?\s?(\d{1,5})\s?[,.]\s?(\d{2})(?!\d)(\s?-)?/g;
+// Bedrag met 2 decimalen, optioneel met duizendtallen (1.234,56 / 1,234.56) en minteken voor of achter.
+const AMOUNT = /(-\s?)?€?\s?(\d{1,3}(?:[.,]\d{3})+|\d{1,5})\s?[,.]\s?(\d{2})(?!\d)(\s?-)?/g;
 const DATE = /\b\d{1,2}[-./]\d{1,2}[-./]\d{2,4}\b/;
 const TIME = /\b\d{1,2}:\d{2}\b/;
 const TOTAL = /\b(totaal|total|te\s?betalen|eindtotaal|amount\s?due|grand\s?total|balance\s?due|a\s?pagar|importe\s?total)\b/i;
@@ -39,7 +40,7 @@ function amountsIn(line) {
   const out = [];
   for (const m of line.matchAll(AMOUNT)) {
     const neg = !!(m[1] || m[4]);
-    const cents = Number(m[2]) * 100 + Number(m[3]);
+    const cents = Number(m[2].replace(/[.,]/g, '')) * 100 + Number(m[3]);
     out.push({ cents: neg ? -cents : cents, index: m.index });
   }
   return out;
@@ -113,7 +114,8 @@ export function parseReceiptText(text) {
       name,
       qty,
       priceCents: last.cents,
-      everyone: /\b(service|bediening|fooi|couvert|tip|gratuity|cover|servicio|propina|cubierto)\b/i.test(name),
+      // Service/couvert en kortingen standaard over iedereen; aanpasbaar bij Verdelen.
+      everyone: last.cents < 0 || /\b(service|bediening|fooi|couvert|tip|gratuity|cover|servicio|propina|cubierto)\b/i.test(name),
     });
   }
 

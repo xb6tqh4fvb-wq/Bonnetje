@@ -43,14 +43,15 @@ export function parseEuro(input) {
  * Rondt een lijst (fractionele) centbedragen af naar gehele centen zodat de som
  * exact gelijk is aan de afgeronde som (methode van de grootste overschotten).
  */
-export function roundAlloc(values) {
-  const total = Math.round(values.reduce((a, b) => a + b, 0));
+export function roundAlloc(values, target = Math.round(values.reduce((a, b) => a + b, 0))) {
   const floors = values.map((v) => Math.floor(v + 1e-9));
-  let rest = total - floors.reduce((a, b) => a + b, 0);
+  let rest = target - floors.reduce((a, b) => a + b, 0);
   const order = values
     .map((v, i) => ({ i, frac: v - floors[i] }))
     .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  // Normaal 0..n-1 centen omhoog; bij een afwijkend doel ook omlaag (kleinste overschot eerst).
   for (let k = 0; rest > 0 && order.length; k = (k + 1) % order.length, rest--) floors[order[k].i] += 1;
+  for (let k = order.length - 1; rest < 0 && order.length; k = (k - 1 + order.length) % order.length, rest++) floors[order[k].i] -= 1;
   return floors;
 }
 
@@ -153,6 +154,11 @@ export function computeSplit(bill) {
   const persons = people.map((p, i) => {
     const tipCents = tipOwed[i] + extras[i];
     const dueCents = subs[i] + tipCents;
+    // Regels per persoon zo afronden dat ze exact optellen tot het subtotaal.
+    const pl = lines.get(p.id);
+    const lineCents = roundAlloc(pl.map((l) => l.cents), subs[i]);
+    // Bij 'betaald' vastgelegd bedrag; wijzigt de verdeling daarna, dan is er een verschil.
+    const paidCents = p.paid ? (p.paidCents ?? dueCents) : null;
     const cash = p.method === 'contant';
     const given = cash && p.givenCents != null ? p.givenCents : null;
     return {
@@ -169,13 +175,15 @@ export function computeSplit(bill) {
       dueCents,
       givenCents: given,
       changeCents: given == null ? null : given - dueCents,
-      lines: lines.get(p.id).map((l) => ({ ...l, cents: Math.round(l.cents) })),
+      paidCents,
+      paidDiffCents: paidCents == null ? 0 : dueCents - paidCents,
+      lines: pl.map((l, k) => ({ ...l, cents: lineCents[k] })),
     };
   });
 
   const tipTotal = persons.reduce((a, p) => a + p.tipCents, 0);
   const dueTotal = persons.reduce((a, p) => a + p.dueCents, 0);
-  const paidTotal = persons.filter((p) => p.paid).reduce((a, p) => a + p.dueCents, 0);
+  const paidTotal = persons.filter((p) => p.paid).reduce((a, p) => a + p.paidCents, 0);
   return {
     itemsTotal,
     assignedTotal,
