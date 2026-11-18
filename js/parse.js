@@ -10,7 +10,7 @@ const SUBTOTAL = /\b(sub\s?-?\s?totaal|sub\s?-?\s?total)\b/i;
 const SKIP = new RegExp(
   '\\b(' +
     [
-      'btw', 'b\\.t\\.w', 'vat', 'tax', 'excl\\w*', 'incl\\w*', 'pin', 'pinnen', 'betaling', 'betaald', 'contant',
+      'btw', 'b\\.t\\.w', 'vat', 'tax', 'excl', 'incl', 'pin', 'pinnen', 'betaling', 'betaald', 'contant',
       'cash', 'wisselgeld', 'terug', 'retour', 'visa', 'mastercard', 'maestro', 'v\\s?pay', 'amex', 'debit',
       'credit', 'kaart', 'card', 'transactie', 'autorisatie', 'auth', 'terminal', 'merchant', 'token',
       'saldo', 'change', 'bonnummer', 'bon\\s?nr', 'tafel', 'kassa', 'ober', 'bediende', 'datum', 'tijd',
@@ -63,17 +63,6 @@ function cleanName(s) {
     .replace(/^[^\p{L}\d]+|[^\p{L}\d)]+$/gu, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
-}
-
-const INCLUSIVE = /\b(incl\w*|inclusief|incluido|incluida|included|including)\b/i;
-const EXCLUSIVE = /\b(excl\w*|exclusief|zonder|sin|base|imponible|netto|net|before|pre)\b/i;
-const TAX_WORD = /\b(btw|b\.t\.w\.?|vat|iva|tax|gst)\b/i;
-
-/** Is deze totaalregel het eindtotaal (dus niet "excl. btw" of alleen het btw-bedrag)? */
-function isGrandTotal(line) {
-  if (INCLUSIVE.test(line)) return true;
-  if (EXCLUSIVE.test(line)) return false;
-  return !TAX_WORD.test(line);
 }
 
 const SEPARATOR = /^[\s\-=_*.·—–~]{6,}$/;
@@ -163,11 +152,9 @@ export function parseReceiptText(text, conf = null) {
         subtotal = last.cents;
         return;
       }
-      if (TOTAL.test(line)) {
-        // Elke totaalregel sluit de gerechten af. Het echte totaal is incl. btw;
-        // "totaal exclusief", "zonder btw" of alleen het btw-bedrag tellen niet.
+      if (TOTAL.test(line) && !/excl|btw|vat|iva|tax/i.test(line)) {
+        totals.push(last.cents);
         afterTotal = true;
-        if (isGrandTotal(line)) totals.push(last.cents);
         return;
       }
       if (afterTotal) return; // na het totaal volgen betaal- en btw-regels

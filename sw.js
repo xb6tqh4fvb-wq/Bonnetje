@@ -1,6 +1,6 @@
 // Service worker: app werkt offline. De leesmodules (Tesseract, pdf.js, taalbestand)
 // worden na het eerste gebruik ook gecachet.
-const VERSION = 'bonnetje-v9';
+const VERSION = 'bonnetje-v8';
 const SHELL = [
   './',
   './index.html',
