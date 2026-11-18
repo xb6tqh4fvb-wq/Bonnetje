@@ -43,6 +43,13 @@ export function itemWeights(item, people) {
   return Object.entries(item.assign || {}).filter(([pid, w]) => ids.has(pid) && w > 0);
 }
 
+/** Ronde bedragen boven het bontotaal als suggestie voor "maak er maar ... van". */
+export function roundUpSuggestions(cents) {
+  let first = Math.ceil(Math.max(0, cents) / 500) * 500;
+  if (first === cents) first += 500;
+  return [first, first + 500, first + 1000, Math.ceil((first + 1500) / 1000) * 1000];
+}
+
 /** Aantal nog niet toegewezen eenheden van een item. */
 export function unitsLeft(item, people) {
   if (item.everyone && people.length) return 0;
@@ -58,7 +65,8 @@ export function unitsLeft(item, people) {
  * Zijn er meer eenheden toegewezen dan het aantal (bv. 1 fles wijn met 3 personen), dan
  * wordt het item naar rato gedeeld.
  *
- * Fooi: doelbedrag T (geen / vast bedrag / percentage van de bon), verdeeld gelijk of
+ * Fooi: doelbedrag T (geen / vast bedrag / wat er boven het bonbedrag aan het restaurant
+ * is betaald, bv. "maak er maar 110 van"), verdeeld gelijk of
  * naar verhouding van consumpties -> aandeel s_i. Wat iemand vrijwillig extra geeft
  * (bv. wisselgeld laten liggen) = c_i wordt eerst met het eigen aandeel verrekend;
  * het overschot verlaagt de nog openstaande fooi-aandelen van de anderen naar rato.
@@ -89,7 +97,7 @@ export function computeSplit(bill) {
   const tip = bill.tip || { mode: 'none' };
   let tipTarget = 0;
   if (tip.mode === 'amount') tipTarget = Math.max(0, tip.amountCents || 0);
-  else if (tip.mode === 'percent') tipTarget = Math.max(0, Math.round((itemsTotal * (tip.percent || 0)) / 100));
+  else if (tip.mode === 'total') tipTarget = Math.max(0, (tip.paidTotalCents || 0) - itemsTotal);
 
   const n = people.length;
   const sumSubs = subs.reduce((a, b) => a + Math.max(0, b), 0);

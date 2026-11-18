@@ -14,7 +14,9 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
 
 ### Fooi
 
-- Geen, vast bedrag of percentage van de bon; verdeeld naar verhouding van consumpties of gelijk per persoon.
+- **Totaal betaald**: vul in wat er aan het restaurant is betaald ("maak er maar € 110 van"); het bedrag boven de bon is de fooi. Met snelknoppen voor ronde bedragen.
+- **Fooibedrag**: een vast fooibedrag.
+- De fooi wordt verdeeld naar verhouding van consumpties of gelijk per persoon.
 - Laat iemand wisselgeld liggen ("Rest is fooi") of geeft iemand extra fooi, dan wordt dat eerst met diens eigen fooi-aandeel verrekend; het overschot verlaagt de fooi van de anderen naar rato. Het bedrag voor een Tikkie past zich automatisch aan.
 - Alle bedragen worden in centen berekend; afrondingsverschillen worden zo verdeeld dat de som altijd exact klopt.
 

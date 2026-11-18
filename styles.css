@@ -206,6 +206,7 @@ input.price { text-align: right; font-variant-numeric: tabular-nums; max-width: 
 .tipbox summary::-webkit-details-marker { display: none; }
 .tipbox[open] summary { margin-bottom: 12px; }
 .tipbox .field, .tipbox .label { margin-top: 12px; display: grid; }
+.tipbox .quick, .tipbox .alert { margin-top: 10px; }
 .tipbox p { margin: 12px 0 0; }
 .seg { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 3px; }
 .seg button { flex: 1; padding: 8px 6px; border: 0; border-radius: 8px; background: none; cursor: pointer; font-weight: 600; color: var(--muted); }

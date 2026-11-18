@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft } from '../js/calc.js';
+import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft, roundUpSuggestions } from '../js/calc.js';
 
 const P = (id, extra = {}) => ({ id, name: id.toUpperCase(), method: 'contant', givenCents: null, extraTipCents: 0, paid: false, ...extra });
 
@@ -64,7 +64,7 @@ test('fooi naar verhouding en gelijk', () => {
     { id: '1', name: 'X', qty: 1, priceCents: 3000, assign: { a: 1 } },
     { id: '2', name: 'Y', qty: 1, priceCents: 1000, assign: { b: 1 } },
   ];
-  const prop = computeSplit({ people: [P('a'), P('b')], items, tip: { mode: 'percent', percent: 10, distribution: 'proportional' } });
+  const prop = computeSplit({ people: [P('a'), P('b')], items, tip: { mode: 'amount', amountCents: 400, distribution: 'proportional' } });
   assert.deepEqual(prop.persons.map((p) => p.tipCents), [300, 100]);
   const eq = computeSplit({ people: [P('a'), P('b')], items, tip: { mode: 'amount', amountCents: 500, distribution: 'equal' } });
   assert.deepEqual(eq.persons.map((p) => p.tipCents), [250, 250]);
@@ -111,4 +111,22 @@ test('betaald / open', () => {
   });
   assert.equal(r.paidTotal, 500);
   assert.equal(r.openTotal, 500);
+});
+
+test('fooi = bedrag dat boven de bon aan het restaurant is betaald', () => {
+  const items = [
+    { id: '1', name: 'X', qty: 1, priceCents: 6000, assign: { a: 1 } },
+    { id: '2', name: 'Y', qty: 1, priceCents: 3880, assign: { b: 1 } },
+  ];
+  const r = computeSplit({ people: [P('a'), P('b')], items, tip: { mode: 'total', paidTotalCents: 11000, distribution: 'equal' } });
+  assert.equal(r.tipTarget, 1120);
+  assert.deepEqual(r.persons.map((p) => p.tipCents), [560, 560]);
+  assert.equal(r.dueTotal, 11000);
+  const under = computeSplit({ people: [P('a'), P('b')], items, tip: { mode: 'total', paidTotalCents: 9000 } });
+  assert.equal(under.tipTarget, 0);
+});
+
+test('suggesties voor afronden', () => {
+  assert.deepEqual(roundUpSuggestions(9880), [10000, 10500, 11000, 12000]);
+  assert.deepEqual(roundUpSuggestions(10000), [10500, 11000, 11500, 12000]);
 });
