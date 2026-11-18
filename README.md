@@ -12,6 +12,18 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
    - 👥-knop: gelijk over iedereen (ook mensen die later worden toegevoegd), bv. servicekosten.
 4. **Overzicht** – per persoon het te betalen bedrag, betaalwijze (contant / pin / Tikkie), wat iemand geeft en wat hij/zij terugkrijgt, en een vinkje voor *betaald*. Bovenaan: betaald, nog open, voortgang.
 
+### Bon aanleveren
+
+- Foto maken of een foto/PDF kiezen. PDF's zonder tekstlaag (bv. uit Voorvertoning geëxporteerd) worden met tekstherkenning gelezen.
+- Op een computer: sleep een foto of PDF op de app, of kopieer de bon in Voorvertoning (⌘A, ⌘C) en plak hem in de app (⌘V).
+- Een webapp kan op iPhone/Mac niet in het deelmenu van andere apps verschijnen; daarom deze routes.
+
+### Verdeling versturen
+
+- Naar de hele groep of per deelnemer een persoonlijk bericht met eigen bedrag en specificatie.
+- Via WhatsApp, e-mail of *Meer…* (het deelmenu van het toestel: Signal, Berichten, enz.). Signal heeft geen link om een bericht voor te vullen, dus dat gaat via het deelmenu.
+- Optioneel veld voor betaalgegevens (Tikkie-link of IBAN), dat in de berichten wordt opgenomen. Wie al betaald heeft, krijgt een bedankje in plaats van een betaalverzoek.
+
 ### Fooi
 
 - **Totaal betaald**: vul in wat er aan het restaurant is betaald ("maak er maar € 110 van"); het bedrag boven de bon is de fooi. Met snelknoppen voor ronde bedragen.

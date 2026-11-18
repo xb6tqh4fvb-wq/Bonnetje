@@ -204,6 +204,7 @@ function viewHome() {
       </div>
     </section>
     ${list ? `<section><h2 class="section-title">${t('earlier')}</h2><ul class="bill-list">${list}</ul></section>` : ''}
+    <p class="foot muted desktop-only">${t('dropHint')}</p>
     <p class="foot muted">${t('privacy')}</p>
   </main>`;
 }
@@ -447,9 +448,7 @@ function viewOverview(b, r) {
     <p class="muted small">${tp.mode === 'perPerson' ? t('perPersonHelp') : t('tipHelp')}</p>
   </details>
   <section class="people-cards">${cards}</section>
-  <div class="stack">
-    <button class="btn primary big" data-action="share">${icon('share')} ${t('shareBtn')}</button>
-  </div>`;
+  ${viewSend(b, r)}`;
 }
 
 function personCard(b, p) {
@@ -515,6 +514,62 @@ function personCard(b, p) {
 const emptyHint = (msg, tab, label) =>
   `<section class="card empty"><p>${msg}</p><button class="btn primary" data-action="tab" data-tab="${tab}">${label}</button></section>`;
 
+function viewSend(b, r) {
+  const btns = (id) => `<div class="send-btns">
+      <button class="btn small-btn wa" data-action="send" data-via="wa" data-id="${id}">${icon('chat')} WhatsApp</button>
+      <button class="btn small-btn" data-action="send" data-via="mail" data-id="${id}">${icon('mail')} ${t('email')}</button>
+      <button class="btn small-btn" data-action="send" data-via="share" data-id="${id}">${icon('share')} ${t('more')}</button>
+    </div>`;
+  return `<section class="card send">
+    <h3>${icon('share')} ${t('sendTitle')}</h3>
+    <label class="field"><span>${t('payInfo')}</span><input value="${esc(b.payInfo || '')}" placeholder="${t('payInfoPh')}" data-action="pay-info" autocomplete="off"></label>
+    <div class="send-row"><strong>${t('sendGroup')}</strong>${btns('all')}</div>
+    <span class="label">${t('sendPerson')}</span>
+    ${r.persons
+      .map(
+        (p) => `<div class="send-row person" style="--c:${colorOf(b, p.id)}">
+          <span class="who-line"><span class="avatar sm" style="background:${colorOf(b, p.id)}">${esc(initials(p.name))}</span>
+            <strong>${esc(p.name)}</strong><span class="muted">${formatEuro(p.dueCents)}${p.paid ? ' ✓' : ''}</span></span>
+          ${btns(p.id)}</div>`
+      )
+      .join('')}
+    <p class="muted small">${t('sendHelp')}</p>
+  </section>`;
+}
+
+function personText(b, p) {
+  const lines = p.lines.map(
+    (l) => `• ${l.units > 1 ? `${l.units}× ` : ''}${l.name}${l.shared ? ` ${t('sharedTag')}` : ''}: ${formatEuro(l.cents)}`
+  );
+  if (p.tipCents) lines.push(`• ${t('tipLine')}: ${formatEuro(p.tipCents)}`);
+  return [
+    t('msgHi', { name: p.name }),
+    t('msgShare', { title: b.title, date: fmtDate(b.createdAt, false), a: formatEuro(p.dueCents) }),
+    '',
+    t('msgSpec'),
+    ...lines,
+    '',
+    p.paid ? t('msgPaid') : b.payInfo ? t('msgPayVia', { info: b.payInfo }) : '',
+    t('msgThanks'),
+  ]
+    .filter((x, i, arr) => !(x === '' && arr[i - 1] === ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+async function send(via, text, subject) {
+  if (via === 'wa') return void window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  if (via === 'mail') return void (location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`);
+  if (navigator.share) {
+    try {
+      return await navigator.share({ title: subject, text });
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  return copy(text);
+}
+
 function shareText(b) {
   const r = computeSplit(b);
   const lines = r.persons.map((p) => {
@@ -526,6 +581,7 @@ function shareText(b) {
     ...lines,
     t('shareTotal', { a: formatEuro(r.dueTotal) }) + (r.tipTotal ? t('shareTipTotal', { a: formatEuro(r.tipTotal) }) : ''),
     r.openTotal ? t('shareOpen', { a: formatEuro(r.openTotal) }) : t('shareAllPaid'),
+    ...(b.payInfo && r.openTotal ? [t('payVia', { info: b.payInfo })] : []),
   ].join('\n');
 }
 
@@ -655,16 +711,11 @@ $app.addEventListener('click', async (e) => {
     }
     case 'copy':
       return copy(formatPlain(Number(el.dataset.cents)));
-    case 'share': {
-      const text = shareText(b);
-      if (navigator.share) {
-        try {
-          return await navigator.share({ text });
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-        }
-      }
-      return copy(text);
+    case 'send': {
+      const subject = t('mailSubject', { title: b.title });
+      if (id === 'all') return send(el.dataset.via, shareText(b), subject);
+      const p = computeSplit(b).persons.find((x) => x.id === id);
+      return send(el.dataset.via, personText(b, p), subject);
     }
   }
 });
@@ -710,6 +761,9 @@ $app.addEventListener('change', (e) => {
       }
       return commit();
     }
+    case 'pay-info':
+      b.payInfo = el.value.trim();
+      return commit();
     case 'receipt-total':
       b.receiptTotalCents = el.value.trim() ? parseEuro(el.value) : null;
       return commit();
@@ -782,10 +836,53 @@ function icon(name) {
     check: '<path d="M5 12l5 5 9-10"/>',
     users: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c3 0 5 2.5 5 5.5"/>',
     share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
+    chat: '<path d="M4 20l1.5-4A8 8 0 1 1 8 18.5z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
   }[name];
   return `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
+
+// ---------- plakken en slepen (bv. vanuit Voorvertoning op de Mac) ----------
+const receiptFileFrom = (list) =>
+  [...(list || [])].find((f) => f && (/^image\//.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')));
+
+function acceptFile(file) {
+  if (!file || ui.ocr?.label) return;
+  importFile(file, bill() || newBill());
+}
+
+document.addEventListener('paste', (e) => {
+  const file = receiptFileFrom([...(e.clipboardData?.items || [])].filter((i) => i.kind === 'file').map((i) => i.getAsFile()));
+  if (!file) return;
+  e.preventDefault();
+  acceptFile(file);
+});
+
+let dragDepth = 0;
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
+  dragDepth++;
+  document.body.dataset.drop = t('dropHere');
+  document.body.classList.add('dragging');
+});
+document.addEventListener('dragover', (e) => {
+  if (hasFiles(e)) e.preventDefault();
+});
+document.addEventListener('dragleave', () => {
+  if (--dragDepth <= 0) {
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+  }
+});
+document.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dragging');
+  acceptFile(receiptFileFrom(e.dataTransfer.files));
+});
 
 render();
 

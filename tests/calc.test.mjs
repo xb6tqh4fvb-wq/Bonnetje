@@ -153,3 +153,14 @@ test('afrondsuggesties per persoon', () => {
   assert.deepEqual(personRoundUps(2240), [2300, 2500, 3000]);
   assert.deepEqual(personRoundUps(2500), [2600, 3000]);
 });
+
+test('"iedereen" op een regel met meerdere stuks verdeelt het hele bedrag', () => {
+  const r = computeSplit({
+    people: [P('a'), P('b')],
+    items: [{ id: 'h', name: 'Heineken', qty: 3, priceCents: 1350, everyone: true }],
+    tip: { mode: 'none' },
+  });
+  assert.deepEqual(r.persons.map((p) => p.subtotalCents), [675, 675]);
+  assert.equal(r.unassignedCents, 0);
+  assert.equal(r.persons[0].lines[0].shared, true);
+});

@@ -111,11 +111,12 @@ export function computeSplit(bill) {
     const weights = itemWeights(item, people);
     const W = weights.reduce((a, [, w]) => a + w, 0);
     if (!W) continue;
-    const denom = Math.max(item.qty || 1, W);
+    // 'iedereen': het hele regelbedrag gelijk verdelen, ongeacht het aantal stuks.
+    const denom = item.everyone ? W : Math.max(item.qty || 1, W);
     for (const [pid, w] of weights) {
       const share = ((item.priceCents || 0) * w) / denom;
       raw.set(pid, raw.get(pid) + share);
-      lines.get(pid).push({ itemId: item.id, name: item.name, units: w, shared: W > (item.qty || 1), cents: share });
+      lines.get(pid).push({ itemId: item.id, name: item.name, units: w, shared: item.everyone ? W > 1 : W > (item.qty || 1), cents: share });
     }
   }
   const subs = roundAlloc(people.map((p) => raw.get(p.id)));
