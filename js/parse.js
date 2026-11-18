@@ -4,8 +4,8 @@
 const AMOUNT = /(-\s?)?€?\s?(\d{1,5})\s?[,.]\s?(\d{2})(?!\d)(\s?-)?/g;
 const DATE = /\b\d{1,2}[-./]\d{1,2}[-./]\d{2,4}\b/;
 const TIME = /\b\d{1,2}:\d{2}\b/;
-const TOTAL = /\b(totaal|total|te\s?betalen|eindtotaal|amount\s?due)\b/i;
-const SUBTOTAL = /\b(sub\s?-?\s?totaal|subtotal)\b/i;
+const TOTAL = /\b(totaal|total|te\s?betalen|eindtotaal|amount\s?due|grand\s?total|balance\s?due|a\s?pagar|importe\s?total)\b/i;
+const SUBTOTAL = /\b(sub\s?-?\s?totaal|sub\s?-?\s?total)\b/i;
 const SKIP = new RegExp(
   '\\b(' +
     [
@@ -14,6 +14,13 @@ const SKIP = new RegExp(
       'credit', 'kaart', 'card', 'transactie', 'autorisatie', 'auth', 'terminal', 'merchant', 'token',
       'saldo', 'change', 'bonnummer', 'bon\\s?nr', 'tafel', 'kassa', 'ober', 'bediende', 'datum', 'tijd',
       'tel', 'kvk', 'iban', 'bedankt', 'tot\\s?ziens',
+      // Spaans
+      'iva', 'base', 'imponible', 'cuota', 'efectivo', 'tarjeta', 'entregado', 'cambio', 'devolver', 'devuelto',
+      'mesa', 'camarero', 'camarera', 'factura', 'ticket', 'gracias', 'cif', 'nif', 'fecha', 'hora', 'comensales',
+      'atendido', 'pagado', 'pago', 'operacion', 'importe',
+      // Engels
+      'tax', 'gst', 'cash', 'tendered', 'server', 'table', 'guests?', 'thank', 'receipt', 'check', 'order', 'paid',
+      'payment', 'approved', 'balance',
     ].join('|') +
     ')\\b',
   'i'
@@ -71,14 +78,14 @@ export function parseReceiptText(text) {
       subtotal = last.cents;
       continue;
     }
-    if (TOTAL.test(line) && !/excl|btw|vat/i.test(line)) {
+    if (TOTAL.test(line) && !/excl|btw|vat|iva|tax/i.test(line)) {
       totals.push(last.cents);
       afterTotal = true;
       continue;
     }
     if (afterTotal) continue; // na het totaal volgen betaal- en btw-regels
     if (SKIP.test(line) || DATE.test(line) || TIME.test(line)) continue;
-    if (/%/.test(line) && !/korting|discount|service/i.test(line)) continue;
+    if (/%/.test(line) && !/korting|discount|descuento|service|servicio|propina|gratuity/i.test(line)) continue;
     if (!last.cents) continue;
 
     let name = line.slice(0, amounts[0].index);
@@ -106,7 +113,7 @@ export function parseReceiptText(text) {
       name,
       qty,
       priceCents: last.cents,
-      everyone: /\b(service|bediening|fooi|couvert|tip)\b/i.test(name),
+      everyone: /\b(service|bediening|fooi|couvert|tip|gratuity|cover|servicio|propina|cubierto)\b/i.test(name),
     });
   }
 

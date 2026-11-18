@@ -3,19 +3,37 @@
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
-const euroFmt = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
+let locale = 'nl-NL';
+let euroFmt, euroShortFmt, plainFmt;
+/** Notatie van bedragen: 'nl-NL' (€ 22,50) of 'en-IE' (€22.50). */
+export function setNumberLocale(l) {
+  locale = l;
+  euroFmt = new Intl.NumberFormat(l, { style: 'currency', currency: 'EUR' });
+  euroShortFmt = new Intl.NumberFormat(l, { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  plainFmt = new Intl.NumberFormat(l, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+}
+setNumberLocale(locale);
+
 export const formatEuro = (cents) => euroFmt.format((cents || 0) / 100);
+/** Zonder ",00" bij ronde bedragen (voor knoppen): "€ 50" / "€ 22,50". */
+export const formatEuroShort = (cents) =>
+  (cents || 0) % 100 === 0 ? euroShortFmt.format((cents || 0) / 100) : formatEuro(cents);
+/** Bedrag zonder valutateken, bv. "22,50" (handig voor Tikkie en invoervelden). */
+export const formatPlain = (cents) => plainFmt.format((cents || 0) / 100);
 
-/** Bedrag zonder valutateken, bv. "22,50" (handig voor Tikkie). */
-export const formatPlain = (cents) =>
-  ((cents || 0) / 100).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/** "22,50" / "22.50" / "€ 22" / "-3,00" -> centen. Ongeldig -> null. */
+/** "22,50" / "22.50" / "€ 22" / "-3,00" / "1.234,56" / "1,234.56" -> centen. Ongeldig -> null. */
 export function parseEuro(input) {
   if (input === null || input === undefined) return null;
   let s = String(input).trim().replace(/[€\s]/g, '');
   if (!s) return null;
-  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Het laatste scheidingsteken is de decimale komma/punt.
+    s = lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  } else if (lastComma >= 0) {
+    s = s.replace(',', '.');
+  }
   if (!/^-?\d*(\.\d*)?$/.test(s) || s === '-' || s === '.') return null;
   const n = Number(s);
   return Number.isFinite(n) ? Math.round(n * 100) : null;

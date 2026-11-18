@@ -1,6 +1,9 @@
 // Uitlezen van een bon: foto via Tesseract (OCR op het toestel), PDF via pdf.js
 // (tekstlaag; valt terug op OCR als de PDF een scan is). Geen server, geen API-sleutel.
 import { linesFromPositioned } from './parse.js';
+import { t } from './i18n.js';
+
+const TESS_LANG = { nl: 'nld', es: 'spa', en: 'eng', auto: 'nld+spa+eng' };
 
 const TESSERACT = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
@@ -14,7 +17,7 @@ function loadScript(src) {
     s.onload = resolve;
     s.onerror = () => {
       delete scripts[src];
-      reject(new Error('Kon de leesmodule niet laden. Ben je online? (eerste keer is internet nodig)'));
+      reject(new Error(t('ocrLoadFail')));
     };
     document.head.appendChild(s);
   });
@@ -26,7 +29,7 @@ function loadImage(file) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Kon de afbeelding niet openen.'));
+    img.onerror = () => reject(new Error(t('ocrImgFail')));
     img.src = url;
   });
 }
@@ -71,16 +74,16 @@ function preprocess(source) {
   return c;
 }
 
-async function ocr(canvases, onProgress) {
+async function ocr(canvases, onProgress, lang = 'auto') {
   await loadScript(TESSERACT);
-  onProgress({ label: 'Leesmodule starten…', progress: 0 });
+  onProgress({ label: t('ocrStart'), progress: 0 });
   let page = 0;
-  const worker = await window.Tesseract.createWorker('nld', 1, {
+  const worker = await window.Tesseract.createWorker(TESS_LANG[lang] || TESS_LANG.auto, 1, {
     logger: (m) => {
       if (m.status === 'recognizing text') {
-        onProgress({ label: 'Tekst herkennen…', progress: (page + m.progress) / canvases.length });
+        onProgress({ label: t('ocrRecog'), progress: (page + m.progress) / canvases.length });
       } else if (/load|initializ/i.test(m.status)) {
-        onProgress({ label: 'Taalbestand laden (eenmalig)…', progress: m.progress || 0 });
+        onProgress({ label: t('ocrLang'), progress: m.progress || 0 });
       }
     },
   });
@@ -113,17 +116,17 @@ function stack(canvases) {
 
 const preview = (source) => scaledCanvas(source, 1400).toDataURL('image/jpeg', 0.7);
 
-async function readImage(file, onProgress) {
-  onProgress({ label: 'Foto openen…', progress: 0 });
+async function readImage(file, onProgress, lang) {
+  onProgress({ label: t('ocrPhoto'), progress: 0 });
   const img = await loadImage(file);
   const previewUrl = preview(img);
-  const text = await ocr([preprocess(img)], onProgress);
+  const text = await ocr([preprocess(img)], onProgress, lang);
   URL.revokeObjectURL(img.src);
   return { text, previewUrl, source: 'foto' };
 }
 
-async function readPdf(file, onProgress) {
-  onProgress({ label: 'PDF openen…', progress: 0 });
+async function readPdf(file, onProgress, lang) {
+  onProgress({ label: t('ocrPdf'), progress: 0 });
   await loadScript(PDFJS);
   const pdfjs = window.pdfjsLib;
   pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
@@ -145,19 +148,20 @@ async function readPdf(file, onProgress) {
     ctx.fillRect(0, 0, c.width, c.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
     canvases.push(c);
-    onProgress({ label: 'PDF lezen…', progress: i / pages });
+    onProgress({ label: t('ocrPdfRead'), progress: i / pages });
   }
   const sheet = stack(canvases);
   const previewUrl = preview(sheet);
   if (text.replace(/\s/g, '').length < 20) {
     // Gescande PDF zonder tekstlaag: alsnog OCR.
-    text = await ocr(canvases.map(preprocess), onProgress);
+    text = await ocr(canvases.map(preprocess), onProgress, lang);
     return { text, previewUrl, source: 'pdf-scan' };
   }
   return { text, previewUrl, source: 'pdf' };
 }
 
-export function readReceiptFile(file, onProgress = () => {}) {
+/** lang: 'nl' | 'es' | 'en' | 'auto' (alle drie; iets trager). */
+export function readReceiptFile(file, onProgress = () => {}, lang = 'auto') {
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-  return isPdf ? readPdf(file, onProgress) : readImage(file, onProgress);
+  return isPdf ? readPdf(file, onProgress, lang) : readImage(file, onProgress, lang);
 }

@@ -21,9 +21,16 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
 - Laat iemand wisselgeld liggen ("Rest is fooi") of geeft iemand extra fooi, dan wordt dat eerst met diens eigen fooi-aandeel verrekend; het overschot verlaagt de fooi van de anderen naar rato. Het bedrag voor een Tikkie past zich automatisch aan.
 - Alle bedragen worden in centen berekend; afrondingsverschillen worden zo verdeeld dat de som altijd exact klopt.
 
+### Talen
+
+- **App in het Nederlands of Engels**: schakelaar NL/EN rechtsboven. Bedragen en datums volgen de taal (€ 22,50 / €22.50, DD-MM-JJJJ / DD/MM/YYYY).
+- **Bonnen in het Nederlands, Spaans of Engels**: de taal wordt automatisch herkend (of kies hem vooraf). Ook woorden als *total*, *IVA*, *propina*, *tax* en *tip* worden herkend.
+- **Vertalen van de regels**: een ingebouwd horecawoordenboek (offline) vertaalt de omschrijvingen naar de taal van de app, bv. *Pollo a la plancha* → "Gegrilde kip". Het origineel blijft eronder staan, zodat je het op de bon terugvindt. Kent het woordenboek een woord niet, dan kun je de rest **online** laten vertalen (MyMemory; alleen de omschrijvingen worden verstuurd).
+- Een taal toevoegen: een kolom in de tabel in `js/translate.js`, de bonwoorden in `js/parse.js`, het taalbestand in `js/ocr.js` en (voor de app zelf) een blok in `js/i18n.js`.
+
 ## Privacy
 
-Alles blijft op het toestel (localStorage). Geen account, geen server. Alleen de leesmodules (Tesseract, pdf.js en het taalbestand) worden de eerste keer van cdn.jsdelivr.net gedownload en daarna gecachet.
+Alles blijft op het toestel (localStorage). Geen account, geen server. Uitzondering: de knop *Online vertalen* stuurt de omschrijvingen van de bonregels naar MyMemory. Alleen de leesmodules (Tesseract, pdf.js en de taalbestanden) worden de eerste keer van cdn.jsdelivr.net gedownload en daarna gecachet.
 
 ## Ontwikkelen
 
