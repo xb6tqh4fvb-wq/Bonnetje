@@ -37,7 +37,7 @@ Heb je een GitHub-account, maak dan een melding aan via [Issues → New issue](h
 
 ### Steunen
 
-Vind je Bonnetje handig? Een kleine bijdrage via de knop **Sponsor** bovenaan deze pagina wordt gewaardeerd, maar is nooit nodig.
+Vind je Bonnetje handig? Een kleine bijdrage via de knop **Sponsor** bovenaan deze pagina of via https://www.paypal.me/Inzane007 wordt gewaardeerd, maar is nooit nodig.
 
 ---
 
@@ -70,7 +70,7 @@ If you have a GitHub account, open an issue via [Issues → New issue](https://g
 
 ### Support
 
-Find Bonnetje useful? A small contribution via the **Sponsor** button at the top of this page is appreciated, but never required.
+Find Bonnetje useful? A small contribution via the **Sponsor** button at the top of this page or via https://www.paypal.me/Inzane007 is appreciated, but never required.
 
 ---
 
