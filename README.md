@@ -11,7 +11,7 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
    - Aantallen (3× bier): elke tik is één stuk. Met **Splits** maak je van een regel met meerdere stuks losse regels, bv. om twee flessen wijn elk over andere personen te verdelen.
    - Delen (fles wijn): tik het item bij meerdere personen aan → naar rato verdeeld.
    - 👥-knop: gelijk over iedereen (ook mensen die later worden toegevoegd), bv. servicekosten.
-4. **Overzicht** – per persoon in één oogopslag: vinkje *betaald*, naam, bedrag en een statusregel (bv. "Contant · terug € 3,16"). Onder *Betaling en details*: betaalwijze (contant / pin / Tikkie), wat iemand geeft en wat hij/zij terugkrijgt, en een vinkje voor *betaald*. Bovenaan: betaald, nog open, voortgang. Bij afvinken wordt het betaalde bedrag vastgelegd; verandert de verdeling daarna, dan toont de app het verschil (bijbetalen of teruggeven).
+4. **Overzicht** – per persoon in één oogopslag: vinkje *betaald*, naam, bedrag en een statusregel (bv. "Contant · terug € 3,16"). Onder *Betaling en details*: betaalwijze (contant / pin / Tikkie), wat iemand geeft en terugkrijgt, de specificatie en een persoonlijk bericht. Bovenaan: betaald, nog open, voortgang. Bij afvinken wordt het betaalde bedrag vastgelegd; verandert de verdeling daarna, dan toont de app het verschil (bijbetalen of teruggeven).
 
 ### Bon aanleveren
 
