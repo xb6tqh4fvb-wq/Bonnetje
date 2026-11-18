@@ -14,14 +14,16 @@
 
 Na een etentje met vrienden: maak een foto van de bon en Bonnetje rekent uit wie wat moet betalen.
 
-1. **Bon** – foto maken (of foto/PDF kiezen). De app leest de regels en controleert ze tegen het totaal op de bon.
+1. **Bon** – foto maken (of foto/PDF kiezen). De app probeert de regels zelf uit te lezen. Daarna controleer je ze in één overzicht: wat er op de bon staat, de vertaling, aantal en bedrag naast elkaar, met een duidelijke waarschuwing als de regels niet optellen tot het totaal op de bon. Onzeker gelezen regels zijn gemarkeerd.
 2. **Deelnemers** – vul de namen in.
 3. **Verdelen** – kies wie, tik aan wat hij of zij had. Samen een fles wijn? Tik hem bij ieder aan. Iets voor de hele groep? Eén tik.
 4. **Overzicht** – ieders bedrag, inclusief fooi. Vink af wie betaald heeft, zie wat iemand terugkrijgt bij contant betalen en stuur iedereen zijn bedrag via WhatsApp, e-mail of Signal.
 
 Verder: fooi verdelen (bijv. "maak er € 110 van" of per persoon), bonnen uit het buitenland vertalen (Spaans/Engels), app in het Nederlands of Engels, grote tekst, donkere weergave en een knop om een stap terug te gaan.
 
-**Gratis, geen account, geen reclame.** Alles blijft op je eigen telefoon; de bon wordt op het toestel zelf uitgelezen en niet naar een server gestuurd.
+**Gratis, geen account, geen reclame.** De foto wordt op je telefoon zelf uitgelezen; foto, namen en bedragen blijven op het toestel. Wel gaat er tekst naar buiten in twee gevallen: omschrijvingen van bonregels die het ingebouwde woordenboek niet kent, worden **automatisch online vertaald via MyMemory** (alleen die omschrijvingen, bijvoorbeeld "Berenjenas a la miel"; geen namen, bedragen of foto), en berichten die jij zelf verstuurt. De eerste keer downloadt de app de leesmodule van jsDelivr; daarbij gaat geen informatie over je bon mee.
+
+**Let op:** het uitlezen gaat niet altijd foutloos, zeker niet bij vage, scheve of verkreukte bonnen. Controleer de regels altijd even met de foto voordat je verdeelt.
 
 **Installeren:** open de link in Safari (iPhone) of Chrome (Android) en kies *Zet op beginscherm*.
 
@@ -47,14 +49,16 @@ Vind je Bonnetje handig? Een kleine bijdrage via de knop **Sponsor** bovenaan de
 
 After dinner with friends: take a photo of the bill and Bonnetje works out who owes what.
 
-1. **Bill** – take a photo (or choose a photo/PDF). The app reads the lines and checks them against the total on the bill.
+1. **Bill** – take a photo (or choose a photo/PDF). The app tries to read the lines itself. You then check them in one overview: what is on the bill, the translation, quantity and amount side by side, with a clear warning if the lines don't add up to the total on the bill. Lines read with low confidence are marked.
 2. **People** – enter the names.
 3. **Split** – choose who, then tap what they had. Shared a bottle of wine? Tap it for each person. Something for the whole group? One tap.
 4. **Overview** – everyone's amount, including tip. Tick off who has paid, see how much change someone gets when paying cash, and send everyone their amount via WhatsApp, email or Signal.
 
 Also: splitting the tip (e.g. "make it €110" or per person), translating bills from abroad (Spanish/English → Dutch or English), the app in Dutch or English, large text, dark mode and an undo button.
 
-**Free, no account, no ads.** Everything stays on your own phone; the bill is read on the device itself and never sent to a server.
+**Free, no account, no ads.** The photo is read on your phone itself; photo, names and amounts stay on the device. Text does leave it in two cases: line descriptions that the built-in dictionary doesn't know are **translated online automatically via MyMemory** (only those descriptions, e.g. "Berenjenas a la miel"; no names, amounts or photo), and messages you send yourself. The first time, the app downloads the reader from jsDelivr; nothing about your bill is sent along.
+
+**Note:** reading the bill isn't always perfect, especially with blurry, skewed or crumpled bills. Always check the lines against the photo before splitting.
 
 **Install:** open the link in Safari (iPhone) or Chrome (Android) and choose *Add to Home Screen*.
 
@@ -114,11 +118,19 @@ Find Bonnetje useful? A small contribution via the **Sponsor** button at the top
 - Laat iemand wisselgeld liggen ("Rest is fooi") of geeft iemand extra fooi, dan wordt dat eerst met diens eigen fooi-aandeel verrekend; het overschot verlaagt de fooi van de anderen naar rato. Het bedrag voor een Tikkie past zich automatisch aan.
 - Alle bedragen worden in centen berekend; afrondingsverschillen worden zo verdeeld dat de som altijd exact klopt.
 
+#### Uitlezen en controleren
+
+- De foto wordt voorbewerkt: bon uit de achtergrond knippen, scheefstand rechtzetten, schaduw egaliseren. De app controleert zelf of de regels optellen tot het totaal; zo niet, dan leest hij opnieuw met een andere beeldbewerking en kiest de beste uitkomst.
+- Herkent ook: aantallen voor of achter de naam (`2 Cola`, `Cola x2`), stukprijs + regeltotaal, bedragen boven € 1.000, kortingen, en naam en bedrag die door een scheve foto op aparte regels staan.
+- Getest met vier nagemaakte Spaanse bonnen (tapasbar, restaurant met afkortingen, strandtent, en een scheve, vage foto): alle 33 regels, aantallen en totalen goed. **Met echte bonnen is dit nog beperkt getest**; daarom is de controlestap er.
+
 #### Talen
 
 - **App in het Nederlands of Engels**: schakelaar NL/EN rechtsboven. Bedragen en datums volgen de taal (€ 22,50 / €22.50, DD-MM-JJJJ / DD/MM/YYYY).
 - **Bonnen in het Nederlands, Spaans of Engels**: de taal wordt automatisch herkend (of kies hem vooraf). Bij *Automatisch* leest de app eerst in de taal van de app (één taalbestand van ±3 MB); blijkt de bon in een andere taal, dan leest hij nog één keer met het juiste taalbestand. Ook woorden als *total*, *IVA*, *propina*, *tax* en *tip* worden herkend.
-- **Vertalen van de regels**: een ingebouwd horecawoordenboek (offline) vertaalt de omschrijvingen naar de taal van de app, bv. *Pollo a la plancha* → "Gegrilde kip". Het origineel blijft eronder staan, zodat je het op de bon terugvindt. Kent het woordenboek een woord niet, dan kun je de rest **online** laten vertalen (MyMemory; alleen de omschrijvingen worden verstuurd).
+- **Vertalen van de regels**: een ingebouwd horecawoordenboek (offline) vertaalt de omschrijvingen naar de taal van de app, bv. *Pollo a la plancha* → "Gegrilde kip", *CERV. ALHAMBRA* → "Bier Alhambra", *Paella marisco* → "Zeevruchtenpaella". Kent het woordenboek Spaanse afkortingen, merken en zinsbouw ("X de Y", verpakking als *botella*/*copa*). Origineel en vertaling staan naast elkaar.
+- **Onzeker = origineel blijft staan.** Kan een omschrijving niet volledig vertaald worden, dan blijft het origineel de naam en verschijnt de deelvertaling alleen als suggestie ("Gebruiken").
+- **Online vertalen** gebeurt automatisch voor omschrijvingen die het woordenboek niet volledig kent: alleen die tekst gaat naar MyMemory. Zulke regels krijgen het label *Online vertaald via MyMemory*. Zonder internet blijft het origineel staan met een knop *Opnieuw proberen*.
 - Een taal toevoegen: een kolom in de tabel in `js/translate.js`, de bonwoorden in `js/parse.js`, het taalbestand in `js/ocr.js` en (voor de app zelf) een blok in `js/i18n.js`.
 
 #### Weergave en leesbaarheid
@@ -132,7 +144,16 @@ Via de knop **Aa Weergave** bovenin:
 
 ### Privacy
 
-Alles blijft op het toestel (localStorage). Geen account, geen server. Uitzondering: de knop *Online vertalen* stuurt de omschrijvingen van de bonregels naar MyMemory. Alleen de leesmodules (Tesseract, pdf.js en de taalbestanden) worden de eerste keer van cdn.jsdelivr.net gedownload en daarna gecachet.
+Wat er over internet gaat:
+
+| Wanneer | Waarheen | Wat |
+|---|---|---|
+| App openen | GitHub Pages | de app zelf |
+| Eerste keer een bon lezen | cdn.jsdelivr.net | leesmodule en taalbestanden (alleen downloaden; daarna bewaard) |
+| Automatisch, als het woordenboek een omschrijving niet kent | api.mymemory.translated.net | alleen die omschrijvingen (geen namen, bedragen of foto); zulke regels krijgen het label *Online vertaald via MyMemory* |
+| Alleen als jij een bericht verstuurt | WhatsApp / e-mail / gekozen app | het bericht dat je ziet |
+
+Foto, namen, bedragen en betaalstatus blijven op het toestel (localStorage). Geen account, geen server, geen statistieken.
 
 ### Ontwikkelen
 

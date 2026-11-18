@@ -2,7 +2,7 @@ import {
   computeSplit, formatEuro, formatEuroShort, formatPlain, parseEuro, uid, unitsLeft, itemWeights,
   roundUpSuggestions, personRoundUps, splitLine,
 } from './calc.js';
-import { parseReceiptText } from './parse.js';
+import { parseReceiptText, judgeReceipt } from './parse.js';
 import { readReceiptFile } from './ocr.js';
 import { load, save } from './store.js';
 import { t, getLang, setLang, fmtDate, UI_LANGS } from './i18n.js';
@@ -168,8 +168,16 @@ function applyTranslation(b) {
     const src = it.orig ?? it.name;
     it.orig = src;
     const r = translateName(src, b.lang, to);
-    it.name = r.text;
     it.coverage = r.coverage;
+    if (r.coverage < 1) {
+      // Niet alles bekend: origineel blijft de naam, de (deel)vertaling is alleen een suggestie.
+      it.name = src;
+      if (r.text.toLowerCase() !== src.toLowerCase()) it.suggest = r.text;
+      else delete it.suggest;
+    } else {
+      it.name = r.text;
+      delete it.suggest;
+    }
   }
   b.translatedTo = to;
 }
@@ -178,13 +186,19 @@ function undoTranslation(b) {
   for (const it of b.items) {
     if (it.orig != null) it.name = it.orig;
     delete it.coverage;
+    delete it.suggest;
   }
   b.translatedTo = null;
 }
 
 const untranslated = (b) => (b.translatedTo ? b.items.filter((it) => it.orig && (it.coverage ?? 1) < 1) : []);
 
+/**
+ * Omschrijvingen die het woordenboek niet (volledig) kent, online vertalen via MyMemory.
+ * Gebeurt automatisch na het inlezen/vertalen; alleen die omschrijvingen worden verstuurd.
+ */
 async function translateRestOnline(b) {
+  if (ui.trBusy || !untranslated(b).length) return;
   ui.trBusy = true;
   render();
   let ok = 0;
@@ -192,12 +206,13 @@ async function translateRestOnline(b) {
     for (const it of untranslated(b)) {
       it.name = await translateOnline(it.orig, b.lang, b.translatedTo);
       it.coverage = 1;
+      it.online = true; // zichtbaar gemaakt bij de regel
+      delete it.suggest;
       ok++;
     }
-    toast(t('trOnlineDone', { n: ok }));
   } catch (e) {
     console.error(e);
-    toast(ok ? t('trOnlineDone', { n: ok }) : t('trOnlineFail'));
+    if (!ok) toast(t('trOnlineFail'));
   }
   ui.trBusy = false;
   commitSoon();
@@ -237,13 +252,13 @@ async function importFile(file, b) {
     // 'Automatisch': eerst lezen in de taal van de app (één taalbestand, sneller en minder
     // downloaden); blijkt de bon in een andere taal, dan nog één keer met dat taalbestand.
     const first = receiptLang !== 'auto' ? receiptLang : getLang();
-    let res = await readReceiptFile(file, progress, first);
-    let parsed = parseReceiptText(res.text);
+    let res = await readReceiptFile(file, progress, first, judgeReceipt);
+    let parsed = parseReceiptText(res.text, res.conf);
     let detected = receiptLang !== 'auto' ? receiptLang : detectLanguage(res.text, parsed.items.map((i) => i.name)) || first;
     if (receiptLang === 'auto' && detected !== first && !(res.source === 'pdf')) {
       progress({ label: t('ocrRetry', { lang: langName(detected) }), progress: 0 });
-      res = await readReceiptFile(file, progress, detected);
-      parsed = parseReceiptText(res.text);
+      res = await readReceiptFile(file, progress, detected, judgeReceipt);
+      parsed = parseReceiptText(res.text, res.conf);
     }
     b.image = res.previewUrl;
     b.rawText = res.text;
@@ -258,6 +273,7 @@ async function importFile(file, b) {
     if (b.lang !== getLang() && newItems.length) {
       applyTranslation(b);
       toast(t('trToast', { lang: langName(b.lang) }));
+      setTimeout(() => translateRestOnline(b), 0);
     } else {
       toast(newItems.length ? t('linesFound', { n: newItems.length }) : t('noLines'));
     }
@@ -366,7 +382,7 @@ function viewHome() {
 function viewBill(b) {
   const r = computeSplit(b);
   const tabs = [
-    ['bon', '1', t('tabBon'), b.items.length ? '' : '!'],
+    ['bon', '1', t('tabBon'), !b.items.length || checkStatus(b, r).kind === 'diff' ? '!' : ''],
     ['deelnemers', '2', t('tabPeople'), b.people.length || ''],
     ['verdelen', '3', t('tabAssign'), r.unassignedCents && b.people.length ? '!' : ''],
     ['overzicht', '4', t('tabOverview'), ''],
@@ -411,14 +427,64 @@ function viewTranslation(b) {
             : `<button class="btn small-btn" data-action="tr-undo">${t('trUndo')}</button>`
       }
     </div>
+    <p class="muted small">${t('trOnlineNote')}</p>
     ${
-      translatedHere && rest.length
-        ? `<div class="alert warn">${t('trPartial', { n: rest.length })}</div>
-           <button class="btn small-btn" data-action="tr-online" ${ui.trBusy ? 'disabled' : ''}>${icon('globe')} ${ui.trBusy ? t('trOnlineBusy') : t('trOnline')}</button>
-           <p class="muted small">${t('trOnlineNote')}</p>`
-        : ''
+      translatedHere && ui.trBusy
+        ? `<div class="alert ok" role="status">${icon('globe')} ${t('trOnlineBusy')}</div>`
+        : translatedHere && rest.length
+          ? `<div class="alert warn">${t('trPartial', { n: rest.length })}</div>
+             <button class="btn small-btn" data-action="tr-online">${icon('globe')} ${t('trOnline')}</button>`
+          : ''
     }
   </section>`;
+}
+
+/** Sluiten de regels aan op het totaal van de bon? */
+function checkStatus(b, r) {
+  if (!b.items.length) return { kind: 'empty' };
+  if (b.receiptTotalCents == null) return { kind: 'nototal' };
+  const diff = r.itemsTotal - b.receiptTotalCents;
+  return diff ? { kind: 'diff', diff } : { kind: 'ok' };
+}
+
+function statusBox(b, r) {
+  const st = checkStatus(b, r);
+  if (st.kind === 'ok') return `<div class="check-status ok" role="status">${icon('check')}<span>${t('chkOk', { a: formatEuro(r.itemsTotal) })}</span></div>`;
+  if (st.kind === 'diff')
+    return `<div class="check-status bad" role="alert"><b>!</b><span>${t('chkDiff', {
+      sum: formatEuro(r.itemsTotal),
+      total: formatEuro(b.receiptTotalCents),
+      d: formatEuro(Math.abs(st.diff)),
+      dir: st.diff > 0 ? t('chkMore') : t('chkLess'),
+    })}</span></div>`;
+  if (st.kind === 'nototal') return `<div class="check-status warn" role="status"><b>?</b><span>${t('chkNoTotal')}</span></div>`;
+  return '';
+}
+
+function lineRow(b, it) {
+  const translated = it.orig != null && (b.translatedTo || it.orig !== it.name);
+  const unsure = it.conf != null && it.conf < 75 && !it.checked;
+  const nameInput = (label) =>
+    `<label class="field"><span>${label}</span><input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}"></label>`;
+  return `<div class="line ${unsure ? 'unsure' : ''}">
+    <button class="icon-btn line-del" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('trash')}</button>
+    ${
+      translated
+        ? `<div class="line-pair">
+             <div class="orig-box"><span class="label">${t('onBill')}</span><span class="orig-text">${esc(it.orig)}</span></div>
+             ${nameInput(t('translation'))}
+           </div>`
+        : nameInput(t('desc'))
+    }
+    ${it.online && it.name ? `<div class="line-flag info">${icon('globe')} ${t('onlineTag')}</div>` : ''}
+    ${it.suggest ? `<div class="line-flag info">${t('suggest')}: <strong>${esc(it.suggest)}</strong> <button class="link" data-action="use-suggest" data-id="${it.id}">${t('useSuggest')}</button></div>` : ''}
+    <div class="line-nums">
+      <label class="field"><span>${t('qty')}</span><input class="qty" type="number" min="1" step="1" inputmode="numeric" value="${it.qty}" data-action="item-field" data-field="qty" data-id="${it.id}"></label>
+      <span class="each">${it.qty > 1 ? `${t('each', { a: formatEuro(Math.round(it.priceCents / it.qty)) })}<button class="link small split" data-action="item-split" data-id="${it.id}">${t('splitShort')}</button>` : ''}</span>
+      <label class="field"><span>${t('amount')}</span><input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}"></label>
+    </div>
+    ${unsure ? `<div class="line-flag">${t('lowConf')}</div>` : ''}
+  </div>`;
 }
 
 function viewBon(b, r) {
@@ -430,19 +496,7 @@ function viewBon(b, r) {
            <div class="bar"><span style="width:${Math.round((o.progress || 0) * 100)}%"></span></div>
            <p class="muted small">${t('langDownload')}</p></div>`
     : '';
-  const diff = b.receiptTotalCents != null ? r.itemsTotal - b.receiptTotalCents : 0;
-  const rows = b.items
-    .map(
-      (it) => `<div class="item-edit ${(it.coverage ?? 1) < 1 && b.translatedTo ? 'partial' : ''}">
-        <input class="qty" type="number" min="1" step="1" inputmode="numeric" value="${it.qty}" data-action="item-field" data-field="qty" data-id="${it.id}" aria-label="${t('qty')}">
-        <input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}" aria-label="${t('desc')}">
-        <input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}" aria-label="${t('amount')}">
-        <button class="icon-btn" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('x')}</button>
-        ${showOrig(it) ? `<span class="orig">${t('original')}: ${esc(it.orig)}</span>` : ''}
-        ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${t('split', { n: it.qty })}</button>` : ''}
-      </div>`
-    )
-    .join('');
+  const unsureCount = b.items.filter((it) => it.conf != null && it.conf < 75 && !it.checked).length;
   return `
   <section class="card">
     <label class="field"><span>${t('billName')}</span><input value="${esc(b.title)}" data-action="title"></label>
@@ -457,26 +511,24 @@ function viewBon(b, r) {
         : ''
   }
   ${viewTranslation(b)}
-  <section class="card">
-    <div class="row-between"><h3>${t('lines')}</h3><span class="muted small">${t('linesHead')}</span></div>
-    ${rows || `<p class="muted">${t('noLinesYet')}</p>`}
+  <section class="card check">
+    <h3>${t('chkTitle')}</h3>
+    ${b.items.length ? `<p class="muted small">${t('chkHelp')}</p>` : ''}
+    ${statusBox(b, r)}
+    ${unsureCount ? `<div class="check-status warn"><b>?</b><span>${t('chkUnsure', { n: unsureCount })}</span></div>` : ''}
+    <div class="lines-list">${b.items.map((it) => lineRow(b, it)).join('') || `<p class="muted">${t('noLinesYet')}</p>`}</div>
     <button class="btn ghost" data-action="item-add">${icon('plus')} ${t('addLine')}</button>
     <div class="totals">
       <div class="row-between"><span>${t('sumLines')}</span><strong>${formatEuro(r.itemsTotal)}</strong></div>
       <label class="row-between"><span>${t('totalOnBill')}</span>
         <input class="price" inputmode="decimal" placeholder="${t('optional')}" value="${b.receiptTotalCents != null ? formatPlain(b.receiptTotalCents) : ''}" data-action="receipt-total"></label>
-      ${
-        b.receiptTotalCents != null
-          ? diff
-            ? `<div class="alert warn">${t('diff', { d: formatEuro(diff) })}</div>`
-            : `<div class="alert ok">${icon('check')} ${t('matches')}</div>`
-          : ''
-      }
+      ${statusBox(b, r)}
     </div>
     ${b.image ? `<label class="btn ghost small-btn">${icon('camera')} ${t('otherPhoto')}<input type="file" accept="image/*,application/pdf,.pdf" data-action="file" hidden></label>` : ''}
   </section>
-  <button class="btn primary big next" data-action="tab" data-tab="deelnemers">${t('nextPeople')} ${icon('next')}</button>`;
+  <button class="btn primary big next" data-action="check-continue">${t('chkContinue')} ${icon('next')}</button>`;
 }
+
 
 function viewPeople(b) {
   const list = b.people
@@ -833,16 +885,31 @@ $app.addEventListener('click', async (e) => {
       return window.scrollTo(0, 0);
     case 'tr-do':
       applyTranslation(b);
-      return commit();
+      commit();
+      return translateRestOnline(b);
     case 'tr-undo':
       undoTranslation(b);
       return commit();
     case 'tr-online':
       return translateRestOnline(b);
+    case 'use-suggest': {
+      const it = findItem(b, id);
+      it.name = it.suggest;
+      it.coverage = 1;
+      delete it.suggest;
+      return commit();
+    }
+    case 'check-continue': {
+      const st = checkStatus(b, computeSplit(b));
+      if (st.kind === 'diff' && !confirm(t('chkContinueDiff', { d: formatEuro(Math.abs(st.diff)) }))) return;
+      go(b.id, 'deelnemers');
+      render();
+      return window.scrollTo(0, 0);
+    }
     case 'item-add':
       b.items.push({ id: uid(), name: '', qty: 1, priceCents: 0, assign: {} });
       commit();
-      return document.querySelector('.item-edit:last-of-type .name')?.focus();
+      return document.querySelector('.lines-list .line:last-child .name')?.focus();
     case 'item-del': {
       const name = findItem(b, id).name || t('desc');
       b.items = b.items.filter((i) => i.id !== id);
@@ -956,7 +1023,8 @@ $app.addEventListener('change', (e) => {
       undoTranslation(b);
       b.lang = el.value;
       if (b.lang !== getLang()) applyTranslation(b);
-      return commit();
+      commit();
+      return translateRestOnline(b);
     case 'title':
       b.title = el.value.trim() || b.title;
       b.autoTitle = false;
@@ -964,9 +1032,12 @@ $app.addEventListener('change', (e) => {
     case 'item-field': {
       const it = findItem(b, id);
       const f = el.dataset.field;
+      it.checked = true; // door de gebruiker gecontroleerd/aangepast
       if (f === 'name') {
         it.name = el.value.trim();
         it.coverage = 1;
+        delete it.suggest;
+        delete it.online;
       }
       if (f === 'qty') {
         it.qty = Math.max(1, Math.round(Number(el.value) || 1));

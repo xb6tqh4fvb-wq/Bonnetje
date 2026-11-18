@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseReceiptText, linesFromPositioned } from '../js/parse.js';
+import { parseReceiptText, linesFromPositioned, judgeReceipt } from '../js/parse.js';
 
 const SAMPLE = `
 Restaurant De Gouden Lepel
@@ -114,4 +114,41 @@ test('kortingsregel staat standaard op "iedereen"', () => {
   assert.equal(r.items[1].priceCents, -500);
   assert.equal(r.items[1].everyone, true);
   assert.equal(r.items[0].everyone, false);
+});
+
+test('aantal achter de naam ("Coca-Cola x2")', () => {
+  const r = parseReceiptText('Coca-Cola x2   6.00€\nHelado x3   10.50€\nTOTAL: 16.50€');
+  assert.deepEqual(r.items.map((i) => [i.name, i.qty, i.priceCents]), [['Coca-Cola', 2, 600], ['Helado', 3, 1050]]);
+});
+
+test('typische leesfouten: "| Jamón 1berico", "$,00"', () => {
+  const r = parseReceiptText('----------\n| Jamón 1berico   22,00\n1 Flan casero   $,00\nTOTAL 27,00');
+  assert.deepEqual(r.items.map((i) => [i.name, i.qty, i.priceCents]), [['Jamón iberico', 1, 2200], ['Flan casero', 1, 500]]);
+  assert.equal(r.totalCents, 2700);
+  // "1L" (liter) blijft staan: te kort woord
+  assert.equal(parseReceiptText('2 AGUA MIN. 1L   2,80   5,60').items[0].name, 'AGUA MIN. 1L');
+});
+
+test('naam en bedrag op aparte regels (scheve foto) worden op volgorde gekoppeld', () => {
+  const r = parseReceiptText(`TABERNA LOS AMIGOS
+Calle Mayor 7, Madrid
+--------------------------------
+                    7,50
+3 Cerveza           3,80
+1 Vino blanco copa
+TOTAL 11,30`);
+  assert.deepEqual(r.items.map((i) => [i.name, i.qty, i.priceCents]), [['Cerveza', 3, 750], ['Vino blanco copa', 1, 380]]);
+  assert.equal(r.title, 'TABERNA LOS AMIGOS');
+});
+
+test('zekerheid per regel wordt doorgegeven', () => {
+  const r = parseReceiptText('Cola   3,40\nBier   4,50\nTotaal 7,90', [95, 41, 90]);
+  assert.deepEqual(r.items.map((i) => i.conf), [95, 41]);
+});
+
+test('beoordeling van een leespoging', () => {
+  assert.equal(judgeReceipt('Cola 3,40\nBier 4,50\nTotaal 7,90').good, true);
+  const bad = judgeReceipt('Cola 3,40\nTotaal 7,90');
+  assert.equal(bad.good, false);
+  assert.ok(judgeReceipt('Cola 3,40\nBier 4,50\nTotaal 7,90').score > bad.score);
 });
