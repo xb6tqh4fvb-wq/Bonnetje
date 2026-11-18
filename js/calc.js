@@ -50,6 +50,17 @@ export function roundUpSuggestions(cents) {
   return [first, first + 500, first + 1000, Math.ceil((first + 1500) / 1000) * 1000];
 }
 
+/** Suggesties om het eigen deel af te ronden: volgende hele euro, vijf en tien euro. */
+export function personRoundUps(cents) {
+  const out = [];
+  for (const step of [100, 500, 1000]) {
+    let v = Math.ceil(Math.max(0, cents) / step) * step;
+    if (v === cents) v += step;
+    if (!out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
 /** Aantal nog niet toegewezen eenheden van een item. */
 export function unitsLeft(item, people) {
   if (item.everyone && people.length) return 0;
@@ -106,7 +117,13 @@ export function computeSplit(bill) {
     if (tip.distribution === 'equal' || sumSubs <= 0) return tipTarget / n;
     return (tipTarget * Math.max(0, subs[i])) / sumSubs;
   });
-  const extras = people.map((p) => Math.max(0, p.extraTipCents || 0));
+  // Modus 'Per persoon': fooi = wat iemand betaalt min wat hij/zij verschuldigd is.
+  const perPerson = tip.mode === 'perPerson';
+  const extras = people.map((p, i) =>
+    perPerson
+      ? p.payCents != null ? Math.max(0, p.payCents - subs[i]) : 0
+      : Math.max(0, p.extraTipCents || 0)
+  );
   const open = shares.map((s, i) => Math.max(0, s - extras[i]));
   const surplus = shares.map((s, i) => Math.max(0, extras[i] - s));
   const E = open.reduce((a, b) => a + b, 0);
@@ -127,6 +144,8 @@ export function computeSplit(bill) {
       subtotalCents: subs[i],
       tipShareCents: tipOwed[i],
       extraTipCents: extras[i],
+      payCents: perPerson ? (p.payCents ?? null) : null,
+      underpaidCents: perPerson && p.payCents != null ? Math.max(0, subs[i] - p.payCents) : 0,
       tipCents,
       dueCents,
       givenCents: given,

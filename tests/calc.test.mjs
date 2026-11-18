@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft, roundUpSuggestions } from '../js/calc.js';
+import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft, roundUpSuggestions, personRoundUps } from '../js/calc.js';
 
 const P = (id, extra = {}) => ({ id, name: id.toUpperCase(), method: 'contant', givenCents: null, extraTipCents: 0, paid: false, ...extra });
 
@@ -129,4 +129,27 @@ test('fooi = bedrag dat boven de bon aan het restaurant is betaald', () => {
 test('suggesties voor afronden', () => {
   assert.deepEqual(roundUpSuggestions(9880), [10000, 10500, 11000, 12000]);
   assert.deepEqual(roundUpSuggestions(10000), [10500, 11000, 11500, 12000]);
+});
+
+test('fooi per persoon = betaald min eigen consumpties', () => {
+  const r = computeSplit({
+    people: [P('a', { payCents: 2500 }), P('b', { method: 'tikkie' }), P('c', { method: 'contant', givenCents: 2000, payCents: 1800 }), P('d', { payCents: 500 })],
+    items: [
+      { id: '1', name: 'X', qty: 1, priceCents: 2240, assign: { a: 1 } },
+      { id: '2', name: 'Y', qty: 1, priceCents: 1500, assign: { b: 1 } },
+      { id: '3', name: 'Z', qty: 1, priceCents: 1650, assign: { c: 1 } },
+      { id: '4', name: 'W', qty: 1, priceCents: 800, assign: { d: 1 } },
+    ],
+    tip: { mode: 'perPerson', distribution: 'equal' },
+  });
+  assert.deepEqual(r.persons.map((p) => p.tipCents), [260, 0, 150, 0]);
+  assert.deepEqual(r.persons.map((p) => p.dueCents), [2500, 1500, 1800, 800]);
+  assert.equal(r.persons[2].changeCents, 200);
+  assert.equal(r.persons[3].underpaidCents, 300);
+  assert.equal(r.tipTotal, 410);
+});
+
+test('afrondsuggesties per persoon', () => {
+  assert.deepEqual(personRoundUps(2240), [2300, 2500, 3000]);
+  assert.deepEqual(personRoundUps(2500), [2600, 3000]);
 });

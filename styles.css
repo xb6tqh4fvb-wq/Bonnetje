@@ -237,7 +237,10 @@ input.price { text-align: right; font-variant-numeric: tabular-nums; max-width: 
 .change strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .change.ok { background: var(--ok-soft); color: var(--ok); }
 .change.bad { background: var(--bad-soft); color: var(--bad); }
-.extra { display: grid; }
+.extra { display: grid; gap: 8px; }
+.quick button.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.tip-note { text-align: right; }
+.tipbox .seg button { font-size: 0.9rem; }
 .extra .small-btn { justify-self: end; margin-top: 6px; }
 .empty { text-align: center; }
 

@@ -1,4 +1,4 @@
-import { computeSplit, formatEuro, formatPlain, parseEuro, uid, unitsLeft, itemWeights, roundUpSuggestions } from './calc.js';
+import { computeSplit, formatEuro, formatPlain, parseEuro, uid, unitsLeft, itemWeights, roundUpSuggestions, personRoundUps } from './calc.js';
 import { parseReceiptText } from './parse.js';
 import { readReceiptFile } from './ocr.js';
 import { load, save } from './store.js';
@@ -306,7 +306,7 @@ function viewOverview(b, r) {
   ${r.unassignedCents ? `<div class="alert warn">Er is nog ${formatEuro(r.unassignedCents)} niet verdeeld. <button class="link" data-action="tab" data-tab="verdelen">Verdelen</button></div>` : ''}
   <details class="card tipbox" ${ui.open.tip ? 'open' : ''} data-action="tip-toggle">
     <summary><span>Fooi / servicekosten</span><strong>${t.mode === 'none' && !r.tipTotal ? 'geen' : formatEuro(r.tipTotal)}</strong></summary>
-    <div class="seg">${[['none', 'Geen'], ['total', 'Totaal betaald'], ['amount', 'Fooibedrag']]
+    <div class="seg">${[['none', 'Geen'], ['total', 'Totaal betaald'], ['amount', 'Fooibedrag'], ['perPerson', 'Per persoon']]
       .map(([m, l]) => `<button class="${t.mode === m ? 'active' : ''}" data-action="tip-mode" data-mode="${m}">${l}</button>`)
       .join('')}</div>
     ${
@@ -325,13 +325,13 @@ function viewOverview(b, r) {
           : ''
     }
     ${
-      t.mode !== 'none'
+      t.mode === 'total' || t.mode === 'amount'
         ? `<span class="label">Verdelen</span><div class="seg">${[['proportional', 'Naar verhouding'], ['equal', 'Gelijk per persoon']]
             .map(([d, l]) => `<button class="${t.distribution === d ? 'active' : ''}" data-action="tip-dist" data-dist="${d}">${l}</button>`)
             .join('')}</div>`
         : ''
     }
-    <p class="muted small">Bij <em>Totaal betaald</em> is de fooi wat er boven het bonbedrag aan het restaurant is betaald (bv. € 98,80 → "maak er € 110 van" = € 11,20 fooi). Laat iemand wisselgeld liggen of geeft iemand extra fooi, dan telt dat eerst voor zijn of haar eigen deel van de fooi. Wat overblijft, verlaagt de fooi van de anderen. Hun bedrag (ook voor een Tikkie) wordt automatisch aangepast.</p>
+    ${t.mode === 'perPerson' ? `<p class="muted small">Ieder bepaalt zelf zijn fooi: vul bij elke deelnemer in wat hij of zij in totaal betaalt. De fooi is dat bedrag min de eigen consumpties.</p>` : `<p class="muted small">Bij <em>Totaal betaald</em> is de fooi wat er boven het bonbedrag aan het restaurant is betaald (bv. € 98,80 → "maak er € 110 van" = € 11,20 fooi). Laat iemand wisselgeld liggen of geeft iemand extra fooi, dan telt dat eerst voor zijn of haar eigen deel van de fooi. Wat overblijft, verlaagt de fooi van de anderen. Hun bedrag (ook voor een Tikkie) wordt automatisch aangepast.</p>`}
   </details>
   <section class="people-cards">${cards}</section>
   <div class="stack">
@@ -355,6 +355,19 @@ function personCard(b, p) {
     .map((l) => `<li><span>${l.units > 1 ? `${l.units}× ` : ''}${esc(l.name)}${l.shared ? ' <em>(gedeeld)</em>' : ''}</span><span>${formatEuro(l.cents)}</span></li>`)
     .join('');
   const tipLabel = p.method === 'contant' ? 'Wisselgeld als fooi' : 'Extra fooi';
+  const perPerson = b.tip.mode === 'perPerson';
+  const tipBlock = perPerson
+    ? `<div class="extra">
+        <label class="field inline"><span>Betaalt (incl. fooi)</span><input inputmode="decimal" placeholder="${formatPlain(p.subtotalCents)}" value="${p.payCents != null ? formatPlain(p.payCents) : ''}" data-action="pay" data-id="${p.id}"></label>
+        <div class="quick">${[['Exact', p.subtotalCents], ...personRoundUps(p.subtotalCents).map((c) => [formatEuro(c).replace(',00', ''), c])]
+          .concat(p.method === 'contant' && p.givenCents != null && p.givenCents > p.subtotalCents ? [['Rest is fooi', p.givenCents]] : [])
+          .map(([l, c]) => `<button class="${p.payCents === c ? 'active' : ''}" data-action="pay-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
+        ${p.underpaidCents ? `<div class="alert warn">Dat is ${formatEuro(p.underpaidCents)} minder dan de consumpties; gerekend wordt met ${formatEuro(p.subtotalCents)}.</div>` : p.tipCents ? `<div class="muted small tip-note">Fooi: <strong>${formatEuro(p.tipCents)}</strong></div>` : ''}
+      </div>`
+    : `<div class="extra">
+      <label class="field inline"><span>${tipLabel}</span><input inputmode="decimal" placeholder="0,00" value="${p.extraTipCents ? formatPlain(p.extraTipCents) : ''}" data-action="extra-tip" data-id="${p.id}"></label>
+      ${p.method === 'contant' && p.givenCents != null && p.givenCents > p.subtotalCents && p.extraTipCents !== p.givenCents - p.subtotalCents ? `<button class="btn ghost small-btn" data-action="keep-change" data-id="${p.id}">Rest is fooi</button>` : ''}
+    </div>`;
   return `<article class="person-card card ${p.paid ? 'is-paid' : ''}" style="--c:${colorOf(b, p.id)}">
     <header>
       <label class="paid-toggle">
@@ -382,10 +395,7 @@ function personCard(b, p) {
           </div>`
         : ''
     }
-    <div class="extra">
-      <label class="field inline"><span>${tipLabel}</span><input inputmode="decimal" placeholder="0,00" value="${p.extraTipCents ? formatPlain(p.extraTipCents) : ''}" data-action="extra-tip" data-id="${p.id}"></label>
-      ${p.method === 'contant' && p.givenCents != null && p.givenCents > p.subtotalCents && p.extraTipCents !== p.givenCents - p.subtotalCents ? `<button class="btn ghost small-btn" data-action="keep-change" data-id="${p.id}">Rest is fooi</button>` : ''}
-    </div>
+    ${tipBlock}
   </article>`;
 }
 
@@ -487,6 +497,9 @@ $app.addEventListener('click', async (e) => {
       b.tip.mode = el.dataset.mode;
       ui.open.tip = true;
       return commit();
+    case 'pay-quick':
+      findPerson(b, id).payCents = Number(el.dataset.cents);
+      return commit();
     case 'tip-paid-quick':
       b.tip.paidTotalCents = Number(el.dataset.cents);
       return commit();
@@ -575,6 +588,9 @@ $app.addEventListener('change', (e) => {
       p.givenCents = el.value.trim() ? parseEuro(el.value) : null;
       return commit();
     }
+    case 'pay':
+      findPerson(b, id).payCents = el.value.trim() ? parseEuro(el.value) : null;
+      return commit();
     case 'extra-tip':
       findPerson(b, id).extraTipCents = Math.max(0, parseEuro(el.value) || 0);
       return commit();
