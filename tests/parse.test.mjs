@@ -152,3 +152,29 @@ test('beoordeling van een leespoging', () => {
   assert.equal(bad.good, false);
   assert.ok(judgeReceipt('Cola 3,40\nBier 4,50\nTotaal 7,90').score > bad.score);
 });
+
+test('"Totaal exclusief" is geen gerecht en geen totaal (bon De Soester Duinen)', () => {
+  const r = parseReceiptText(`De Soester Duinen
+1 Tosti            4,95
+1 12 uurtje        9,95
+1 Veg tosti        4,95
+Totaal Exclusief  40,00
+BTW 9%             2,40
+Totaal            42,40`);
+  assert.deepEqual(r.items.map((i) => i.name), ['Tosti', '12 uurtje', 'Veg tosti']);
+  assert.equal(r.totalCents, 4240);
+});
+
+test('totaalregels met btw-vermelding', () => {
+  // "incl. BTW" is wél het totaal
+  assert.equal(parseReceiptText('Cola 3,40\nTotaal incl. BTW 3,40').totalCents, 340);
+  assert.equal(parseReceiptText('Cola 3,40\nTotaal inclusief btw 3,40').totalCents, 340);
+  assert.equal(parseReceiptText('Caña 2,50\nTOTAL IVA INCLUIDO 2,50').totalCents, 250);
+  // alleen het btw-bedrag of het bedrag zonder btw is géén totaal en géén gerecht
+  const r = parseReceiptText('Cola 3,40\nBier 4,50\nTotaal excl. btw 7,25\nTotaal BTW 0,65\nTotaal 7,90');
+  assert.deepEqual(r.items.map((i) => i.name), ['Cola', 'Bier']);
+  assert.equal(r.totalCents, 790);
+  const s = parseReceiptText('Cerveza 2,50\nBase imponible 2,27\nIVA 10% 0,23\nTotal sin IVA 2,27\nTOTAL 2,50');
+  assert.deepEqual(s.items.map((i) => i.name), ['Cerveza']);
+  assert.equal(s.totalCents, 250);
+});
