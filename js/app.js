@@ -6,10 +6,13 @@ import { parseReceiptText } from './parse.js';
 import { readReceiptFile } from './ocr.js';
 import { load, save } from './store.js';
 import { t, getLang, setLang, fmtDate, UI_LANGS } from './i18n.js';
+import { loadSettings, saveSettings, applySettings } from './settings.js';
 import { translateName, detectLanguage, translateOnline, RECEIPT_LANGS } from './translate.js';
 
 const state = load();
-const ui = { tab: 'bon', person: null, ocr: null, open: {}, trBusy: false };
+const ui = { tab: 'bon', person: null, ocr: null, open: {}, trBusy: false, settings: false };
+const display = loadSettings();
+applySettings(display);
 const $app = document.getElementById('app');
 const $toast = document.getElementById('toast');
 const RL_KEY = 'bonnetje.receiptLang';
@@ -157,7 +160,7 @@ function updateProgress() {
 function render() {
   document.documentElement.lang = getLang();
   const b = bill();
-  $app.innerHTML = b ? viewBill(b) : viewHome();
+  $app.innerHTML = (b ? viewBill(b) : viewHome()) + (ui.settings ? viewSettings() : '');
   document.title = b ? `${b.title} · Bonnetje` : 'Bonnetje';
 }
 
@@ -171,6 +174,33 @@ const langSwitch = () =>
   `<div class="lang-switch" role="group" aria-label="Language">${UI_LANGS.map(
     (l) => `<button class="${getLang() === l ? 'active' : ''}" data-action="ui-lang" data-lang="${l}">${l.toUpperCase()}</button>`
   ).join('')}</div>`;
+
+const settingsButton = (withLabel) =>
+  `<button class="settings-btn" data-action="settings" aria-label="${t('display')}">${icon('textsize')}${withLabel ? ` <span>${t('display')}</span>` : ''}</button>`;
+
+function viewSettings() {
+  const seg = (key, opts) =>
+    `<div class="seg">${opts
+      .map(([v, l]) => `<button class="${display[key] === v ? 'active' : ''}" data-action="set-display" data-key="${key}" data-value="${v}" aria-pressed="${display[key] === v}">${l}</button>`)
+      .join('')}</div>`;
+  return `<div class="overlay" data-action="settings-close-bg">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">${t('settingsTitle')}
+        <button class="icon-btn" data-action="settings-close" aria-label="${t('close')}">${icon('x')}</button></h2>
+      <div class="field"><span>${t('language')}</span>${`<div class="seg">${UI_LANGS.map(
+        (l) => `<button class="${getLang() === l ? 'active' : ''}" data-action="ui-lang" data-lang="${l}">${l === 'nl' ? 'Nederlands' : 'English'}</button>`
+      ).join('')}</div>`}</div>
+      <div class="field"><span>${t('theme')}</span>${seg('theme', [['auto', t('themeAuto')], ['light', t('themeLight')], ['dark', t('themeDark')]])}
+        <small class="muted">${t('themeHelp')}</small></div>
+      <div class="field"><span>${t('textSize')}</span>${seg('size', [['normal', t('sizeNormal')], ['large', t('sizeLarge')], ['xl', t('sizeXl')]])}</div>
+      <label class="switch"><span><strong>${t('contrast')}</strong><br><small class="muted">${t('contrastHelp')}</small></span>
+        <input type="checkbox" role="switch" data-action="set-contrast" ${display.contrast ? 'checked' : ''}></label>
+      <div class="sample"><span class="muted small">${t('sample')}</span>
+        <div class="row-between"><strong>${t('sampleLine')}</strong><strong>${formatEuro(2450)}</strong></div></div>
+      <button class="btn primary big" data-action="settings-close">${t('close')}</button>
+    </section>
+  </div>`;
+}
 
 function viewHome() {
   const list = state.bills
@@ -188,7 +218,7 @@ function viewHome() {
     })
     .join('');
   return `
-  <header class="topbar"><h1>${icon('receipt')} Bonnetje</h1>${langSwitch()}</header>
+  <header class="topbar"><h1>${icon('receipt')} Bonnetje</h1>${langSwitch()}${settingsButton(true)}</header>
   <main class="wrap">
     <section class="card hero">
       <h2>${t('newBill')}</h2>
@@ -223,6 +253,7 @@ function viewBill(b) {
     <button class="icon-btn" data-action="home" aria-label="${t('back')}">${icon('back')}</button>
     <h1 class="ellipsis">${esc(b.title)}</h1>
     <span class="topbar-total">${formatEuro(r.itemsTotal)}</span>
+    ${settingsButton(false)}
   </header>
   <main class="wrap with-nav">${body}</main>
   <nav class="tabs">${tabs
@@ -604,6 +635,21 @@ $app.addEventListener('click', async (e) => {
   const b = bill();
   const { action, id } = el.dataset;
   switch (action) {
+    case 'settings':
+      ui.settings = true;
+      render();
+      return document.querySelector('.sheet [data-action=settings-close]')?.focus();
+    case 'settings-close-bg':
+      if (e.target !== el) return; // alleen klik naast het paneel
+    // fallthrough
+    case 'settings-close':
+      ui.settings = false;
+      render();
+      return document.querySelector('[data-action=settings]')?.focus();
+    case 'set-display':
+      display[el.dataset.key] = el.dataset.value;
+      saveSettings(display);
+      return render();
     case 'ui-lang':
       setLang(el.dataset.lang);
       return render();
@@ -761,6 +807,10 @@ $app.addEventListener('change', (e) => {
       }
       return commit();
     }
+    case 'set-contrast':
+      display.contrast = el.checked;
+      saveSettings(display);
+      return render();
     case 'pay-info':
       b.payInfo = el.value.trim();
       return commit();
@@ -838,10 +888,18 @@ function icon(name) {
     share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
     chat: '<path d="M4 20l1.5-4A8 8 0 1 1 8 18.5z"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    textsize: '<path d="M3 19l5-13 5 13M4.8 14.5h6.4"/><path d="M14 19l3.5-9 3.5 9M15.2 16h4.6"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
   }[name];
   return `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ui.settings) {
+    ui.settings = false;
+    render();
+  }
+});
 
 // ---------- plakken en slepen (bv. vanuit Voorvertoning op de Mac) ----------
 const receiptFileFrom = (list) =>

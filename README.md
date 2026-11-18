@@ -40,6 +40,15 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
 - **Vertalen van de regels**: een ingebouwd horecawoordenboek (offline) vertaalt de omschrijvingen naar de taal van de app, bv. *Pollo a la plancha* → "Gegrilde kip". Het origineel blijft eronder staan, zodat je het op de bon terugvindt. Kent het woordenboek een woord niet, dan kun je de rest **online** laten vertalen (MyMemory; alleen de omschrijvingen worden verstuurd).
 - Een taal toevoegen: een kolom in de tabel in `js/translate.js`, de bonwoorden in `js/parse.js`, het taalbestand in `js/ocr.js` en (voor de app zelf) een blok in `js/i18n.js`.
 
+### Weergave en leesbaarheid
+
+Via de knop **Aa Weergave** bovenin:
+
+- **Thema**: Automatisch (volgt de telefoon), Licht of Donker.
+- **Tekstgrootte**: Normaal, Groot (120%) of Extra groot (140%). Knoppen en aanraakvlakken groeien mee; de opmaak is getest tot 320 px schermbreedte.
+- **Hoog contrast**: zwartere tekst, duidelijke randen, goed zichtbare selectie en focus. Staat *meer contrast* op de telefoon aan, dan neemt de app dat over.
+- De keuze wordt op het toestel onthouden en direct bij openen toegepast.
+
 ## Privacy
 
 Alles blijft op het toestel (localStorage). Geen account, geen server. Uitzondering: de knop *Online vertalen* stuurt de omschrijvingen van de bonregels naar MyMemory. Alleen de leesmodules (Tesseract, pdf.js en de taalbestanden) worden de eerste keer van cdn.jsdelivr.net gedownload en daarna gecachet.
