@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft, roundUpSuggestions, personRoundUps } from '../js/calc.js';
+import { computeSplit, parseEuro, roundAlloc, formatEuro, unitsLeft, roundUpSuggestions, personRoundUps, splitLine } from '../js/calc.js';
 
 const P = (id, extra = {}) => ({ id, name: id.toUpperCase(), method: 'contant', givenCents: null, extraTipCents: 0, paid: false, ...extra });
 
@@ -190,4 +190,20 @@ test('roundAlloc met afwijkend doel', () => {
   assert.deepEqual(roundAlloc([3.4, 3.4, 3.4], 9), [3, 3, 3]);
   assert.deepEqual(roundAlloc([3.4, 3.4, 3.4], 11), [4, 4, 3]);
   assert.deepEqual(roundAlloc([3.6, 3.6, 3.6], 10), [4, 3, 3]);
+});
+
+test('regel splitsen: bedrag exact verdeeld, toewijzing per stuk behouden', () => {
+  let n = 0;
+  const id = () => 'n' + n++;
+  const parts = splitLine({ id: 'w', name: 'Fles huiswijn', qty: 2, priceCents: 5801, assign: { a: 1 } }, id);
+  assert.deepEqual(parts.map((p) => [p.qty, p.priceCents, p.assign]), [[1, 2901, { a: 1 }], [1, 2900, {}]]);
+  const shared = splitLine({ id: 'b', name: 'Bier', qty: 2, priceCents: 900, assign: { a: 1, b: 1, c: 1 } }, id);
+  assert.deepEqual(shared.map((p) => p.assign), [{}, {}]);
+  // daarna: fles 1 over A en B, fles 2 over C, D en E
+  const people = ['a', 'b', 'c', 'd', 'e'].map((x) => P(x));
+  const [f1, f2] = splitLine({ id: 'w', name: 'Wijn', qty: 2, priceCents: 5800, assign: {} }, id);
+  f1.assign = { a: 1, b: 1 };
+  f2.assign = { c: 1, d: 1, e: 1 };
+  const r = computeSplit({ people, items: [f1, f2], tip: { mode: 'none' } });
+  assert.deepEqual(r.persons.map((p) => p.subtotalCents), [1450, 1450, 967, 967, 966]);
 });

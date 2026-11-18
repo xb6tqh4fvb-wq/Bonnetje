@@ -7,10 +7,11 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
 1. **Bon** – maak een foto van de rekening of kies een foto/PDF. De bon wordt op de telefoon zelf uitgelezen (Tesseract, Nederlands); een PDF met tekstlaag wordt direct gelezen. Controleer de regels naast de voorvertoning; het totaal op de bon wordt automatisch vergeleken met de som van de regels.
 2. **Deelnemers** – namen invoeren (meerdere tegelijk met komma's).
 3. **Verdelen** – kies een persoon en tik aan wat die heeft gehad. Alleen regels van de bon zijn kiesbaar.
-   - Aantallen (3× bier): elke tik is één stuk.
+   - Een korte uitleg in twee stappen (*kies wie, tik wat*) bij het eerste gebruik.
+   - Aantallen (3× bier): elke tik is één stuk. Met **Splits** maak je van een regel met meerdere stuks losse regels, bv. om twee flessen wijn elk over andere personen te verdelen.
    - Delen (fles wijn): tik het item bij meerdere personen aan → naar rato verdeeld.
    - 👥-knop: gelijk over iedereen (ook mensen die later worden toegevoegd), bv. servicekosten.
-4. **Overzicht** – per persoon het te betalen bedrag, betaalwijze (contant / pin / Tikkie), wat iemand geeft en wat hij/zij terugkrijgt, en een vinkje voor *betaald*. Bovenaan: betaald, nog open, voortgang. Bij afvinken wordt het betaalde bedrag vastgelegd; verandert de verdeling daarna, dan toont de app het verschil (bijbetalen of teruggeven).
+4. **Overzicht** – per persoon in één oogopslag: vinkje *betaald*, naam, bedrag en een statusregel (bv. "Contant · terug € 3,16"). Onder *Betaling en details*: betaalwijze (contant / pin / Tikkie), wat iemand geeft en wat hij/zij terugkrijgt, en een vinkje voor *betaald*. Bovenaan: betaald, nog open, voortgang. Bij afvinken wordt het betaalde bedrag vastgelegd; verandert de verdeling daarna, dan toont de app het verschil (bijbetalen of teruggeven).
 
 ### Bon aanleveren
 
@@ -22,12 +23,18 @@ Web-app (PWA) om een restaurantrekening eerlijk te verdelen over de deelnemers.
 
 - Naar de hele groep of per deelnemer een persoonlijk bericht met eigen bedrag en specificatie.
 - Via WhatsApp, e-mail of *Meer…* (het deelmenu van het toestel: Signal, Berichten, enz.). Signal heeft geen link om een bericht voor te vullen, dus dat gaat via het deelmenu.
+- Het bericht aan iedereen staat onderaan; het persoonlijke bericht bij de persoon zelf (*Betaling en details*).
 - Optioneel veld voor betaalgegevens (Tikkie-link of IBAN), dat in de berichten wordt opgenomen. Wie al betaald heeft, krijgt een bedankje in plaats van een betaalverzoek.
+
+### Ongedaan maken
+
+- Knop **↶** bovenin (of ⌘Z / Ctrl+Z): stap voor stap terug, tot 50 stappen.
+- Na verwijderen van een bon, persoon of regel verschijnt een melding met *Ongedaan maken*; een extra bevestigingsvraag is daardoor niet meer nodig.
+- Waarschuwingen: bij versturen terwijl nog niet alles verdeeld is, en als een aantal lager wordt dan wat al is toegewezen.
 
 ### Fooi
 
 - **Totaal betaald**: vul in wat er aan het restaurant is betaald ("maak er maar € 110 van"); het bedrag boven de bon is de fooi. Met snelknoppen voor ronde bedragen.
-- **Fooibedrag**: een vast fooibedrag.
 - **Per persoon**: ieder bepaalt zelf zijn fooi. Je vult per deelnemer in wat die in totaal betaalt (of kiest een afgerond bedrag); de fooi is betaald min eigen consumpties. Niet iedereen hoeft fooi te geven.
 - De fooi wordt verdeeld naar verhouding van consumpties of gelijk per persoon.
 - Laat iemand wisselgeld liggen ("Rest is fooi") of geeft iemand extra fooi, dan wordt dat eerst met diens eigen fooi-aandeel verrekend; het overschot verlaagt de fooi van de anderen naar rato. Het bedrag voor een Tikkie past zich automatisch aan.

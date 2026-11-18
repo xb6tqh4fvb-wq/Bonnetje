@@ -80,6 +80,27 @@ export function personRoundUps(cents) {
   return out;
 }
 
+/**
+ * Splitst een regel met meerdere stuks in losse regels van 1 stuk; het bedrag wordt exact
+ * verdeeld. Een bestaande toewijzing per stuk wordt overgenomen als die past (bv. A×2, B×1
+ * bij 3 stuks); bij delen (meer toegewezen dan stuks) begint de verdeling opnieuw.
+ */
+export function splitLine(item, makeId) {
+  const n = item.qty || 1;
+  if (n < 2) return [item];
+  const prices = roundAlloc(Array(n).fill(item.priceCents / n), item.priceCents);
+  const units = item.everyone ? [] : Object.entries(item.assign || {}).flatMap(([pid, w]) => Array(w).fill(pid));
+  const keep = units.length <= n;
+  return prices.map((priceCents, k) => ({
+    ...item,
+    id: makeId(),
+    qty: 1,
+    priceCents,
+    assign: keep && units[k] ? { [units[k]]: 1 } : {},
+    everyone: !!item.everyone,
+  }));
+}
+
 /** Aantal nog niet toegewezen eenheden van een item. */
 export function unitsLeft(item, people) {
   if (item.everyone && people.length) return 0;

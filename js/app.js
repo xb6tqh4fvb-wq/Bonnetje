@@ -1,6 +1,6 @@
 import {
   computeSplit, formatEuro, formatEuroShort, formatPlain, parseEuro, uid, unitsLeft, itemWeights,
-  roundUpSuggestions, personRoundUps,
+  roundUpSuggestions, personRoundUps, splitLine,
 } from './calc.js';
 import { parseReceiptText } from './parse.js';
 import { readReceiptFile } from './ocr.js';
@@ -36,7 +36,45 @@ const colorOf = (b, pid) => COLORS[Math.max(0, b.people.findIndex((p) => p.id ==
 const langName = (l) => t('lang_' + l);
 const showOrig = (it) => it.orig && it.orig.trim().toLowerCase() !== it.name.trim().toLowerCase();
 
+// ---------- ongedaan maken ----------
+// Na elke wijziging een momentopname van de gegevens (zonder foto's: die worden apart
+// bewaard en via een kenmerk teruggezet). Alleen in het geheugen, max. 50 stappen.
+const undoStack = [];
+const images = new Map(); // dataURL -> kenmerk
+const imageByToken = new Map();
+function snapshot() {
+  // Alleen de bonnen; navigatie (welke bon open is) telt niet als stap.
+  return JSON.stringify(state.bills, (k, v) => {
+    if (k !== 'image' || !v) return v;
+    if (!images.has(v)) {
+      const tok = 'img#' + images.size;
+      images.set(v, tok);
+      imageByToken.set(tok, v);
+    }
+    return images.get(v);
+  });
+}
+let lastSnap = snapshot();
+function recordUndo() {
+  const snap = snapshot();
+  if (snap === lastSnap) return;
+  undoStack.push(lastSnap);
+  if (undoStack.length > 50) undoStack.shift();
+  lastSnap = snap;
+}
+function undo() {
+  if (!undoStack.length) return;
+  const prev = undoStack.pop();
+  state.bills = JSON.parse(prev, (k, v) => (k === 'image' && v ? imageByToken.get(v) ?? null : v));
+  if (!state.bills.some((b) => b.id === state.currentId)) go(null);
+  lastSnap = snapshot();
+  save(state);
+  render();
+  toast(t('undone'));
+}
+
 function commit() {
+  recordUndo();
   if (!save(state)) toast(t('storageFull'));
   render();
 }
@@ -45,6 +83,7 @@ function commit() {
 // dan pas bij het verlaten van het invoerveld.
 let pendingRender = false;
 function commitSoon() {
+  recordUndo();
   if (!save(state)) toast(t('storageFull'));
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && $app.contains(a)) pendingRender = true;
@@ -79,11 +118,22 @@ window.addEventListener('popstate', (e) => {
 });
 
 let toastTimer;
-function toast(msg) {
+/** Korte melding; met withUndo een knop "Ongedaan maken" (langer zichtbaar). */
+function toast(msg, withUndo = false) {
   $toast.textContent = msg;
+  if (withUndo) {
+    const btn = document.createElement('button');
+    btn.textContent = t('undo');
+    btn.addEventListener('click', () => {
+      $toast.classList.remove('show');
+      undo();
+    });
+    $toast.append(' ', btn);
+  }
+  $toast.classList.toggle('has-action', withUndo);
   $toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $toast.classList.remove('show'), 2400);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), withUndo ? 6000 : 2400);
 }
 
 function newBill() {
@@ -103,6 +153,11 @@ function newBill() {
   state.bills.unshift(b);
   go(b.id, 'bon');
   return b;
+}
+
+function splitItem(b, id) {
+  const it = findItem(b, id);
+  b.items.splice(b.items.indexOf(it), 1, ...splitLine(it, uid));
 }
 
 // ---------- vertalen ----------
@@ -145,6 +200,25 @@ async function translateRestOnline(b) {
   }
   ui.trBusy = false;
   commitSoon();
+}
+
+const HINT_KEY = 'bonnetje.hintSeen';
+let hintFlag = (() => {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+// De uitgebreide uitleg blijft staan tot de eerste keer dat iets is toegewezen (en daarna weg).
+let hintShownThisVisit = !hintFlag;
+const hintSeen = () => hintFlag && !hintShownThisVisit;
+function markHintSeen() {
+  if (hintFlag) return;
+  hintFlag = true;
+  try {
+    localStorage.setItem(HINT_KEY, '1');
+  } catch {}
 }
 
 const ocrBusy = () => !!(ui.ocr && !ui.ocr.error);
@@ -220,6 +294,9 @@ const langSwitch = () =>
     (l) => `<button class="${getLang() === l ? 'active' : ''}" data-action="ui-lang" data-lang="${l}">${l.toUpperCase()}</button>`
   ).join('')}</div>`;
 
+const undoButton = () =>
+  `<button class="settings-btn undo-btn" data-action="undo" aria-label="${t('undo')}" title="${t('undo')}" ${undoStack.length ? '' : 'disabled'}>${icon('undo')}</button>`;
+
 const settingsButton = (withLabel) =>
   `<button class="settings-btn" data-action="settings" aria-label="${t('display')}">${icon('textsize')}${withLabel ? ` <span>${t('display')}</span>` : ''}</button>`;
 
@@ -263,7 +340,7 @@ function viewHome() {
     })
     .join('');
   return `
-  <header class="topbar"><h1>${icon('receipt')} Bonnetje</h1>${langSwitch()}${settingsButton(true)}</header>
+  <header class="topbar"><h1>${icon('receipt')} Bonnetje</h1>${langSwitch()}${undoStack.length ? undoButton() : ''}${settingsButton(true)}</header>
   <main class="wrap">
     <section class="card hero">
       <h2>${t('newBill')}</h2>
@@ -298,6 +375,7 @@ function viewBill(b) {
     <button class="icon-btn" data-action="home" aria-label="${t('back')}">${icon('back')}</button>
     <h1 class="ellipsis">${esc(b.title)}</h1>
     <span class="topbar-total">${formatEuro(r.itemsTotal)}</span>
+    ${undoButton()}
     ${settingsButton(false)}
   </header>
   <main class="wrap with-nav">${body}</main>
@@ -359,6 +437,7 @@ function viewBon(b, r) {
         <input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}" aria-label="${t('amount')}">
         <button class="icon-btn" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('x')}</button>
         ${showOrig(it) ? `<span class="orig">${t('original')}: ${esc(it.orig)}</span>` : ''}
+        ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${t('split', { n: it.qty })}</button>` : ''}
       </div>`
     )
     .join('');
@@ -459,6 +538,7 @@ function viewAssign(b, r) {
           <span class="assign-meta">${formatEuro(it.priceCents)} ${status}</span>
           <span class="badges">${badges}</span>
         </button>
+        ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${icon('split')} ${t('split', { n: it.qty })}</button>` : ''}
         <div class="stepper">
           <button data-action="unit" data-delta="-1" data-id="${it.id}" aria-label="${t('less')}" ${mine ? '' : 'disabled'}>−</button>
           <span>${mine}</span>
@@ -470,7 +550,11 @@ function viewAssign(b, r) {
     .join('');
   return `
   <div class="chips">${chips}</div>
-  <p class="hint">${t('assignHint', { name: esc(sel.name), icon: icon('users') })}</p>
+  ${
+    hintSeen()
+      ? `<p class="hint">${t('step2', { name: `<strong>${esc(sel.name)}</strong>` })}. ${t('step3', { icon: icon('users') })}</p>`
+      : `<div class="steps-hint"><span><b>1</b> ${t('step1')}</span><span><b>2</b> ${t('step2', { name: esc(sel.name) })}</span><small>${t('step3', { icon: icon('users') })}</small></div>`
+  }
   <section class="assign-list">${rows}</section>
   ${
     r.unassignedCents
@@ -497,7 +581,7 @@ function viewOverview(b, r) {
   ${r.unassignedCents ? `<div class="alert warn">${t('stillUnassigned', { a: formatEuro(r.unassignedCents) })} <button class="link" data-action="tab" data-tab="verdelen">${t('tabAssign')}</button></div>` : ''}
   <details class="card tipbox" ${ui.open.tip ? 'open' : ''} data-action="tip-toggle">
     <summary><span>${t('tipTitle')}</span><strong>${tp.mode === 'none' && !r.tipTotal ? t('none') : formatEuro(r.tipTotal)}</strong></summary>
-    <div class="seg">${[['none', t('tmNone')], ['total', t('tmTotal')], ['amount', t('tmAmount')], ['perPerson', t('tmPerPerson')]]
+    <div class="seg">${[['none', t('tmNone')], ['total', t('tmTotal')], ...(tp.mode === 'amount' ? [['amount', t('tmAmount')]] : []), ['perPerson', t('tmPerPerson')]]
       .map(([m, l]) => `<button class="${tp.mode === m ? 'active' : ''}" data-action="tip-mode" data-mode="${m}">${l}</button>`)
       .join('')}</div>
     ${
@@ -522,50 +606,55 @@ function viewOverview(b, r) {
             .join('')}</div>`
         : ''
     }
-    <p class="muted small">${tp.mode === 'perPerson' ? t('perPersonHelp') : t('tipHelp')}</p>
+    <p class="muted small">${tp.mode === 'perPerson' ? t('perPersonHelp2') : tp.mode === 'total' ? t('tipHelp2') : t('noTipHelp')}</p>
   </details>
   <section class="people-cards">${cards}</section>
   ${viewSend(b, r)}`;
 }
 
+const changeBox = (c) =>
+  c == null
+    ? ''
+    : `<div class="change ${c >= 0 ? 'ok' : 'bad'}"><span>${c >= 0 ? t('change') : t('stillOwes')}</span><strong>${formatEuro(Math.abs(c))}</strong></div>`;
+
 function personCard(b, p) {
+  const cash = p.method === 'contant';
   const quick = [];
-  if (p.method === 'contant') {
+  if (cash) {
     quick.push([t('exactCash'), p.dueCents]);
     for (const n of [500, 1000, 2000, 5000, 10000]) if (n > p.dueCents && quick.length < 4) quick.push([formatEuroShort(n), n]);
   }
-  const change =
-    p.method === 'contant' && p.changeCents != null
-      ? p.changeCents >= 0
-        ? `<div class="change ok"><span>${t('change')}</span><strong>${formatEuro(p.changeCents)}</strong></div>`
-        : `<div class="change bad"><span>${t('stillOwes')}</span><strong>${formatEuro(-p.changeCents)}</strong></div>`
-      : '';
+  const methodName = { contant: t('mCash'), pin: t('mCard'), tikkie: t('mTikkie') }[p.method];
+  // Eén statusregel onder de naam: het belangrijkste in één oogopslag.
+  const status = [methodName];
+  if (cash && p.changeCents != null)
+    status.push(p.changeCents >= 0 ? `${t('change').toLowerCase()} <strong>${formatEuro(p.changeCents)}</strong>` : `${t('stillOwes').toLowerCase()} <strong>${formatEuro(-p.changeCents)}</strong>`);
+  if (p.tipCents) status.push(`${t('tipLine').toLowerCase()} ${formatEuro(p.tipCents)}`);
   const lines = p.lines
     .map((l) => `<li><span>${l.units > 1 ? `${l.units}× ` : ''}${esc(l.name)}${l.shared ? ` <em>${t('sharedTag')}</em>` : ''}</span><span>${formatEuro(l.cents)}</span></li>`)
     .join('');
-  const tipLabel = p.method === 'contant' ? t('tipChange') : t('extraTip');
-  const tipBlock =
-    b.tip.mode === 'perPerson'
-      ? `<div class="extra">
-        <label class="field inline"><span>${t('pays')}</span><input inputmode="decimal" placeholder="${formatPlain(p.subtotalCents)}" value="${p.payCents != null ? formatPlain(p.payCents) : ''}" data-action="pay" data-id="${p.id}"></label>
-        <div class="quick">${[[t('exact'), p.subtotalCents], ...personRoundUps(p.subtotalCents).map((c) => [formatEuroShort(c), c])]
-          .concat(p.method === 'contant' && p.givenCents != null && p.givenCents > p.subtotalCents ? [[t('restTip'), p.givenCents]] : [])
-          .map(([l, c]) => `<button class="${p.payCents === c ? 'active' : ''}" data-action="pay-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
-        ${p.underpaidCents ? `<div class="alert warn">${t('underpaid', { a: formatEuro(p.underpaidCents), b: formatEuro(p.subtotalCents) })}</div>` : p.tipCents ? `<div class="muted small tip-note">${t('tipColon', { a: formatEuro(p.tipCents) })}</div>` : ''}
-      </div>`
-      : `<div class="extra">
-      <label class="field inline"><span>${tipLabel}</span><input inputmode="decimal" placeholder="${formatPlain(0)}" value="${p.extraTipCents ? formatPlain(p.extraTipCents) : ''}" data-action="extra-tip" data-id="${p.id}"></label>
-      ${p.method === 'contant' && p.givenCents != null && p.givenCents > p.subtotalCents && p.extraTipCents !== p.givenCents - p.subtotalCents ? `<button class="btn ghost small-btn" data-action="keep-change" data-id="${p.id}">${t('restTip')}</button>` : ''}
-    </div>`;
-  return `<article class="person-card card ${p.paid ? 'is-paid' : ''}" style="--c:${colorOf(b, p.id)}">
+  // Details standaard dicht (overzicht blijft kort); open/dicht wordt onthouden.
+  const detailsOpen = !!ui.open['p' + p.id];
+  const perPerson = b.tip.mode === 'perPerson';
+  const tipBlock = perPerson
+    ? `<label class="field inline"><span>${t('pays')}</span><input inputmode="decimal" placeholder="${formatPlain(p.subtotalCents)}" value="${p.payCents != null ? formatPlain(p.payCents) : ''}" data-action="pay" data-id="${p.id}"></label>
+       <div class="quick">${[[t('exact'), p.subtotalCents], ...personRoundUps(p.subtotalCents).map((c) => [formatEuroShort(c), c])]
+         .concat(cash && p.givenCents != null && p.givenCents > p.subtotalCents ? [[t('restTip'), p.givenCents]] : [])
+         .map(([l, c]) => `<button class="${p.payCents === c ? 'active' : ''}" data-action="pay-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
+       ${p.underpaidCents ? `<div class="alert warn">${t('underpaid', { a: formatEuro(p.underpaidCents), b: formatEuro(p.subtotalCents) })}</div>` : ''}`
+    : cash && p.givenCents != null && p.givenCents > p.subtotalCents
+      ? p.extraTipCents
+        ? `<div class="row-between small"><span>${t('tipChange')}: <strong>${formatEuro(p.extraTipCents)}</strong></span><button class="link" data-action="undo-keep" data-id="${p.id}">${t('giveChange')}</button></div>`
+        : `<button class="btn ghost small-btn" data-action="keep-change" data-id="${p.id}">${t('restTip')}</button>`
+      : '';
+  return `<article class="person-card card compact ${p.paid ? 'is-paid' : ''}" style="--c:${colorOf(b, p.id)}">
     <header>
-      <label class="paid-toggle">
-        <input type="checkbox" data-action="paid" data-id="${p.id}" ${p.paid ? 'checked' : ''}>
+      <label class="paid-toggle" title="${t('paid')}">
+        <input type="checkbox" data-action="paid" data-id="${p.id}" ${p.paid ? 'checked' : ''} aria-label="${esc(p.name)} ${t('paid')}">
         <span class="check">${icon('check')}</span>
       </label>
-      <div class="who"><strong>${esc(p.name)}</strong><span class="muted small">${p.paid ? t('paid') : t('notPaid')}</span></div>
-      <div class="due"><strong>${formatEuro(p.dueCents)}</strong>
-        ${p.method === 'tikkie' ? `<button class="link small" data-action="copy" data-cents="${p.dueCents}">${t('copyAmount')}</button>` : ''}</div>
+      <div class="who"><strong>${esc(p.name)}</strong><span class="muted small status">${p.paid ? `✓ ${t('paid')} · ` : ''}${status.join(' · ')}</span></div>
+      <div class="due"><strong>${formatEuro(p.dueCents)}</strong></div>
     </header>
     ${
       p.paidDiffCents
@@ -573,50 +662,50 @@ function personCard(b, p) {
              <button class="link" data-action="paid-settle" data-id="${p.id}">${t('settled')}</button></div>`
         : ''
     }
-    <details ${ui.open['p' + p.id] ? 'open' : ''} data-action="person-toggle" data-id="${p.id}">
-      <summary class="muted small">${t('consumptions', { a: formatEuro(p.subtotalCents), b: formatEuro(p.tipCents) })}</summary>
-      <ul class="lines">${lines || `<li class="muted">${t('nothingYet')}</li>`}
-        ${p.tipCents ? `<li><span>${t('tipLine')}${p.extraTipCents ? t('ofWhichExtra', { a: formatEuro(p.extraTipCents) }) : ''}</span><span>${formatEuro(p.tipCents)}</span></li>` : ''}</ul>
+    <details ${detailsOpen ? 'open' : ''} data-action="person-toggle" data-id="${p.id}">
+      <summary>${t('details')}</summary>
+      <div class="details-body">
+        <span class="label">${t('payMethod')}</span>
+        <div class="seg small">${[['contant', t('mCash')], ['pin', t('mCard')], ['tikkie', t('mTikkie')]]
+          .map(([m, l]) => `<button class="${p.method === m ? 'active' : ''}" data-action="method" data-method="${m}" data-id="${p.id}">${l}</button>`)
+          .join('')}</div>
+        ${
+          cash
+            ? `<div class="cash">
+                 <label class="field inline"><span>${t('gives')}</span><input inputmode="decimal" placeholder="${formatPlain(0)}" value="${p.givenCents != null ? formatPlain(p.givenCents) : ''}" data-action="given" data-id="${p.id}"></label>
+                 <div class="quick">${quick.map(([l, c]) => `<button data-action="given-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
+                 ${changeBox(p.changeCents)}
+               </div>`
+            : p.method === 'tikkie'
+              ? `<button class="btn small-btn" data-action="copy" data-cents="${p.dueCents}">${t('copyAmount')} (${formatPlain(p.dueCents)})</button>`
+              : ''
+        }
+        ${tipBlock}
+        <span class="label">${t('spec')}</span>
+        <ul class="lines">${lines || `<li class="muted">${t('nothingYet')}</li>`}
+          ${p.tipCents ? `<li><span>${t('tipLine')}</span><span>${formatEuro(p.tipCents)}</span></li>` : ''}</ul>
+        <span class="label">${t('sendTo', { name: esc(p.name) })}</span>
+        ${sendButtons(p.id)}
+      </div>
     </details>
-    <div class="seg small">${[['contant', t('mCash')], ['pin', t('mCard')], ['tikkie', t('mTikkie')]]
-      .map(([m, l]) => `<button class="${p.method === m ? 'active' : ''}" data-action="method" data-method="${m}" data-id="${p.id}">${l}</button>`)
-      .join('')}</div>
-    ${
-      p.method === 'contant'
-        ? `<div class="cash">
-            <label class="field inline"><span>${t('gives')}</span><input inputmode="decimal" placeholder="${formatPlain(0)}" value="${p.givenCents != null ? formatPlain(p.givenCents) : ''}" data-action="given" data-id="${p.id}"></label>
-            <div class="quick">${quick.map(([l, c]) => `<button data-action="given-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
-            ${change}
-          </div>`
-        : ''
-    }
-    ${tipBlock}
   </article>`;
 }
 
 const emptyHint = (msg, tab, label) =>
   `<section class="card empty"><p>${msg}</p><button class="btn primary" data-action="tab" data-tab="${tab}">${label}</button></section>`;
 
+const sendButtons = (id) => `<div class="send-btns">
+    <button class="btn small-btn wa" data-action="send" data-via="wa" data-id="${id}">${icon('chat')} WhatsApp</button>
+    <button class="btn small-btn" data-action="send" data-via="mail" data-id="${id}">${icon('mail')} ${t('email')}</button>
+    <button class="btn small-btn" data-action="send" data-via="share" data-id="${id}">${icon('share')} ${t('more')}</button>
+  </div>`;
+
 function viewSend(b, r) {
-  const btns = (id) => `<div class="send-btns">
-      <button class="btn small-btn wa" data-action="send" data-via="wa" data-id="${id}">${icon('chat')} WhatsApp</button>
-      <button class="btn small-btn" data-action="send" data-via="mail" data-id="${id}">${icon('mail')} ${t('email')}</button>
-      <button class="btn small-btn" data-action="send" data-via="share" data-id="${id}">${icon('share')} ${t('more')}</button>
-    </div>`;
   return `<section class="card send">
-    <h3>${icon('share')} ${t('sendTitle')}</h3>
+    <h3>${icon('share')} ${t('sendAll')}</h3>
+    ${sendButtons('all')}
     <label class="field"><span>${t('payInfo')}</span><input value="${esc(b.payInfo || '')}" placeholder="${t('payInfoPh')}" data-action="pay-info" autocomplete="off"></label>
-    <div class="send-row"><strong>${t('sendGroup')}</strong>${btns('all')}</div>
-    <span class="label">${t('sendPerson')}</span>
-    ${r.persons
-      .map(
-        (p) => `<div class="send-row person" style="--c:${colorOf(b, p.id)}">
-          <span class="who-line"><span class="avatar sm" style="background:${colorOf(b, p.id)}">${esc(initials(p.name))}</span>
-            <strong>${esc(p.name)}</strong><span class="muted">${formatEuro(p.dueCents)}${p.paid ? ' ✓' : ''}</span></span>
-          ${btns(p.id)}</div>`
-      )
-      .join('')}
-    <p class="muted small">${t('sendHelp')}</p>
+    <p class="muted small">${t('sendHelp2')}</p>
   </section>`;
 }
 
@@ -691,6 +780,8 @@ $app.addEventListener('click', async (e) => {
   const b = bill();
   const { action, id } = el.dataset;
   switch (action) {
+    case 'undo':
+      return undo();
     case 'settings':
       ui.settings = true;
       render();
@@ -723,13 +814,13 @@ $app.addEventListener('click', async (e) => {
       go(id, ob.people.length ? 'overzicht' : ob.items.length ? 'deelnemers' : 'bon');
       return commit();
     }
-    case 'delete-bill':
-      if (confirm(t('deleteBill'))) {
-        state.bills = state.bills.filter((x) => x.id !== id);
-        if (ui.ocr?.billId === id && ui.ocr.error) ui.ocr = null;
-        commit();
-      }
-      return;
+    case 'delete-bill': {
+      const title = findBill(id).title;
+      state.bills = state.bills.filter((x) => x.id !== id);
+      if (ui.ocr?.billId === id && ui.ocr.error) ui.ocr = null;
+      commit();
+      return toast(t('deleted', { name: title }), true);
+    }
     case 'home':
       if (navPushed) return history.back(); // popstate tekent het startscherm
       go(null);
@@ -750,20 +841,28 @@ $app.addEventListener('click', async (e) => {
       b.items.push({ id: uid(), name: '', qty: 1, priceCents: 0, assign: {} });
       commit();
       return document.querySelector('.item-edit:last-of-type .name')?.focus();
-    case 'item-del':
+    case 'item-del': {
+      const name = findItem(b, id).name || t('desc');
       b.items = b.items.filter((i) => i.id !== id);
-      return commit();
+      commit();
+      return toast(t('deleted', { name }), true);
+    }
+    case 'item-split':
+      splitItem(b, id);
+      commit();
+      return toast(t('splitDone'), true);
     case 'person-del': {
       const p = findPerson(b, id);
-      if (!confirm(t('deletePerson', { name: p.name }))) return;
       b.people = b.people.filter((x) => x.id !== id);
       b.items.forEach((i) => delete i.assign?.[id]);
-      return commit();
+      commit();
+      return toast(t('deleted', { name: p.name }), true);
     }
     case 'select-person':
       ui.person = id;
       return render();
     case 'unit': {
+      markHintSeen();
       const it = findItem(b, id);
       if (it.everyone) {
         it.everyone = false;
@@ -818,9 +917,14 @@ $app.addEventListener('click', async (e) => {
       p.paidCents = computeSplit(b).persons.find((x) => x.id === id).dueCents;
       return commit();
     }
+    case 'undo-keep':
+      findPerson(b, id).extraTipCents = 0;
+      return commit();
     case 'copy':
       return copy(formatPlain(Number(el.dataset.cents)));
     case 'send': {
+      const un = computeSplit(b).unassignedCents;
+      if (un && !confirm(t('sendUnassigned', { a: formatEuro(un) }))) return;
       const subject = t('mailSubject', { title: b.title });
       if (id === 'all') return send(el.dataset.via, shareText(b), subject);
       const p = computeSplit(b).persons.find((x) => x.id === id);
@@ -862,7 +966,11 @@ $app.addEventListener('change', (e) => {
         it.name = el.value.trim();
         it.coverage = 1;
       }
-      if (f === 'qty') it.qty = Math.max(1, Math.round(Number(el.value) || 1));
+      if (f === 'qty') {
+        it.qty = Math.max(1, Math.round(Number(el.value) || 1));
+        const W = it.everyone ? 0 : Object.values(it.assign || {}).reduce((a, w) => a + w, 0);
+        if (W > it.qty) toast(t('qtyBelow', { n: W, q: it.qty }));
+      }
       if (f === 'price') {
         const c = parseEuro(el.value);
         if (c == null) toast(t('invalidAmount'));
@@ -920,11 +1028,7 @@ $app.addEventListener('input', (e) => {
   p.givenCents = old;
   const card = el.closest('.person-card');
   card.querySelector('.change')?.remove();
-  if (pr.changeCents == null) return;
-  const div = document.createElement('div');
-  div.className = `change ${pr.changeCents >= 0 ? 'ok' : 'bad'}`;
-  div.innerHTML = `<span>${pr.changeCents >= 0 ? t('change') : t('stillOwes')}</span><strong>${formatEuro(Math.abs(pr.changeCents))}</strong>`;
-  card.querySelector('.cash').appendChild(div);
+  card.querySelector('.cash')?.insertAdjacentHTML('beforeend', changeBox(pr.changeCents));
 });
 
 $app.addEventListener('submit', (e) => {
@@ -956,6 +1060,8 @@ function icon(name) {
     share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
     chat: '<path d="M4 20l1.5-4A8 8 0 1 1 8 18.5z"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    split: '<path d="M12 3v6M12 9l-6 6M12 9l6 6M6 15v6M18 15v6"/>',
     textsize: '<path d="M3 19l5-13 5 13M4.8 14.5h6.4"/><path d="M14 19l3.5-9 3.5 9M15.2 16h4.6"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
   }[name];
@@ -963,6 +1069,11 @@ function icon(name) {
 }
 
 document.addEventListener('keydown', (e) => {
+  // ⌘Z / Ctrl+Z buiten invoervelden: ongedaan maken
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+    e.preventDefault();
+    return undo();
+  }
   if (e.key === 'Escape' && ui.settings) {
     ui.settings = false;
     render();
