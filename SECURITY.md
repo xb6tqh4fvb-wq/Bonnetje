@@ -1,21 +1,13 @@
-# Security Policy
+# Beveiliging / Security
 
-## Supported Versions
+## Nederlands
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Alleen de nieuwste versie (de site op https://xb6tqh4fvb-wq.github.io/Bonnetje/) wordt bijgehouden.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Bonnetje heeft geen server, geen accounts en geen database: alle gegevens blijven op het toestel van de gebruiker. Heb je toch een beveiligingsprobleem gevonden, bijvoorbeeld een manier om via een bon of tekst code in de app uit te voeren, meld het dan **niet** als openbare issue, maar via **Security → Report a vulnerability** op deze repository. Je krijgt zo snel mogelijk een reactie.
 
-## Reporting a Vulnerability
+## English
 
-Use this section to tell people how to report a vulnerability.
+Only the latest version (the site at https://xb6tqh4fvb-wq.github.io/Bonnetje/) is maintained.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Bonnetje has no server, no accounts and no database: all data stays on the user's device. If you nevertheless find a security issue, for example a way to run code in the app through a bill or text, please do **not** open a public issue; use **Security → Report a vulnerability** on this repository instead. You will get a response as soon as possible.
