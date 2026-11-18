@@ -11,7 +11,7 @@ const SKIP = new RegExp(
   '\\b(' +
     [
       'btw', 'b\\.t\\.w', 'vat', 'tax', 'excl\\w*', 'incl\\w*', 'pin', 'pinnen', 'betaling', 'betaald', 'contant',
-      'cash', 'kontant', 'wisselgeld', 'terug', 'retour', 'visa', 'mastercard', 'maestro', 'v\\s?pay', 'amex', 'debit',
+      'cash', 'wisselgeld', 'terug', 'retour', 'visa', 'mastercard', 'maestro', 'v\\s?pay', 'amex', 'debit',
       'credit', 'kaart', 'card', 'transactie', 'autorisatie', 'auth', 'terminal', 'merchant', 'token',
       'saldo', 'change', 'bonnummer', 'bon\\s?nr', 'tafel', 'kassa', 'ober', 'bediende', 'datum', 'tijd',
       'tel', 'kvk', 'iban', 'bedankt', 'tot\\s?ziens',
@@ -83,16 +83,12 @@ const COLUMN_HEADER = /\b(uds|cant|descripcion|descripción|concepto|omschrijvin
 function splitQty(raw) {
   let name = raw;
   let qty = 1;
-  // Rommel aan de rand van de foto ("MM", "ME", "#") vóór het aantal weghalen,
-  // maar alleen als er daarna echt een aantal volgt ("XL burger" blijft staan).
-  const noise = name.match(/^\s*(?:[A-Z]{1,2}|[^\p{L}\d\s]{1,3})\s+(?=(?:\d{1,2}|[|\]!lI])\s+\S)/u);
-  if (noise) name = name.slice(noise[0].length);
   const q = name.match(/^\s*(\d{1,2})\s*[xX×*]?\s+(.*)$/) || name.match(/^\s*(\d{1,2})\s*[xX×*]\s*(.*)$/);
   if (q && Number(q[1]) > 0) return { qty: Number(q[1]), name: q[2] };
   const qEnd = name.match(/^(.*?)\s+(\d{1,2})\s*[xX×]\s*$/) || name.match(/^(.*?)\s*[xX×]\s*(\d{1,2})\s*$/);
   if (qEnd && Number(qEnd[2]) > 0) return { qty: Number(qEnd[2]), name: qEnd[1] };
   // "|", "]", "!" of losse l/I vooraan is meestal een verkeerd gelezen "1"
-  const one = name.match(/^\s*[|\]!lI]\s+(\S.*\p{L}.*)$/u);
+  const one = name.match(/^\s*[|\]!lI]\s+(\p{L}.*)$/u);
   if (one) return { qty: 1, name: one[1] };
   return { qty, name };
 }
@@ -115,17 +111,9 @@ export function parseReceiptText(text, conf = null) {
   const makeItem = (rawName, amounts, c) => {
     const last = amounts[amounts.length - 1];
     let { qty, name } = splitQty(rawName);
-    // Stukprijs + regeltotaal op de regel: het aantal volgt daaruit (betrouwbaarder dan
-    // een gelezen cijfer aan de rand). "8 2 Jus vers 3,85 7,70" -> 2x Jus vers.
-    let unitCents = null;
-    if (amounts.length >= 2 && amounts[0].cents > 0) {
-      unitCents = amounts[0].cents;
-      const r = Math.round(last.cents / unitCents);
-      if (r >= 1 && r <= 30 && Math.abs(unitCents * r - last.cents) <= 1 && r !== qty) {
-        const lead = name.match(/^\s*(\d{1,2})\s+(?=\p{L})/u);
-        if (lead && Number(lead[1]) === r) name = name.slice(lead[0].length);
-        qty = r;
-      }
+    if (qty === 1 && amounts.length >= 2 && amounts[0].cents > 0) {
+      const r = Math.round(last.cents / amounts[0].cents);
+      if (r >= 2 && r <= 30 && Math.abs(amounts[0].cents * r - last.cents) <= 1) qty = r;
     }
     name = cleanName(fixWordDigits(name));
     if (!/\p{L}{2,}/u.test(name)) name = 'Onbekend item';
@@ -133,7 +121,7 @@ export function parseReceiptText(text, conf = null) {
       name,
       qty,
       priceCents: last.cents,
-      ...(unitCents ? { unitCents } : {}),
+      ...(amounts.length >= 2 && qty > 1 ? { unitCents: amounts[0].cents } : {}),
       ...(c != null ? { conf: c } : {}),
       // Service/couvert en kortingen standaard over iedereen; aanpasbaar bij Verdelen.
       everyone: last.cents < 0 || /\b(service|bediening|fooi|couvert|tip|gratuity|cover|servicio|propina|cubierto)\b/i.test(name),
@@ -207,22 +195,6 @@ export function parseReceiptText(text, conf = null) {
     });
 
   const totalCents = totals.length ? Math.max(...totals) : subtotal;
-
-  // Zelfcorrectie: sluit de bon niet aan, en is er precies één regel waar stukprijs x aantal
-  // afwijkt van het gelezen regeltotaal, terwijl de berekende waarde de bon wél laat
-  // aansluiten? Dan was het regeltotaal verkeerd gelezen. Gemarkeerd ter controle.
-  if (totalCents != null) {
-    const sum = items.reduce((a, it) => a + it.priceCents, 0);
-    if (sum !== totalCents) {
-      const fixes = items.filter((it) => it.unitCents && it.unitCents * it.qty !== it.priceCents && sum - it.priceCents + it.unitCents * it.qty === totalCents);
-      if (fixes.length === 1) {
-        const it = fixes[0];
-        it.corrected = it.priceCents;
-        it.priceCents = it.unitCents * it.qty;
-        it.conf = Math.min(it.conf ?? 100, 50);
-      }
-    }
-  }
   return { title, items, totalCents };
 }
 

@@ -463,15 +463,9 @@ function statusBox(b, r) {
   return '';
 }
 
-/**
- * Regel markeren als "onzeker"? Alleen als de bon niet aansluit op het totaal: sluit hij wel
- * aan, dan kloppen de bedragen vrijwel zeker en zou markeren alleen ruis zijn.
- */
-const isUnsure = (it, addsUp) => !it.checked && it.corrected == null && !addsUp && it.conf != null && it.conf < 75;
-
-function lineRow(b, it, addsUp) {
+function lineRow(b, it) {
   const translated = it.orig != null && (b.translatedTo || it.orig !== it.name);
-  const unsure = isUnsure(it, addsUp) || (it.corrected != null && !it.checked);
+  const unsure = it.conf != null && it.conf < 75 && !it.checked;
   const nameInput = (label) =>
     `<label class="field"><span>${label}</span><input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}"></label>`;
   return `<div class="line ${unsure ? 'unsure' : ''}">
@@ -491,13 +485,7 @@ function lineRow(b, it, addsUp) {
       <span class="each">${it.qty > 1 ? `${t('each', { a: formatEuro(Math.round(it.priceCents / it.qty)) })}<button class="link small split" data-action="item-split" data-id="${it.id}">${t('splitShort')}</button>` : ''}</span>
       <label class="field"><span>${t('amount')}</span><input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}"></label>
     </div>
-    ${
-      it.corrected != null && !it.checked
-        ? `<div class="line-flag">${t('corrected', { from: formatEuro(it.corrected), qty: it.qty, unit: formatEuro(it.unitCents), to: formatEuro(it.priceCents) })}</div>`
-        : unsure
-          ? `<div class="line-flag">${t('lowConf')}</div>`
-          : ''
-    }
+    ${unsure ? `<div class="line-flag">${t('lowConf')}</div>` : ''}
   </div>`;
 }
 
@@ -510,8 +498,7 @@ function viewBon(b, r) {
            <div class="bar"><span style="width:${Math.round((o.progress || 0) * 100)}%"></span></div>
            <p class="muted small">${t('langDownload')}</p></div>`
     : '';
-  const addsUp = checkStatus(b, r).kind === 'ok';
-  const unsureCount = b.items.filter((it) => isUnsure(it, addsUp)).length;
+  const unsureCount = b.items.filter((it) => it.conf != null && it.conf < 75 && !it.checked).length;
   return `
   <section class="card">
     <label class="field"><span>${t('billName')}</span><input value="${esc(b.title)}" data-action="title"></label>
@@ -531,7 +518,7 @@ function viewBon(b, r) {
     ${b.items.length ? `<p class="muted small">${t('chkHelp')}</p>` : ''}
     ${statusBox(b, r)}
     ${unsureCount ? `<div class="check-status warn"><b>?</b><span>${t('chkUnsure', { n: unsureCount })}</span></div>` : ''}
-    <div class="lines-list">${b.items.map((it) => lineRow(b, it, addsUp)).join('') || `<p class="muted">${t('noLinesYet')}</p>`}</div>
+    <div class="lines-list">${b.items.map((it) => lineRow(b, it)).join('') || `<p class="muted">${t('noLinesYet')}</p>`}</div>
     <button class="btn ghost" data-action="item-add">${icon('plus')} ${t('addLine')}</button>
     <div class="totals">
       <div class="row-between"><span>${t('sumLines')}</span><strong>${formatEuro(r.itemsTotal)}</strong></div>
