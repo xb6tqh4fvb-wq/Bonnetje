@@ -6,7 +6,11 @@
 // - PDF.js 4.8.69 (Apache 2.0)
 // - Firebase JS SDK 12.17.0 (Apache 2.0), geladen vanaf googles CDN (gstatic) bij de eerste online AI-aanroep
 
-export const CACHE_NAME = 'bonnetje-v18';
+export const CACHE_NAME = 'bonnetje-v19';
+
+// v19: zichtbaar versienummer onder Instellingen & privacy. Afgeleid van de cache-naam,
+// zodat het nummer nooit kan verspringen van wat er echt draait.
+export const APP_VERSION = CACHE_NAME.replace('bonnetje-v', '');
 
 export const APP_SHELL_URLS = [
   './',

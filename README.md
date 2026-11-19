@@ -7,6 +7,18 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v19 (verzoek Henk: "Ik krijg nog steeds de oude versie")
+
+Regressietests: 96/96 groen in Node (`node tests/calculator.test.js`).
+
+Aanleiding: ruim 2,5 uur na de v18-deploy draaide Henks iPhone nog de oude versie. Oorzaak (combinatie, niet afzonderlijk te bewijzen zonder zijn toestel): de oude pagina (v17) bevat géén update-logica — zodra iOS die pagina in geheugen houdt, ziet hij v17 tot die pagina herlaadt, óók al is er onderwijl een nieuwe service worker actief geworden; iOS doet sw-update-checks bovendien op zijn eigen momenten; en GitHub Pages cachet sw.js kort (max-age). v19 lost dit structureel op:
+
+- **Zichtbaar versienummer** onder Instellingen & privacy ("Versie 19", afgeleid van de cache-naam zodat het nooit kan verspringen).
+- **sw navigeert oude clients geforceerd:** bij activate, als een oudere bonnetje-cache wordt vervangen, stuurt de service worker elk open venster naar zijn eigen URL (geforceerde herlading naar de nieuwe versie). Zo komen ook v17-clients — die zichzelf niet kunnen updaten — automatisch op v19, zonder dat iemand iets hoeft te wissen. De sessie in localStorage blijft bewaard (cache wissen raakt localStorage niet).
+- **Paginanavigaties network-first** met de cache als offline-terugval, zodat een actieve sw nooit lang een verouderde app kan blijven serveren.
+- **sw.js altijd vers opgehaald** bij update-checks (`updateViaCache: 'none'` bij register), naast de bestaande eenmalige herlading bij controller-wisseling en de update-checks bij openen/tabwissel.
+- Cache `bonnetje-v19` in `sw.js` en `js/assets-manifest.js`. Tests V19.1 (sw: network-first navigatie, geforceerde client-navigatie alleen bij versiewissel, skipWaiting) en V19.2 (versienummer afgeleid en getoond, updateViaCache none).
+
 ## Wijzigingen in v18 (verzoek Henk: online scan faalde op zijn iPhone, ongedaan-pilletje niet zichtbaar)
 
 Regressietests: 94/94 groen in Node (`node tests/calculator.test.js`).

@@ -44,6 +44,7 @@ import {
   compactRowModel
 } from './item-rows.js';
 import { prepareImageForOnlineScan, isDownscalableImage } from './image-downscale.js';
+import { APP_VERSION } from './assets-manifest.js';
 import {
   createEmptySession,
   loadSession,
@@ -169,7 +170,7 @@ async function initServiceWorker() {
       // herladen zodat de nieuwe versie meteen zichtbaar is (sessie blijft bewaard
       // in localStorage). Zonder dit moest de app twee keer geopend worden na een deploy.
       const hadController = Boolean(navigator.serviceWorker.controller);
-      const reg = await navigator.serviceWorker.register('./sw.js');
+      const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }); // v19: sw.js altijd vers ophalen
       if (hadController) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (sessionStorage.getItem('bonnetje_sw_reloaded')) return;
@@ -2276,6 +2277,12 @@ function openSettingsModal() {
         }
       })
     ])
+  );
+
+
+  // v19: zichtbaar versienummer, zodat duidelijk is welke versie er draait
+  body.appendChild(
+    el('p', { className: 'help-text app-version', text: `${t(lang, 'versionLabel')} ${APP_VERSION}` })
   );
 
   if (!dialog.open) dialog.showModal();

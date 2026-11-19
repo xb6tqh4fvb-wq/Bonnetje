@@ -33,7 +33,7 @@ import {
   calculateSettlement,
   buildSettlementShareText
 } from '../js/calculator.js';
-import { LOCAL_OCR_MODELS } from '../js/assets-manifest.js';
+import { LOCAL_OCR_MODELS, CACHE_NAME, APP_VERSION } from '../js/assets-manifest.js';
 import {
   isItemExpanded,
   toggleItemExpanded,
@@ -1300,6 +1300,29 @@ PIN 43,00`);
     assertTrue(!toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Twijfelregel kan dicht');
     assertTrue(!isItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Blijft dicht');
     assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
+  });
+
+  test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
+    const fs = await import('node:fs');
+    const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+    assertEqual(CACHE_NAME, 'bonnetje-v19', 'manifest-cache is v19');
+    assertTrue(sw.includes("const CACHE_NAME = 'bonnetje-v19';"), 'sw-cache is v19');
+    assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
+    assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
+    assertTrue(sw.includes('w.navigate(w.url)'), 'sw navigeert oude clients geforceerd bij activate');
+    assertTrue(sw.includes('hadOldVersion'), 'geforceerde navigatie alleen bij echte versiewissel (niet bij eerste installatie)');
+    assertTrue(sw.includes('skipWaiting'), 'nieuwe sw wacht niet op sluiten');
+  });
+
+  test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
+    assertEqual(APP_VERSION, '19', 'versienummer afgeleid van cache-naam');
+    assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    assertTrue(app.includes("updateViaCache: 'none'"), 'sw.js wordt altijd vers opgehaald bij update-check');
+    assertTrue(app.includes('versionLabel') && app.includes('APP_VERSION'), 'instellingenmodal toont het versienummer');
+    assertEqual(STRINGS.nl.versionLabel, 'Versie', 'NL-label');
+    assertEqual(STRINGS.en.versionLabel, 'Version', 'EN-label');
   });
 
   test('V18.1 foto verkleinen vóór online scan: alleen verkleinend, verhouding behouden', () => {

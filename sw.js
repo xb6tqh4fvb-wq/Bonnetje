@@ -1,5 +1,5 @@
 // Bonnetje - Service Worker (v14: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
-const CACHE_NAME = 'bonnetje-v18';
+const CACHE_NAME = 'bonnetje-v19';
 
 const APP_SHELL = [
   './',
@@ -46,12 +46,23 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+  // v19: clients die een OUDE pagina draaien zonder eigen update-logica (bijv. v17,
+  // die zichzelf niet kan herladen) navigeren we vanuit de sw naar hun eigen URL,
+  // zodat ze direct op de nieuwe versie draaien. De sessie in localStorage raakt
+  // daarbij NIET kwijt (caches wissen raakt localStorage niet). Alleen doen als er
+  // echt een oudere bonnetje-cache wordt vervangen, niet bij de allereerste installatie.
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    (async () => {
+      const keys = await caches.keys();
+      const hadOldVersion = keys.some((k) => k.startsWith('bonnetje-') && k !== CACHE_NAME);
+      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      await self.clients.claim();
+      if (hadOldVersion) {
+        const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        await Promise.all(wins.map((w) => w.navigate(w.url).catch(() => null)));
+      }
+    })()
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -62,6 +73,25 @@ self.addEventListener('fetch', (event) => {
   // API-verkeer (Firebase AI Logic, App Check, installations e.d.) nooit cachen.
   // De Firebase-SDK zelf (gstatic, versie-vastgepind) mag wel gecachet worden.
   if (url.hostname.endsWith('googleapis.com') || url.hostname.endsWith('firebaseio.com')) {
+    return;
+  }
+
+  // v19: paginanavigaties network-first (verse index bij elke start), cache als
+  // offline-terugval. Zo kan een actieve sw nooit een verouderde app blijven serveren.
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then((networkRes) => {
+          if (networkRes && networkRes.ok) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', clone));
+          }
+          return networkRes;
+        })
+        .catch(() =>
+          caches.match(req, { ignoreSearch: true }).then((cached) => cached || caches.match('./index.html'))
+        )
+    );
     return;
   }
 

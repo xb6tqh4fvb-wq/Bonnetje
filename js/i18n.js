@@ -48,6 +48,7 @@ export const STRINGS = {
     onlineAiToggle: 'Online AI-scan (Google)',
     onlineAiHint: 'Aan: je bonfoto of pdf gaat naar Google (Firebase AI Logic, verwerking in de EU-multiregio) om de regels en bedragen te lezen; vertalen kan dan ook online. De kosten lopen via de app-eigenaar met een vast maandmaximum. Uit: er gaat niets naar buiten — de app leest alleen lokaal op je toestel. Lokaal lezen werkt minder goed en vertaalt niet.',
     aiOffStatus: 'Online AI-scan staat uit op dit toestel; alles blijft lokaal.',
+    versionLabel: 'Versie',
     // Stap 2: Deelnemers
     step2Title: 'Stap 2: Wie deden er mee?',
     step2Help: 'Voer de namen in. Eerdere namen worden op je toestel onthouden zodat je ze snel weer kiest.',
@@ -201,6 +202,7 @@ export const STRINGS = {
     onlineAiToggle: 'Online AI scan (Google)',
     onlineAiHint: 'On: your receipt photo or PDF goes to Google (Firebase AI Logic, processed in the EU multi-region) to read the lines and amounts; online translation is also possible. Costs run through the app owner with a fixed monthly cap. Off: nothing leaves your device — the app only reads locally. Local reading works less well and does not translate.',
     aiOffStatus: 'Online AI scan is off on this device; everything stays local.',
+    versionLabel: 'Version',
     step2Title: 'Step 2: Who joined?',
     step2Help: 'Enter names. Previous names are remembered locally on your device for quick selection.',
     participantPlaceholder: 'Enter name (e.g. Jolanda)',
