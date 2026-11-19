@@ -71,7 +71,7 @@ import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
 import {
   getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS,
-  loadSavedNames, saveNameToHistory, removeSavedName, clearSavedNames, createEmptySession, saveSession,
+  loadSavedNames, saveNameToHistory, createEmptySession, saveSession,
   normalizeSavedName
 } from '../js/storage.js';
 import { extractPdfTextAllPages } from '../js/parser.js';
@@ -1306,46 +1306,38 @@ PIN 43,00`);
     assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
   });
 
-  test('V20.1 bewaarde namen: normaliseren en dubbels (hoofdletter/spaties) voorkomen', () => {
+  function clearSavedNames() {
+    localStorage.removeItem('bonnetje_saved_names_v1');
+  }
+
+  test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
-    saveNameToHistory('  Anna   de Vries ');
+    saveNameToHistory('  Anna   de  Vries ');
     assertEqual(loadSavedNames().join('|'), 'Anna de Vries', 'spaties genormaliseerd');
     saveNameToHistory('anna de vries');
     assertEqual(loadSavedNames().length, 1, 'hoofdlettervariant is geen dubbel');
     assertEqual(loadSavedNames()[0], 'anna de vries', 'nieuwste schrijfwijze bewaard');
-    saveNameToHistory('');
-    assertEqual(loadSavedNames().length, 1, 'lege naam wordt niet bewaard');
+    saveNameToHistory('Bram');
+    saveNameToHistory('Anna de Vries');
+    assertEqual(loadSavedNames().join('|'), 'Anna de Vries|Bram', 'meest recente vooraan');
+    saveNameToHistory('   ');
+    assertEqual(loadSavedNames().length, 2, 'lege naam wordt niet bewaard');
     clearSavedNames();
   });
 
   test('V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)', () => {
     clearSavedNames();
     saveNameToHistory('Bram');
-    saveSession(createEmptySession()); // zelfde effect als "Nieuwe bon": alleen de sessie wisselt
+    const fresh = createEmptySession();
+    saveSession(fresh);
     assertEqual(loadSavedNames().join('|'), 'Bram', 'naam blijft bewaard na bon-reset');
     clearSavedNames();
   });
 
-  test('V20.3 vaakst gebruikte namen staan vooraan, max 30 bewaard', () => {
+  test('V20.3 oude lijsten (strings of met tellingen) migreren vanzelf', () => {
     clearSavedNames();
-    saveNameToHistory('Zelden');
-    saveNameToHistory('Vaak');
-    saveNameToHistory('Vaak');
-    saveNameToHistory('vaak');
-    assertEqual(loadSavedNames()[0], 'vaak', 'vaakst gebruikt eerst');
-    for (let i = 1; i <= 35; i++) saveNameToHistory(`Naam ${i}`);
-    assertTrue(loadSavedNames().length <= 30, 'maximaal 30 bewaard');
-    clearSavedNames();
-  });
-
-  test('V20.4 bewaarde namen verwijderen en alles vergeten', () => {
-    clearSavedNames();
-    saveNameToHistory('Anna');
-    saveNameToHistory('Bram');
-    removeSavedName('ANNA');
-    assertEqual(loadSavedNames().join('|'), 'Bram', 'verwijderen is hoofdletterongevoelig');
-    clearSavedNames();
-    assertEqual(loadSavedNames().length, 0, 'alles vergeten leegt de lijst');
+    localStorage.setItem('bonnetje_saved_names_v1', JSON.stringify(['Piet', { name: 'Klaas', uses: 9, lastUsed: 1 }, 'piet']));
+    assertEqual(loadSavedNames().join('|'), 'Piet|Klaas', 'gemigreerd en ontdubbeld');
     clearSavedNames();
   });
 

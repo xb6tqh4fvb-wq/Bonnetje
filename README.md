@@ -11,12 +11,11 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 
 Regressietests: 100/100 groen in Node (`node tests/calculator.test.js`).
 
-- **Bewaarde deelnemersnamen op het toestel** (localStorage, aparte sleutel `bonnetje_saved_names_v1`): een naam die je eenmaal invoert wordt bewaard en overleeft "Nieuwe bon"; hij gaat alleen weg als je hem zelf verwijdert (of bij "Alles wissen" in de instellingen, dat bewust álles wist). Niets gaat naar buiten of naar Google.
-- **Tik-chips in stap 2:** alle bewaarde namen als compacte chips. Tik op "+ naam" voegt hem toe aan deze bon; al toegevoegde namen blijven zichtbaar met vinkje (✓) en doen niets bij tikken (nooit dubbel). Zelf een nieuwe naam typen werkt zoals altijd en wordt automatisch bewaard.
-- **Rustig beheer:** knop "Beheer" naast de lijst zet per naam een klein kruisje (uit de bewaarde lijst, niet van de bon) en biedt "Alles vergeten" met bevestiging. Onder Instellingen & privacy staat één regel: bewaarde namen blijven alleen op dit toestel.
-- **Volgorde en limiet:** vaakst gebruikt eerst, daarna meest recent; maximaal 30 bewaard. Namen worden genormaliseerd (spaties, tab, niet-brekende spatie) en hoofdletterongevoelig ontdubbeld — óók bij het toevoegen van een deelnemer zelf, zodat "Cees   de  Vries" en "Cees de Vries" dezelfde persoon zijn (review-bevinding); de nieuwste schrijfwijze wordt bewaard. Oude string-lijsten migreren vanzelf.
+- **Namen automatisch bewaren op het toestel** (localStorage, eigen sleutel `bonnetje_saved_names_v1`): wie je eenmaal invoert, blijft bewaard en overleeft "Nieuwe bon". Niets gaat naar buiten of naar Google. Weg alleen via "Alles wissen" in de instellingen.
+- **Eén tik in stap 2:** bewaarde namen die nog niet op deze bon staan verschijnen als chips onder het invoerveld; één tik voegt de naam toe en de chip verdwijnt. Dat is alles — geen beheermodus, geen vinkjes, geen aparte knoppen (feedback Henk: simpeler).
+- Namen worden genormaliseerd (spaties, tab, niet-brekende spatie) en hoofdletterongevoelig ontdubbeld — óók bij het zelf toevoegen van een deelnemer, zodat "Cees   de  Vries" en "Cees de Vries" dezelfde persoon zijn (review-bevinding). Meest recente naam vooraan. Oude lijsten (strings of met gebruiks-tellingen) migreren vanzelf.
 - **Bekende beperking (eerlijkheid):** in Safari kan iOS localStorage van een site wissen na ±7 dagen zonder bezoek als de app niet als app op het beginscherm staat; bewaarde namen kunnen dan verdwenen zijn. Op het beginscherm geïnstalleerd blijft alles bewaard.
-- Techniek: opslag als `{ name, uses, lastUsed }` met `removeSavedName`/`clearSavedNames` in `js/storage.js`. Tests V20.1-20.4 (normaliseren, ontdubbelen, overleeft bon-reset, vaakst-eerst + max 30, verwijderen/vergeten). Cache `bonnetje-v20`.
+- Techniek: simpele string-lijst in `js/storage.js` (`normalizeSavedName`/`loadSavedNames`/`saveNameToHistory`). Tests V20.1-20.3 + V20.5. Cache `bonnetje-v20`.
 
 ## Wijzigingen in v19 (verzoek Henk: "Ik krijg nog steeds de oude versie")
 

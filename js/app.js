@@ -51,8 +51,6 @@ import {
   saveSession,
   loadSavedNames,
   saveNameToHistory,
-  removeSavedName,
-  clearSavedNames,
   normalizeSavedName,
   loadSettings,
   saveSettings,
@@ -71,7 +69,6 @@ let session = loadSession();
 let settings = loadSettings();
 let savedNames = loadSavedNames();
 // v20: beheermodus voor bewaarde namen (ui-only, geen sessiedata)
-let manageSavedNames = false;
 let customDict = loadCustomDict();
 const undoManager = new UndoManager(50);
 
@@ -1284,76 +1281,25 @@ function renderStep2(container) {
   }
   container.appendChild(chipList);
 
-  // v20: alle bewaarde namen als tik-chips (verzoek Henk). Tik = toevoegen aan deze bon;
-  // al toegevoegde namen blijven zichtbaar met een vinkje en doen niets bij tikken.
-  // "Beheer" zet de beheermodus aan: per naam een klein kruisje om hem te vergeten,
-  // plus "Alles vergeten". Verwijderen gebeurt alleen op expliciet verzoek.
-  if (savedNames.length > 0) {
-    const titleRow = el('div', { className: 'saved-names-head' }, [
-      el('h3', { text: t(lang, 'savedNamesTitle') }),
-      el('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-link',
-        text: t(lang, manageSavedNames ? 'namesManageDone' : 'namesManage'),
-        onClick: () => {
-          manageSavedNames = !manageSavedNames;
-          render();
-        }
-      })
-    ]);
-    container.appendChild(titleRow);
+  // v20: bewaarde namen als tik-chips (verzoek Henk). Alleen namen die nog niet
+  // op deze bon staan; één tik voegt toe, daarna verdwijnt de chip.
+  const unusedSaved = savedNames.filter(
+    (n) => !session.participants.some((p) => normalizeSavedName(p.name).toLowerCase() === n.toLowerCase())
+  );
+  if (unusedSaved.length > 0) {
+    container.appendChild(el('h3', { text: t(lang, 'savedNamesTitle') }));
     const savedWrap = el('div', { className: 'chip-wrap' });
-    savedNames.forEach((n) => {
-      const added = session.participants.some((p) => normalizeSavedName(p.name).toLowerCase() === n.toLowerCase());
-      const chip = el('button', {
-        type: 'button',
-        className: added ? 'chip-btn chip-added' : 'chip-btn',
-        text: added ? `✓ ${n}` : `+ ${n}`,
-        'aria-pressed': added ? 'true' : 'false',
-        'aria-label': added ? `${n} (${t(lang, 'namesAddedLabel')})` : n,
-        onClick: () => {
-          if (!added) addParticipantByName(n);
-        }
-      });
-      if (!manageSavedNames) {
-        savedWrap.appendChild(chip);
-      } else {
-        savedWrap.appendChild(
-          el('span', { className: 'chip-manage' }, [
-            chip,
-            el('button', {
-              type: 'button',
-              className: 'chip-remove',
-              text: '✕',
-              'aria-label': `${t(lang, 'namesRemoveLabel')}: ${n}`,
-              onClick: () => {
-                savedNames = removeSavedName(n);
-                render();
-              }
-            })
-          ])
-        );
-      }
+    unusedSaved.forEach((n) => {
+      savedWrap.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'chip-btn',
+          text: `+ ${n}`,
+          onClick: () => addParticipantByName(n)
+        })
+      );
     });
     container.appendChild(savedWrap);
-    if (manageSavedNames) {
-      container.appendChild(
-        el('div', { className: 'mt' }, [
-          el('button', {
-            type: 'button',
-            className: 'btn btn-sm btn-danger-outline',
-            text: t(lang, 'namesForgetAll'),
-            onClick: () => {
-              if (window.confirm(t(lang, 'namesForgetAllConfirm'))) {
-                savedNames = clearSavedNames();
-                manageSavedNames = false;
-                render();
-              }
-            }
-          })
-        ])
-      );
-    }
   }
 
   container.appendChild(

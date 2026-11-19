@@ -55,35 +55,17 @@ export function saveSession(session) {
   } catch {}
 }
 
-// v20: bewaarde deelnemersnamen (verzoek Henk). Aparte localStorage-sleutel, blijft
-// alleen op dit toestel, gaat nergens naar buiten. Bewaard als { name, uses, lastUsed };
-// gesorteerd op vaakst gebruikt, daarna meest recent. Oude string-lijsten worden bij
-// het laden gemigreerd. Maximaal MAX_SAVED_NAMES.
-const MAX_SAVED_NAMES = 30;
-
+// v20: bewaarde deelnemersnamen (verzoek Henk). Alleen op dit toestel (eigen
+// localStorage-sleutel), gaat nergens naar buiten. Gewoon een lijst strings:
+// genormaliseerd, hoofdletterongevoelig ontdubbeld, meest recente vooraan.
+// Oude lijsten met gebruiks-tellingen ({name, uses, lastUsed}) migreren vanzelf.
 /** Maak een naam netjes: spaties aan de uiteinden weg, dubbele spaties enkelvoudig. */
 export function normalizeSavedName(name) {
   return String(name || '').trim().replace(/\s+/g, ' ');
 }
 
-function normalizeSavedNameEntry(entry) {
-  if (typeof entry === 'string') {
-    const name = normalizeSavedName(entry);
-    return name ? { name, uses: 1, lastUsed: 0 } : null;
-  }
-  if (entry && typeof entry === 'object') {
-    const name = normalizeSavedName(entry.name);
-    if (!name) return null;
-    return {
-      name,
-      uses: Number.isFinite(entry.uses) && entry.uses > 0 ? Math.floor(entry.uses) : 1,
-      lastUsed: Number.isFinite(entry.lastUsed) ? entry.lastUsed : 0
-    };
-  }
-  return null;
-}
-
-export function loadSavedNameEntries() {
+/** Lijst van bewaarde namen (strings), meest recente eerst. */
+export function loadSavedNames() {
   try {
     const raw = localStorage.getItem(NAMES_KEY);
     const arr = raw ? JSON.parse(raw) : [];
@@ -91,67 +73,28 @@ export function loadSavedNameEntries() {
     const seen = new Set();
     const out = [];
     for (const e of arr) {
-      const n = normalizeSavedNameEntry(e);
+      const n = normalizeSavedName(typeof e === 'string' ? e : e && e.name);
       if (!n) continue;
-      const key = n.name.toLowerCase();
+      const key = n.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(n);
     }
-    return out.slice(0, MAX_SAVED_NAMES);
+    return out;
   } catch {
     return [];
   }
 }
 
-function sortSavedNameEntries(entries) {
-  return entries
-    .slice()
-    .sort((a, b) => (b.uses - a.uses) || (b.lastUsed - a.lastUsed) || a.name.localeCompare(b.name, 'nl'));
-}
-
-function persistSavedNameEntries(entries) {
-  const trimmed = sortSavedNameEntries(entries).slice(0, MAX_SAVED_NAMES);
-  try {
-    localStorage.setItem(NAMES_KEY, JSON.stringify(trimmed));
-  } catch {}
-  return trimmed;
-}
-
-/** Lijst van bewaarde namen (strings), gesorteerd op vaakst/recent. */
-export function loadSavedNames() {
-  return sortSavedNameEntries(loadSavedNameEntries()).map((e) => e.name);
-}
-
-/** Bewaar een naam; bij hergebruik telt het gebruik mee en schuift hij naar voren. */
+/** Bewaar een naam: genormaliseerd, ontdubbeld, vooraan gezet. */
 export function saveNameToHistory(name) {
   const clean = normalizeSavedName(name);
   if (!clean) return loadSavedNames();
-  const entries = loadSavedNameEntries();
-  const idx = entries.findIndex((e) => e.name.toLowerCase() === clean.toLowerCase());
-  if (idx >= 0) {
-    entries[idx].uses += 1;
-    entries[idx].lastUsed = Date.now();
-    entries[idx].name = clean; // nieuwste schrijfwijze (hoofdletters) bewaren
-  } else {
-    entries.push({ name: clean, uses: 1, lastUsed: Date.now() });
-  }
-  return persistSavedNameEntries(entries).map((e) => e.name);
-}
-
-/** Verwijder één bewaarde naam (hoofdletterongevoelig). */
-export function removeSavedName(name) {
-  const clean = normalizeSavedName(name);
-  const entries = loadSavedNameEntries().filter((e) => e.name.toLowerCase() !== clean.toLowerCase());
-  return persistSavedNameEntries(entries).map((e) => e.name);
-}
-
-/** Vergeet álle bewaarde namen (alleen op verzoek van de gebruiker). */
-export function clearSavedNames() {
+  const names = [clean, ...loadSavedNames().filter((n) => n.toLowerCase() !== clean.toLowerCase())];
   try {
-    localStorage.removeItem(NAMES_KEY);
+    localStorage.setItem(NAMES_KEY, JSON.stringify(names));
   } catch {}
-  return [];
+  return names;
 }
 
 export function loadSettings() {
