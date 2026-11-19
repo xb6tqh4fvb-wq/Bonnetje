@@ -40,6 +40,11 @@ export const STRINGS = {
     vatUncertainWarning:
       'Geef bij de gemarkeerde btw/toeslag-regels eerst aan of ze wel of niet moeten meetellen.',
     deleteLine: 'Verwijder regel',
+    expandLine: 'tik voor details en aanpassen',
+    collapseLine: 'tik om in te klappen',
+    undoBarLineRemoved: 'Regel verwijderd.',
+    undoBarAction: 'Ongedaan maken',
+    lineRestored: 'Regel teruggezet.',
     // Stap 2: Deelnemers
     step2Title: 'Stap 2: Wie deden er mee?',
     step2Help: 'Voer de namen in. Eerdere namen worden op je toestel onthouden zodat je ze snel weer kiest.',
@@ -185,6 +190,11 @@ export const STRINGS = {
     vatUncertainWarning:
       'Please decide for each flagged VAT/surcharge line whether it should be included or excluded.',
     deleteLine: 'Delete line',
+    expandLine: 'tap for details and editing',
+    collapseLine: 'tap to collapse',
+    undoBarLineRemoved: 'Line removed.',
+    undoBarAction: 'Undo',
+    lineRestored: 'Line restored.',
     step2Title: 'Step 2: Who joined?',
     step2Help: 'Enter names. Previous names are remembered locally on your device for quick selection.',
     participantPlaceholder: 'Enter name (e.g. Jolanda)',

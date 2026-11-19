@@ -375,6 +375,95 @@ input[type="number"] {
   margin-top: 0.65rem;
 }
 
+/* v17: compacte bonregel — één rij per regel, tik = uitklappen */
+.item-card {
+  padding: 0.45rem 0.7rem;
+}
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.item-compact-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 44px; /* duimvriendelijk */
+  padding: 0.2rem 0.25rem;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.item-compact-row .item-qty {
+  color: var(--text-muted);
+  min-width: 2.1em;
+  flex: none;
+}
+.item-compact-row .item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-compact-row .item-total {
+  font-weight: 600;
+  white-space: nowrap;
+  flex: none;
+}
+.item-compact-row .item-caret {
+  color: var(--text-muted);
+  flex: none;
+}
+.item-delete-btn {
+  flex: none;
+  min-width: 44px; /* klein knopje, wel duimvriendelijk */
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--error-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.item-delete-btn:active {
+  background: var(--surface-alt);
+}
+.item-body {
+  margin-top: 0.35rem;
+}
+
+/* v17: ongedaan-maken-balk onderin na het verwijderen van een regel */
+.undo-bar {
+  position: fixed;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0.75rem;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+.undo-bar .undo-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .badge-row {
   display: flex;
   flex-wrap: wrap;

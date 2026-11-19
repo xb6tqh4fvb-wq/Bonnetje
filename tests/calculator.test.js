@@ -35,6 +35,14 @@ import {
 } from '../js/calculator.js';
 import { LOCAL_OCR_MODELS } from '../js/assets-manifest.js';
 import {
+  isItemExpanded,
+  toggleItemExpanded,
+  deleteItemAt,
+  restoreDeletedItem,
+  computedUnitPriceCents,
+  compactRowModel
+} from '../js/item-rows.js';
+import {
   splitPdfTextItemToWords,
   normalizePunctuation,
   parsePlainTextReceipt,
@@ -1236,6 +1244,74 @@ PIN 43,00`);
       assertEqual(row.hosted, false);
       assertEqual(row.carries.length, 0);
     }
+  });
+
+  // ---- v17: compacte bonregel (kruisje, ongedaan maken, uitklappen) ----
+
+  test('V17.1 compactRowModel: naam, aantal, regeltotaal; vertaling gaat voor', () => {
+    const m = compactRowModel({ id: 'a', description: 'Bier', geminiTranslation: 'Biertje', qty: 2, unitPriceCents: 250, lineTotalCents: 500 });
+    assertEqual(m.name, 'Biertje', 'Vertaling als naam');
+    assertEqual(m.qty, 2);
+    assertEqual(m.lineTotalCents, 500);
+    assertEqual(m.unitPriceCents, 250, 'Prijs p.s. = regeltotaal / aantal');
+    const zonderVertaling = compactRowModel({ id: 'b', description: 'Wijn', qty: 1, lineTotalCents: 450 });
+    assertEqual(zonderVertaling.name, 'Wijn', 'Zonder vertaling de originele naam');
+    const vreemdeQty = compactRowModel({ id: 'c', description: 'X', qty: 0, lineTotalCents: 100 });
+    assertEqual(vreemdeQty.qty, 1, 'Ongeldig aantal wordt 1');
+  });
+
+  test('V17.2 computedUnitPriceCents: afronding en null zonder totaal', () => {
+    assertEqual(computedUnitPriceCents({ qty: 3, lineTotalCents: 100 }), 33, '100/3 -> 33');
+    assertEqual(computedUnitPriceCents({ qty: 1, lineTotalCents: -250 }), -250, 'Korting blijft negatief');
+    assertEqual(computedUnitPriceCents({ qty: 2 }), null, 'Geen regeltotaal -> null');
+  });
+
+  test('V17.3 kruisje: deleteItemAt muteert niet en restoreDeletedItem zet terug op plek', () => {
+    const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    for (const idx of [0, 1, 2]) {
+      const { items: rest, deleted } = deleteItemAt(items, idx);
+      assertEqual(rest.length, 2, 'Eén regel minder');
+      assertEqual(items.length, 3, 'Invoer ongemoeid');
+      assertEqual(deleted.item.id, items[idx].id, 'Juiste regel verwijderd');
+      const terug = restoreDeletedItem(rest, deleted);
+      assertEqual(terug.map((i) => i.id).join(','), 'a,b,c', `Volgorde hersteld na idx ${idx}`);
+    }
+    const noop = deleteItemAt(items, 9);
+    assertEqual(noop.deleted, null, 'Ongeldige idx verwijdert niets');
+    assertEqual(noop.items.length, 3);
+    const clamp = restoreDeletedItem([{ id: 'x' }], { item: { id: 'y' }, idx: 99 });
+    assertEqual(clamp.map((i) => i.id).join(','), 'x,y', 'Herstel clampt op het einde');
+  });
+
+  test('V17.4 uitklappen: twijfelregels standaard open, normale regels dicht', () => {
+    const expandedIds = new Set();
+    const collapsedIds = new Set();
+    assertTrue(isItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Twijfelregel open');
+    assertTrue(!isItemExpanded('ok', { needsReview: false, expandedIds, collapsedIds }), 'Normale regel dicht');
+  });
+
+  test('V17.5 uitklappen: tik wisselt de toestand, ook voor twijfelregels', () => {
+    const expandedIds = new Set();
+    const collapsedIds = new Set();
+    assertTrue(toggleItemExpanded('ok', { needsReview: false, expandedIds, collapsedIds }), 'Normale regel gaat open');
+    assertTrue(isItemExpanded('ok', { needsReview: false, expandedIds, collapsedIds }));
+    assertTrue(!toggleItemExpanded('ok', { needsReview: false, expandedIds, collapsedIds }), 'En weer dicht');
+    assertTrue(!toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Twijfelregel kan dicht');
+    assertTrue(!isItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Blijft dicht');
+    assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
+  });
+
+  test('V17.6 kruisje + ongedaan maken: niets definitief kwijt, inhoud gelijk', () => {
+    const items = [
+      { id: 'a', description: 'Soep', qty: 1, lineTotalCents: 650 },
+      { id: 'b', description: 'Brood', qty: 2, lineTotalCents: 300 }
+    ];
+    const { items: rest, deleted } = deleteItemAt(items, 0);
+    const terug = restoreDeletedItem(rest, deleted);
+    assertEqual(terug.length, 2, 'Weer twee regels');
+    assertEqual(terug[0].description, 'Soep', 'Zelfde regel terug op plek 0');
+    assertEqual(terug[0].lineTotalCents, 650, 'Bedrag intact');
+    assertEqual(restoreDeletedItem(rest, null).length, 1, 'Zonder deleted-record geen herstel');
   });
 
   return results;

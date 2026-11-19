@@ -36,6 +36,13 @@ import {
   AI_TERMS_URL
 } from './firebase-config.js';
 import {
+  isItemExpanded,
+  toggleItemExpanded,
+  deleteItemAt,
+  restoreDeletedItem,
+  compactRowModel
+} from './item-rows.js';
+import {
   createEmptySession,
   loadSession,
   saveSession,
@@ -63,6 +70,12 @@ const undoManager = new UndoManager(50);
 // Foto wordt NIET in localStorage bewaard, alleen tijdelijk in het werkgeheugen
 let currentPhotoObjectUrl = null;
 let lastReceiptFile = null;
+
+// v17: uitklaptoestand van bonregels (ui-only, geen sessiedata) + de laatst
+// verwijderde regel voor de ongedaan-maken-balk onderin.
+const expandedItemIds = new Set();
+const collapsedItemIds = new Set();
+let lastDeletedLine = null;
 
 // Centrale DOM-helper: boolean eigenschappen via echte DOM-properties (NOOIT disabled="false")
 const BOOL_PROPS = new Set(['disabled', 'checked', 'selected', 'required', 'hidden', 'readOnly', 'multiple']);
@@ -702,6 +715,60 @@ function renderStep1(container) {
 
     const card = el('div', { className: cardClasses.join(' ') });
 
+    // v17: compacte kopregel (naam, aantal, regeltotaal) met klein kruisje rechts.
+    // Eén tik op de rij klapt de volledige bewerker uit; twijfelregels staan standaard open.
+    const expanded = isItemExpanded(item.id, {
+      needsReview,
+      expandedIds: expandedItemIds,
+      collapsedIds: collapsedItemIds
+    });
+    const compact = compactRowModel(item, needsReview);
+    const headRow = el('div', { className: 'item-head' });
+    headRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'item-compact-row',
+        'aria-expanded': expanded ? 'true' : 'false',
+        'aria-label': `${compact.name} — ${t(lang, expanded ? 'collapseLine' : 'expandLine')}`,
+        onClick: () => {
+          toggleItemExpanded(item.id, {
+            needsReview,
+            expandedIds: expandedItemIds,
+            collapsedIds: collapsedItemIds
+          });
+          render();
+        }
+      }, [
+        el('span', { className: 'item-qty', text: `${compact.qty}×` }),
+        el('span', { className: 'item-name', text: compact.name }),
+        el('span', {
+          className: 'item-total',
+          text: compact.lineTotalCents !== null ? formatCentsNL(compact.lineTotalCents) : '—'
+        }),
+        el('span', { className: 'item-caret', text: expanded ? '▾' : '▸' })
+      ])
+    );
+    headRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'item-delete-btn',
+        text: '✕',
+        'aria-label': `${t(lang, 'deleteLine')}: ${compact.name}`,
+        onClick: () =>
+          mutate(() => {
+            const res = deleteItemAt(session.items, idx);
+            if (res.deleted) {
+              session.items = res.items;
+              lastDeletedLine = res.deleted;
+            }
+          }, t(lang, 'undoBarLineRemoved'))
+      })
+    );
+    card.appendChild(headRow);
+
+    // Uitklapdeel: alle details en bewerkvelden (alleen zichtbaar als de regel open staat)
+    const body = el('div', { className: 'item-body' });
+
     // Badges
     const badges = el('div', { className: 'badge-row' });
     if (item.pageNumber && item.pageNumber > 1) {
@@ -737,7 +804,7 @@ function renderStep1(container) {
     if (!item.geminiTranslation && trans.translated && trans.text.toLowerCase() !== item.description.toLowerCase()) {
       badges.appendChild(el('span', { className: 'badge badge-info', text: `NL (woordenboek): ${trans.text}` }));
     }
-    if (badges.childNodes.length > 0) card.appendChild(badges);
+    if (badges.childNodes.length > 0) body.appendChild(badges);
 
     // Origineel en Nederlandse machinevertaling naast elkaar (aanpasbaar, origineel blijft leidend)
     const grid = el('div', { className: 'item-edit-grid' });
@@ -854,7 +921,7 @@ function renderStep1(container) {
     grid.appendChild(el('label', { className: 'field-wrap' }, [el('span', { text: t(lang, 'colUnit') }), unitInput]));
     grid.appendChild(el('label', { className: 'field-wrap' }, [el('span', { text: t(lang, 'colTotal') }), totalInput]));
     grid.appendChild(el('label', { className: 'field-wrap desc-wrap' }, [el('span', { text: 'Regeltype' }), typeSelect]));
-    card.appendChild(grid);
+    body.appendChild(grid);
 
     const rowBtns = el('div', { className: 'item-row-actions' });
     if (item.lowConfidence && !item.needsPriceConfirmation) {
@@ -885,19 +952,8 @@ function renderStep1(container) {
       })
     );
 
-    rowBtns.appendChild(
-      el('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-danger-outline',
-        text: `✕ ${t(lang, 'deleteLine')}`,
-        onClick: () =>
-          mutate(() => {
-            session.items.splice(idx, 1);
-          })
-      })
-    );
-
-    card.appendChild(rowBtns);
+    body.appendChild(rowBtns);
+    if (expanded) card.appendChild(body);
     listWrap.appendChild(card);
   });
   container.appendChild(listWrap);
@@ -2164,6 +2220,35 @@ function openSettingsModal() {
 // ============================================================
 // HOOFD RENDER
 // ============================================================
+// v17: vaste balk onderin na het verwijderen van een regel; niets gaat definitief kwijt.
+function renderUndoBar() {
+  const lang = settings.lang;
+  let bar = $('#undo-bar');
+  if (!lastDeletedLine) {
+    if (bar) bar.remove();
+    return;
+  }
+  if (!bar) {
+    bar = el('div', { id: 'undo-bar', className: 'undo-bar', role: 'status' });
+    document.body.appendChild(bar);
+  }
+  const name = lastDeletedLine.item.geminiTranslation || lastDeletedLine.item.description || '';
+  bar.innerHTML = '';
+  bar.appendChild(el('span', { className: 'undo-bar-text', text: `${name}: ${t(lang, 'undoBarLineRemoved')}` }));
+  bar.appendChild(
+    el('button', {
+      type: 'button',
+      className: 'btn btn-sm btn-primary',
+      text: t(lang, 'undoBarAction'),
+      onClick: () =>
+        mutate(() => {
+          session.items = restoreDeletedItem(session.items, lastDeletedLine);
+          lastDeletedLine = null;
+        }, t(lang, 'lineRestored'))
+    })
+  );
+}
+
 function render() {
   applyThemeAndPrefs();
   renderHeader();
@@ -2176,6 +2261,8 @@ function render() {
   else if (session.step === 2) renderStep2(main);
   else if (session.step === 3) renderStep3(main);
   else renderStep4(main);
+
+  renderUndoBar();
 }
 
 $('#btn-undo').addEventListener('click', () => {

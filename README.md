@@ -1,4 +1,4 @@
-# Bonnetje — Samen eerlijk afrekenen (v16)
+# Bonnetje — Samen eerlijk afrekenen (v17)
 
 Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account.
 
@@ -6,6 +6,17 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). De aanroep gebeurt direct bij het scannen of vertalen (v16: geen apart toestemmingsvenster meer); onder Instellingen & privacy staat precies wat er wordt verstuurd.
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v17 (verzoek Henk: simpelere bonregel, hele bon op één scherm)
+
+Regressietests: 90/90 groen in Node (`node tests/calculator.test.js`), inclusief 6 nieuwe tests voor kruisje, ongedaan maken en uitklappen.
+
+- **Compacte regel:** elke bonregel is één rij met naam (vertaling als die er is), aantal en regeltotaal. De prijs per stuk is geen los veld meer in de rij maar wordt afgeleid (regeltotaal ÷ aantal, `computedUnitPriceCents`); de rekenkern gebruikt `lineTotalCents` en `qty` zoals voorheen.
+- **Kruisje rechts:** klein maar duimvriendelijk (44×44). Verwijdert zonder vraagvenster; onderin verschijnt een balk "…: Regel verwijderd. [Ongedaan maken]" die de regel op dezelfde plek terugzet. Niets gaat definitief kwijt (de algemene Stap-terug-knop blijft ook werken).
+- **Tik = uitklappen:** achter de rij zit de volledige bewerker: origineel op de bon, vertaling, aantal, prijs p.s. (aanpasbaar), regeltotaal, regeltype en "Niet meetellen". Uitklaptoestand is ui-only (geen sessiedata).
+- **Twijfelregels open + gekleurd:** regels met onzeker gelezen tekst of een bedrag dat niet klopt staan standaard uitgeklapt met de bestaande needs-review-kleur; ze zijn dicht te klappen per tik.
+- **Nieuwe module `js/item-rows.js`:** DOM-vrije helpers (deleteItemAt, restoreDeletedItem, isItemExpanded, toggleItemExpanded, computedUnitPriceCents, compactRowModel) zodat de Node-tests het gedrag direct dekken.
+- Cache `bonnetje-v17` in `sw.js` en `js/assets-manifest.js` (met `js/item-rows.js` in de app-shell).
 
 ## Wijzigingen in v16 (verzoek Henk: toestemmingsvenster weg)
 
