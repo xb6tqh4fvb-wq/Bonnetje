@@ -809,7 +809,9 @@ select {
   font-weight: 500;
 }
 .participant-row .btn-danger-outline {
-  margin-left: auto;
+  /* review v23: ~20 px tussen Gast-schakelaar en × (was ~10 px) zodat een
+     tik net naast × nooit per ongeluk de deelnemer wist */
+  margin-left: 0.65rem;
 }
 .guest-help {
   margin-top: 0.25rem;
