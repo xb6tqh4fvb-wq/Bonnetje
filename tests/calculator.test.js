@@ -1310,6 +1310,14 @@ PIN 43,00`);
     localStorage.removeItem('bonnetje_saved_names_v1');
   }
 
+  test('V21.1 waarschuwingen alleen op stap 4, niet meer tijdens verdelen', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const hits = app.split("unassignedWarning', {").length - 1;
+    assertEqual(hits, 1, 'onverdeeld-waarschuwing komt nog maar op één plek voor (stap 4)');
+    assertTrue(app.indexOf('function renderStep4') < app.indexOf("unassignedWarning', {"), 'die ene plek is stap 4');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
@@ -1373,7 +1381,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v20', 'manifest-cache is actueel (v20)');
+    assertEqual(CACHE_NAME, 'bonnetje-v21', 'manifest-cache is actueel (v21)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1385,7 +1393,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '20', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '21', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

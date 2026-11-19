@@ -1374,25 +1374,10 @@ function renderStep3(container) {
   });
   container.appendChild(personTabs);
 
-  const settlement = calculateSettlement(session);
-  if (settlement.unassignedItems.length > 0) {
-    container.appendChild(
-      el('div', {
-        className: 'status-box warn',
-        role: 'alert',
-        text: t(lang, 'unassignedWarning', { count: settlement.unassignedItems.length })
-      })
-    );
-  }
-  if (settlement.quantityMismatchItems.length > 0) {
-    container.appendChild(
-      el('div', {
-        className: 'status-box warn',
-        role: 'alert',
-        text: `Let op: bij ${settlement.quantityMismatchItems.length} regel(s) klopt het totaal aantal toegewezen stuks nog niet met het aantal op de bon.`
-      })
-    );
-  }
+  // v21 (verzoek Henk): geen waarschuwingsbalken meer tijdens het verdelen —
+  // ze staan bovenaan stap 4 zodra je doorgaat, en delen is geblokkeerd zolang
+  // niet alles exact is toegewezen (canFinalize). De oranje kaartrand en het
+  // "nog X open"-regeltje blijven wel als rustige indicatie tijdens het invullen.
 
   const activeItems = session.items.filter(isLineActive);
   const activePersonId = session.activeParticipantId;

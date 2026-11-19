@@ -76,6 +76,10 @@
 html {
   font-size: 100%;
   box-sizing: border-box;
+  /* v21: iOS mag de tekst niet zélf extra opblazen (text autosizing); de enige
+     tekstvergroting is de eigen app-instelling. Zo blijft de layout voorspelbaar. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 html.large-text {
   font-size: 125%;
@@ -86,6 +90,9 @@ html.large-text {
 
 body {
   margin: 0;
+  /* v21: breek extreem lange woorden af in plaats van de pagina te verbreden */
+  overflow-wrap: break-word;
+  min-width: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);

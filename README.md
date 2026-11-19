@@ -7,6 +7,16 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v21 (verzoek Henk: rustiger stap 3 + rechterrand-afsnijding iPhone)
+
+Regressietests: 103/103 groen in Node (`node tests/calculator.test.js`).
+
+- **Geen waarschuwingsbalken meer tijdens het verdelen (stap 3).** De gele balken ("X regel(s) nog aan niemand toegewezen", "totaal aantal stuks klopt niet") verschijnen nu pas bovenaan stap 4 (Overzicht) zodra je doorgaat — met dezelfde inhoud. Rustig blijft: de oranje kaartrand en het regeltje "nog X open" per regel. De afrekening kan niet stil fout gaan: delen/afronden blijft geblokkeerd tot alles exact is toegewezen (`canFinalize`), en stap 4 toont bovendien de rode "niet alles is toegewezen"-balk zolang dat zo is.
+- **iPhone-rechterrand:** gemeten oorzaak is de oude (pre-v20) stappenbalk als star 4-koloms grid: bij iOS-tekstinflatie vanaf ~130% wordt die breder dan het scherm (bij 200% tot 623 px op een 390 px-scherm) en kreeg de pagina horizontale scroll — Henks screenshot toont die oude balk nog ("4. Overzich" kapt af, geen wrap), dus zijn toestel draaide op dat moment nog een oude build. De wrap-fix uit dbad562 plus deze versie maken het grid weg; kaarten en waarschuwingsbalken bleken zelfs bij 200% nooit de boosdoener.
+- **Extra hardening:** `-webkit-text-size-adjust: 100%` (iOS mag de tekst niet zelf extra opblazen; de app-instelling "Extra grote tekst" is de enige vergroting) en `overflow-wrap: break-word` + `min-width: 0` op body (extreem lange woorden breken af i.p.v. de pagina te verbreden).
+- **Bewijs:** Chrome-matrix op 360/375/390/414 px × tekstinflatie 100/110/120/130% op stap 2 én 3: 32/32 geen overflow; bij 140/160/200% eveneens schoon. Zonder echte iPhone onbewezen: het exacte iOS-mechanisme bij Henk (Dynamic Type/toegankelijkheidstekst of site-zoom) en of zijn toestel de update al heeft opgepikt.
+- Techniek: cache `bonnetje-v21`. Tests V21.1 (waarschuwing alleen op stap 4) en V20.6 (stepper wrapt) bewaken dit.
+
 ## Wijzigingen in v20 (verzoek Henk: eerder ingevoerde deelnemers bewaren en aantikken)
 
 Regressietests: 100/100 groen in Node (`node tests/calculator.test.js`).
