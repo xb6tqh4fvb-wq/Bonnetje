@@ -165,19 +165,12 @@ async function copyTextReliable(text) {
 async function initServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      // v18: was de pagina al onder controle van een oudere SW, dan betekent een
-      // controller-wisseling dat een NIEUWE versie actief is geworden. Eenmalig
-      // herladen zodat de nieuwe versie meteen zichtbaar is (sessie blijft bewaard
-      // in localStorage). Zonder dit moest de app twee keer geopend worden na een deploy.
-      const hadController = Boolean(navigator.serviceWorker.controller);
+      // v19: de geforceerde herlading na een versiewissel doet de SERVICE WORKER zelf
+      // (bij activate navigeert hij oude vensters naar hun eigen URL). De pagina doet dat
+      // bewust niet óók (controllerchange-herlaad uit v18 is weg): één mechanisme, geen
+      // dubbele herlading. Mocht een navigate mislukken, dan pakt de network-first
+      // navigatie in de sw de nieuwe versie alsnog bij de eerstvolgende start.
       const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }); // v19: sw.js altijd vers ophalen
-      if (hadController) {
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (sessionStorage.getItem('bonnetje_sw_reloaded')) return;
-          sessionStorage.setItem('bonnetje_sw_reloaded', '1');
-          location.reload();
-        });
-      }
       reg.update().catch(() => {});
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update().catch(() => {});

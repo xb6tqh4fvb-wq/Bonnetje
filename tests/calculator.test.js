@@ -1310,6 +1310,8 @@ PIN 43,00`);
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
     assertTrue(sw.includes('w.navigate(w.url)'), 'sw navigeert oude clients geforceerd bij activate');
+    assertTrue(sw.includes('wins.forEach'), 'navigaties worden afgevuurd zonder te awaiten (anders deadlock in activate)');
+    assertTrue(!sw.includes('await Promise.all(wins.map'), 'geen ge-awaite navigatie binnen waitUntil (deadlock)');
     assertTrue(sw.includes('hadOldVersion'), 'geforceerde navigatie alleen bij echte versiewissel (niet bij eerste installatie)');
     assertTrue(sw.includes('skipWaiting'), 'nieuwe sw wacht niet op sluiten');
   });

@@ -59,7 +59,10 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim();
       if (hadOldVersion) {
         const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-        await Promise.all(wins.map((w) => w.navigate(w.url).catch(() => null)));
+        // NIET awaiten: een navigate loopt door de fetch-handler van deze nog-activerende sw;
+        // wachten erop zou de activatie met zichzelf in deadlock zetten (oude pagina bevriest).
+        // Afvuren en activatie laten voltooien: de pagina herlaadt zodra de sw actief is.
+        wins.forEach((w) => w.navigate(w.url).catch(() => null));
       }
     })()
   );
