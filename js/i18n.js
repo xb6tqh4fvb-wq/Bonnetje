@@ -60,6 +60,7 @@ export const STRINGS = {
     namesPrivacyLine: 'Bewaarde namen blijven alleen op dit toestel; er gaat niets naar buiten.',
     noParticipants: 'Voeg eerst minstens één deelnemer toe.',
     removeParticipant: 'Verwijder deelnemer',
+    removeParticipantWithItems: '{name} heeft regels. Toch verwijderen?',
     // Stap 3: Verdelen
     step3Title: 'Stap 3: Wie had wat?',
     step3Help:
@@ -218,6 +219,7 @@ export const STRINGS = {
     namesPrivacyLine: 'Saved names stay only on this device; nothing is sent anywhere.',
     noParticipants: 'Add at least one person first.',
     removeParticipant: 'Remove person',
+    removeParticipantWithItems: '{name} has lines assigned. Remove anyway?',
     step3Title: 'Step 3: Who had what?',
     step3Help:
       'Tap the names of who had what, per line. For quantities (3×) a tap counts as 1 piece; adjust with − and +. Use "Whole table" to split a line equally across everyone.',

@@ -1308,7 +1308,16 @@ function renderStep2(container) {
             className: 'btn btn-sm btn-danger-outline',
             'aria-label': `${t(lang, 'removeParticipant')} ${p.name}`,
             text: '✕',
-            onClick: () =>
+            onClick: () => {
+              // v23 (review): zonder toewijzingen direct wissen; met regels eerst
+              // één korte bevestiging — een tik naast × mag nooit stilletjes
+              // toewijzingen weggooien. Herstel kan altijd via Stap terug.
+              const heeftRegels = session.items.some(
+                (it) =>
+                  (it.assignedTo || []).includes(p.id) ||
+                  ((it.assignedQuantities || {})[p.id] || 0) > 0
+              );
+              if (heeftRegels && !window.confirm(t(lang, 'removeParticipantWithItems', { name: p.name }))) return;
               mutate(() => {
                 session.participants.splice(idx, 1);
                 session.items.forEach((it) => {
@@ -1321,7 +1330,8 @@ function renderStep2(container) {
                 if (session.activeParticipantId === p.id) {
                   session.activeParticipantId = session.participants[0]?.id || null;
                 }
-              })
+              });
+            }
           })
         ])
       );

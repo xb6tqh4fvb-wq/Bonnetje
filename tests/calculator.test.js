@@ -1407,6 +1407,17 @@ PIN 43,00`);
     assertTrue(app.includes("'aria-pressed': String(isGast)"), 'stand is afleesbaar voor schermlezers');
   });
 
+  test('V23.2 × wist direct zonder regels, vraagt één keer bij toewijzingen (review)', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    assertTrue(app.includes('heeftRegels'), '× controleert eerst op toewijzingen');
+    assertTrue(app.includes('removeParticipantWithItems'), 'korte bevestiging bij deelnemer met regels');
+    assertTrue(app.includes('(it.assignedTo || []).includes(p.id)') && app.includes("(it.assignedQuantities || {})[p.id]"), 'controle dekt gelijk verdeeld én stuks');
+    assertEqual(app.split('window.confirm(t(lang, \'removeParticipantWithItems\'').length - 1, 1, 'maar één bevestigvraag, alleen op deze plek');
+    const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+    assertTrue(i18n.includes('heeft regels. Toch verwijderen?'), 'NL-tekst kort en duidelijk');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
