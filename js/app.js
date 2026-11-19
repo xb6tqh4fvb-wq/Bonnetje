@@ -754,14 +754,16 @@ function renderStep1(container) {
         className: 'item-delete-btn',
         text: '✕',
         'aria-label': `${t(lang, 'deleteLine')}: ${compact.name}`,
-        onClick: () =>
+        onClick: () => {
           mutate(() => {
             const res = deleteItemAt(session.items, idx);
             if (res.deleted) {
               session.items = res.items;
               lastDeletedLine = res.deleted;
             }
-          }, t(lang, 'undoBarLineRemoved'))
+          }, t(lang, 'undoBarLineRemoved'));
+          hideUndoBarLater();
+        }
       })
     );
     card.appendChild(headRow);
@@ -2220,11 +2222,32 @@ function openSettingsModal() {
 // ============================================================
 // HOOFD RENDER
 // ============================================================
-// v17: vaste balk onderin na het verwijderen van een regel; niets gaat definitief kwijt.
+// v17: discreet pijltje-pilletje onderin na het verwijderen van een regel (verzoek Henk:
+// geen grote knop/balk, het kromme pijltje zoals bij Stap terug). Visueel klein, duimvriendelijk
+// raakvlak, verdwijnt vanzelf na enkele seconden. Niets gaat definitief kwijt.
+let undoBarTimer = null;
+
+function hideUndoBarLater() {
+  if (undoBarTimer) clearTimeout(undoBarTimer);
+  undoBarTimer = setTimeout(() => {
+    lastDeletedLine = null;
+    undoBarTimer = null;
+    renderUndoBar();
+  }, 8000);
+}
+
 function renderUndoBar() {
   const lang = settings.lang;
   let bar = $('#undo-bar');
-  if (!lastDeletedLine) {
+  // Alleen in stap 1 tonen; bij een stapwissel verdwijnt het pilletje (Stap terug blijft werken).
+  if (!lastDeletedLine || session.step !== 1) {
+    if (session.step !== 1) {
+      lastDeletedLine = null;
+      if (undoBarTimer) {
+        clearTimeout(undoBarTimer);
+        undoBarTimer = null;
+      }
+    }
     if (bar) bar.remove();
     return;
   }
@@ -2234,18 +2257,25 @@ function renderUndoBar() {
   }
   const name = lastDeletedLine.item.geminiTranslation || lastDeletedLine.item.description || '';
   bar.innerHTML = '';
-  bar.appendChild(el('span', { className: 'undo-bar-text', text: `${name}: ${t(lang, 'undoBarLineRemoved')}` }));
   bar.appendChild(
     el('button', {
       type: 'button',
-      className: 'btn btn-sm btn-primary',
-      text: t(lang, 'undoBarAction'),
-      onClick: () =>
+      className: 'undo-pill-btn',
+      'aria-label': `${t(lang, 'undoBarAction')}: ${name}`,
+      onClick: () => {
+        if (undoBarTimer) {
+          clearTimeout(undoBarTimer);
+          undoBarTimer = null;
+        }
         mutate(() => {
           session.items = restoreDeletedItem(session.items, lastDeletedLine);
           lastDeletedLine = null;
-        }, t(lang, 'lineRestored'))
-    })
+        }, t(lang, 'lineRestored'));
+      }
+    }, [
+      el('span', { className: 'undo-pill-icon', text: '↩' }),
+      el('span', { className: 'undo-pill-text', text: t(lang, 'undoBarAction') })
+    ])
   );
 }
 

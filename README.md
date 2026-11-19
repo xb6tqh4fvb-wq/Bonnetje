@@ -12,10 +12,11 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 Regressietests: 90/90 groen in Node (`node tests/calculator.test.js`), inclusief 6 nieuwe tests voor kruisje, ongedaan maken en uitklappen.
 
 - **Compacte regel:** elke bonregel is één rij met naam (vertaling als die er is), aantal en regeltotaal. De prijs per stuk is geen los veld meer in de rij maar wordt afgeleid (regeltotaal ÷ aantal, `computedUnitPriceCents`); de rekenkern gebruikt `lineTotalCents` en `qty` zoals voorheen.
-- **Kruisje rechts:** klein maar duimvriendelijk (44×44). Verwijdert zonder vraagvenster; onderin verschijnt een balk "…: Regel verwijderd. [Ongedaan maken]" die de regel op dezelfde plek terugzet. Niets gaat definitief kwijt (de algemene Stap-terug-knop blijft ook werken).
+- **Kruisje rechts:** klein maar duimvriendelijk (44×44), met extra afstand tot het bedrag en de uitklaptik. Verwijdert zonder vraagvenster; onderin verschijnt kort een klein, rustig pilletje met het kromme pijltje ↩ "Ongedaan maken" (visueel klein, 44px raakvlak, regelnaam in het aria-label) dat de regel op dezelfde plek terugzet. Het pilletje verdwijnt vanzelf na ±8 seconden en bij een stapwissel. Niets gaat definitief kwijt (de algemene Stap-terug-knop blijft ook werken).
 - **Tik = uitklappen:** achter de rij zit de volledige bewerker: origineel op de bon, vertaling, aantal, prijs p.s. (aanpasbaar), regeltotaal, regeltype en "Niet meetellen". Uitklaptoestand is ui-only (geen sessiedata).
 - **Twijfelregels open + gekleurd:** regels met onzeker gelezen tekst of een bedrag dat niet klopt staan standaard uitgeklapt met de bestaande needs-review-kleur; ze zijn dicht te klappen per tik.
 - **Nieuwe module `js/item-rows.js`:** DOM-vrije helpers (deleteItemAt, restoreDeletedItem, isItemExpanded, toggleItemExpanded, computedUnitPriceCents, compactRowModel) zodat de Node-tests het gedrag direct dekken.
+- **Compacte kop (puur visueel):** fotovoorbeeld max 260px → 140px hoog en kleinere marge onder de hulptekst, zodat meer bonregels zonder scrollen passen. Rekenkern onaangeroerd.
 - Cache `bonnetje-v17` in `sw.js` en `js/assets-manifest.js` (met `js/item-rows.js` in de app-shell).
 
 ## Wijzigingen in v16 (verzoek Henk: toestemmingsvenster weg)
