@@ -31,18 +31,18 @@ export const AI_TERMS_URL = 'https://firebase.google.com/docs/ai-logic';
 
 const PLACEHOLDER_PREFIX = 'VUL_IN';
 
-// TODO(henk): plak hier de webconfig uit de Firebase-console
-// (Project settings > Your apps > Bonnetje web > SDK setup and configuration > Config).
+// Webconfig uit de Firebase-console (Project settings > Your apps > Bonnetje web
+// > SDK setup and configuration > Config). Publiek-by-design, zie kop hierboven.
 export const FIREBASE_CONFIG = {
-  apiKey: 'VUL_IN_API_KEY',
+  apiKey: 'AIzaSyAVwgdwEhjtawOvaIFWTIapljLkD4WdgAQ',
   authDomain: 'bonnetje-78c25.firebaseapp.com',
   projectId: 'bonnetje-78c25',
-  storageBucket: 'VUL_IN_STORAGE_BUCKET',
-  messagingSenderId: 'VUL_IN_MESSAGING_SENDER_ID',
-  appId: 'VUL_IN_APP_ID'
+  storageBucket: 'bonnetje-78c25.firebasestorage.app',
+  messagingSenderId: '885353417695',
+  appId: '1:885353417695:web:1a8d77e6bb5b5db646126a'
 };
 
-// TODO(henk): plak hier de reCAPTCHA Enterprise site key uit de App Check-registratie
+// reCAPTCHA Enterprise site key uit de App Check-registratie
 // (Firebase console > Security > App Check > Apps > Bonnetje web).
 // De site key is publiek-by-design en mag in de clientcode staan; de SECRET key
 // hoort hier NOOIT te staan.
