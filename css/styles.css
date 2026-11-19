@@ -787,7 +787,10 @@ select {
 .chip-manage {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0;
+}
+.chip-manage .chip-remove {
+  margin-left: -0.35rem;
 }
 .chip-remove {
   border: none;

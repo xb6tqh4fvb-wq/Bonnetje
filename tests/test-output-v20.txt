@@ -69,6 +69,7 @@ PASS: V20.1 bewaarde namen: normaliseren en dubbels (hoofdletter/spaties) voorko
 PASS: V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)
 PASS: V20.3 vaakst gebruikte namen staan vooraan, max 30 bewaard
 PASS: V20.4 bewaarde namen verwijderen en alles vergeten
+PASS: V20.5 normalisatie dekt tab en niet-brekende spatie (review-bevinding)
 PASS: V19.1 service worker: v19 kan oude clients nooit vasthouden
 PASS: V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald
 PASS: V18.1 foto verkleinen vóór online scan: alleen verkleinend, verhouding behouden
@@ -99,4 +100,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 100/100 geslaagd.
+Resultaat: 101/101 geslaagd.

@@ -53,6 +53,7 @@ import {
   saveNameToHistory,
   removeSavedName,
   clearSavedNames,
+  normalizeSavedName,
   loadSettings,
   saveSettings,
   cleanupLegacyStorage,
@@ -1202,9 +1203,12 @@ function cleanupHostedForRemoved(removedId) {
 }
 
 function addParticipantByName(name) {
-  const clean = String(name || '').trim();
+  // v20-fix (review): zelfde normalisatie als de bewaard-lijst (meerdere spaties, tab,
+  // niet-brekende spatie), anders klopt de ✓-vergelijking niet en tik je een dubbele deelnemer erbij.
+  const clean = normalizeSavedName(name);
   if (!clean) return;
-  if (session.participants.some((p) => p.name.toLowerCase() === clean.toLowerCase())) return;
+  const cleanKey = clean.toLowerCase();
+  if (session.participants.some((p) => normalizeSavedName(p.name).toLowerCase() === cleanKey)) return;
   mutate(() => {
     const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     session.participants.push({ id, name: clean, paidCashCents: null, settled: false });
@@ -1300,7 +1304,7 @@ function renderStep2(container) {
     container.appendChild(titleRow);
     const savedWrap = el('div', { className: 'chip-wrap' });
     savedNames.forEach((n) => {
-      const added = session.participants.some((p) => p.name.toLowerCase() === n.toLowerCase());
+      const added = session.participants.some((p) => normalizeSavedName(p.name).toLowerCase() === n.toLowerCase());
       const chip = el('button', {
         type: 'button',
         className: added ? 'chip-btn chip-added' : 'chip-btn',

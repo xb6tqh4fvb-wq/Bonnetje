@@ -71,7 +71,8 @@ import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
 import {
   getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS,
-  loadSavedNames, saveNameToHistory, removeSavedName, clearSavedNames, createEmptySession, saveSession
+  loadSavedNames, saveNameToHistory, removeSavedName, clearSavedNames, createEmptySession, saveSession,
+  normalizeSavedName
 } from '../js/storage.js';
 import { extractPdfTextAllPages } from '../js/parser.js';
 import {
@@ -1345,6 +1346,16 @@ PIN 43,00`);
     assertEqual(loadSavedNames().join('|'), 'Bram', 'verwijderen is hoofdletterongevoelig');
     clearSavedNames();
     assertEqual(loadSavedNames().length, 0, 'alles vergeten leegt de lijst');
+    clearSavedNames();
+  });
+
+  test('V20.5 normalisatie dekt tab en niet-brekende spatie (review-bevinding)', () => {
+    assertEqual(normalizeSavedName('Cees   de  Vries'), 'Cees de Vries', 'meerdere spaties');
+    assertEqual(normalizeSavedName('Cees\tde\u00A0Vries'), 'Cees de Vries', 'tab en nbsp');
+    clearSavedNames();
+    saveNameToHistory('Cees   de  Vries');
+    saveNameToHistory('Cees de\u00A0Vries');
+    assertEqual(loadSavedNames().length, 1, 'varianten met tab/nbsp zijn geen dubbels');
     clearSavedNames();
   });
 
