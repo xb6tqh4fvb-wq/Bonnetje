@@ -762,6 +762,7 @@ select {
 .saved-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.05rem;
 }
 .saved-chip .chip-remove {
   border: none;
@@ -771,8 +772,8 @@ select {
   font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
-  min-width: 44px; /* duimvriendelijk aanraakvlak... */
-  min-height: 44px;
-  margin-left: -0.9rem; /* ...maar visueel klein en strak tegen de chip */
+  min-width: 44px; /* eigen duimvriendelijk vlak, GEEN negatieve marge: */
+  min-height: 44px; /* de chip en het kruisje mogen elkaar nooit overlappen */
+  margin: 0;
   padding: 0;
 }
