@@ -552,16 +552,8 @@ function renderStep1(container) {
     })
   );
 
-  // Dagteller & status van de online AI-route
-  const quota = getDailyGeminiCallCount();
-  const quotaInfo = el('div', { className: 'status-box info' }, [
-    el('span', {
-      text: isAiConfigured()
-        ? `AI-aanroepen vandaag op dit toestel: ${quota.count} (model: ${AI_MODEL}, via Firebase AI Logic). Bereikt de app-eigenaar het maandmaximum, dan valt de app automatisch terug op de lokale backup.`
-        : aiStatusText()
-    })
-  ]);
-  container.appendChild(quotaInfo);
+  // v15: de vaste statusregel over AI-aanroepen is weg uit stap 1 (verzoek Henk);
+  // de teller en status blijven zichtbaar onder Instellingen & privacy.
 
   // Foto of bestand kiezen. v15: de losse "Foto maken"-knop is weg; iOS/Android bieden
   // de camera al aan in de kiezer van deze knop, dus die knop was dubbel (verzoek Henk).

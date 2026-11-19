@@ -12,6 +12,7 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 Regressietests: 84/84 groen in Node (`node tests/calculator.test.js`).
 
 - **Eén knop voor foto/pdf:** de losse knop "Foto maken" is verwijderd uit stap 1. iOS en Android bieden "Foto maken" al aan in de kiezer van de knop "Foto of pdf kiezen", dus de camera was via twee knoppen bereikbaar (dubbel). Over: de ene knop "Foto of pdf kiezen" (nu de primaire knop), die camera, fotobibliotheek, pdf en bestanden dekt. Verwijderd: `input-camera` en de i18n-sleutel `takePhoto`. De hulptekst in stap 1 legt uit dat de camera in dezelfde kiezer zit.
+- **Statusregel AI-aanroepen weg uit stap 1:** het vaste vak "AI-aanroepen vandaag op dit toestel: N ..." boven de knoppen is verwijderd (verzoek Henk). De dagteller en de status van de online route blijven zichtbaar onder Instellingen & privacy; het toestemmingsvenster en de privacytekst zijn ongewijzigd.
 - Cache `bonnetje-v15` in `sw.js` en `js/assets-manifest.js`.
 
 ## Wijzigingen in v14 (verzoek Henk: eigen-sleutel-optie eruit, kosten via app-eigenaar met spend cap)
