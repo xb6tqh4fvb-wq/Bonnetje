@@ -1,0 +1,111 @@
+PASS: a) Fles wijn € 10,00 gedeeld door 3 personen = exact € 10,00 in hele centen
+PASS: b) Doelbedrag € 110,00 bij bon € 103,40 over 4 deelnemers -> fooi € 6,60 exact verdeeld
+PASS: c) Contant € 50,00 op deel van € 32,50 -> wisselgeld € 17,50 (en tekort bij te weinig)
+PASS: d) Deelnemer zonder items betaalt niets en geen fooi (tenzij expliciet gekozen)
+PASS: e) Niet-toegewezen bonregel geeft waarschuwing en blokkeert afronden
+PASS: f) Doelbedrag € 100,00 bij bontotaal € 103,40 wordt geweigerd (geen negatieve fooi)
+PASS: g) BTW-overzicht onderaan de bon telt nooit mee als te verdelen regel
+PASS: Extra: Korting verlaagt het bedrag en aantal×stukprijs mismatch wordt gemarkeerd
+PASS: Extra: parseEuroToCents weigert halve centen en formatCentsNL toont Nederlandse komma
+PASS: Regressie 4: Ontbrekend bontotaal of lowConfidence blokkeert canFinalize
+PASS: Regressie 5: IVA10% incl, VAT 20% extra, Discount 5,00
+PASS: Regressie 6: 3 bieren à €3,00 (€9,00) -> Jan 2 (€6,00), Petra 1 (€3,00)
+PASS: PDF: hele regel in één tekstitem over 2 pagina's
+PASS: Live Text: losse prijsregels worden samengevoegd
+PASS: Gemini Mock 1: Correct antwoord met inbegrepen IVA sluit exact
+PASS: Gemini Mock 2: Afwijkende leestekens (Chinese volle-breedte-komma) & korting
+PASS: Gemini Mock 3: Kapotte/ongeldige JSON geeft begrijpelijke foutmelding
+PASS: Gemini Mock 4: Ontbrekend bontotaal blokkeert canProceed
+PASS: Gemini Mock 5: Regelsom != bontotaal markeert regels als onzeker en blokkeert
+PASS: Gemini Mock 6: Leeg of deels ingevuld antwoord & foutmeldingen (429/503/403/0)
+PASS: P11.1 Subtotaal: zonder woordlabel (onder gerechten) & boven gerechten & losse btw/fooi/korting
+PASS: P11.2 Lokale backup (ppu-paddle-ocr): losse naam/prijs regels én samengevoegde regels
+PASS: P11.3 Somcontrole van onderaf: btw inbegrepen, VS-belasting erbovenop, en dubbele kandidaat
+PASS: P11.4 Btw-anker: btw, IVA, MwSt, TVA, VAT en tax naast percentage
+PASS: P11.5 Komma-notatie: 1450 -> 14,50, 1.250,00, 1,250.00, uitzonderingen & onbenoemd subtotaal
+PASS: V7.1 Komma-herstel op Gemini-route: "1450" in items én vaste velden + herstelmarkering
+PASS: V7.2 Tweede btw-regel op Gemini-route: beide tarieven (9% en 21%) opgeteld
+PASS: V7.3 Betaalwoorden BAR, KARTE en CARTE (met woordgrenzen)
+PASS: V7.4 Geen naam is geen gerecht: huisnummer "480" wordt geen gerecht en blokkeert niet
+PASS: V7.5 Spaties in bedragen: "€2, 49" wordt genormaliseerd tot € 2,49
+PASS: V7.6 Lokale backup kolomkoppeling op bounding boxes in wisselende volgorde
+PASS: V8.1 Kale cijferregels: boven een naam, onder een naam en onderaan de bon (nooit gerecht, nooit geplakt)
+PASS: V8.2 Zelf-hosting manifest: juiste woordenboeknaam en geen enkele externe URL in de backup-route
+PASS: V8.3 Deeltekst van de uitslag: "Jan € 14,50 · Els € 22,00 · totaal € 36,50"
+PASS: V8.4 Schuinte-correctie: naam en prijs op een scheve regel worden toch gekoppeld
+PASS: V9.1a Komma-herstel slaat NOOIT aan op NL-adres/postcode (plakvak-route)
+PASS: V9.1b Komma-herstel slaat NOOIT aan op US-adres/ZIP (plakvak-route, $-notatie)
+PASS: V9.1c Adres- en postcoderegels in DE/FR/ES/IT (plakvak-route)
+PASS: V9.1d Adresregels op de OCR-route (bounding boxes) worden geen gerechten
+PASS: V9.1e Adresregels op de Gemini-verificatieroute worden overgeslagen, komma-herstel werkt daar nog wel
+PASS: V9.1f Kaaie getallen van 3+ cijfers zonder decimale context worden geen hele euro's meer (Gemini-route)
+PASS: V9.1g isAddressOrPostalNumber dekt NL/EN/DE/FR/ES/IT/US en laat echte bedragen met rust
+PASS: V9.2a Betaalwoord PIN en varianten zijn betaalregels, Pinot/Pinsa/Pint niet
+PASS: V9.2b "PIN 43,00" op alle drie de routes (plakvak, OCR, Gemini)
+PASS: V9.3 Privacytekst en woordenboek: 24 MB rekenmotor, geen MyMemory, geen dode online-functie
+PASS: V9.4 Btw in vat[] én in items[] wordt niet dubbel geteld (dedupe)
+PASS: V9.5 Vriendelijke NL-foutmeldingen voor kapot, leeg of verkeerd bestand
+PASS: v13a) Gast (standaard: alle anderen gelijk) - restcent naar grootste eigen aandeel
+PASS: v13b) Eén gekozen drager neemt alles over
+PASS: v13c) Twee gasten, één drager draagt beide delen
+PASS: v13d) Percentage 75/25 met restcent naar het grootste aandeel
+PASS: v13e) Percentage dat geen 100% is blokkeert de afronding
+PASS: v13f) Vast bedrag exact verdeeld werkt; som die niet klopt blokkeert zonder aanpassen
+PASS: v13g) Geen geldige dragers (alleen niet-betalers of onbekenden gekozen) blokkeert
+PASS: v13h) Fooi volgt het overgenomen bedrag (doelbedrag-modus)
+PASS: v13i) Gast met deel van € 0,00 hoeft niets over te nemen
+PASS: v13j) Deeltekst blijft kloppen: gast op € 0,00 en totaal ongewijzigd
+PASS: v13l) Wisselgeld van een overnemer wordt ná de overname herberekend
+PASS: v13m) Percentages moeten precies 100,00 zijn (99,99 en 100,01 blokkeren)
+PASS: v13n) Bij een fout blijft het echte deel van de gast zichtbaar (geen 0,00)
+PASS: v13o) Gastbericht is neutraal geformuleerd (NL en EN)
+PASS: v13k) Zonder hosted-regel verandert er niets (achterwaarts compatibel)
+PASS: V17.1 compactRowModel: naam, aantal, regeltotaal; vertaling gaat voor
+PASS: V17.2 computedUnitPriceCents: afronding en null zonder totaal
+PASS: V17.3 kruisje: deleteItemAt muteert niet en restoreDeletedItem zet terug op plek
+PASS: V17.4 uitklappen: twijfelregels standaard open, normale regels dicht
+PASS: V17.5 uitklappen: tik wisselt de toestand, ook voor twijfelregels
+PASS: V21.1 waarschuwingen alleen op stap 4, niet meer tijdens verdelen
+PASS: V22.1 stap 3: namen per regel aantikken, geen persoonstabblad meer
+PASS: V22.2 stap 3 tik-gedrag: tik wijst toe, Hele tafel gelijk, Niemand leeg
+PASS: V22.3 korte chip-namen: altijd eenduidig, zo kort mogelijk
+PASS: V22.4 chips tonen kort label, bewaren volledige naam in aria-label
+PASS: V22.5 bonfoto blijft zichtbaar, overleeft herlaad (IndexedDB), verdwijnt bij reset
+PASS: V23.1 stap 2: één kleine Gast-schakelaar per deelnemer, uitleg één keer
+PASS: V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan
+PASS: V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)
+PASS: V20.3 oude lijsten (strings of met tellingen) migreren vanzelf
+PASS: V20.4 bewaarde naam verwijderen (hoofdletterongevoelig, rest blijft)
+PASS: V20.6 stappenbalk wrapt (geen horizontale scroll bij grote tekst)
+PASS: V20.5 normalisatie dekt tab en niet-brekende spatie (review-bevinding)
+PASS: V19.1 service worker: v19 kan oude clients nooit vasthouden
+PASS: V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald
+PASS: V18.1 foto verkleinen vóór online scan: alleen verkleinend, verhouding behouden
+PASS: V18.2 terugval is niet blind: echte foutcode blijft zichtbaar
+PASS: V17.7 schakelaar Online AI-scan: standaard aan en per toestel onthouden
+PASS: V17.8 schakelaar uit = geen online aanroep (poort isOnlineAiUsable)
+PASS: V17.6 kruisje + ongedaan maken: niets definitief kwijt, inhoud gelijk
+PASS: V7.7 Netwerkvrije proef lokale backup: geen enkel extern verzoek, werkt met echte ppu-paddle-ocr interface
+PASS: V9.5b Lokale backup: offline met nog-gecachete modellen geeft eerlijke NL-melding, echte 404 blijft "ontbreken op server"
+PASS: V9.6 v14: elke mislukte online AI-aanroep valt terug op de lokale backup (altijd fallbackCode)
+PASS: V10.1a Gewicht/volume-uitzondering werkt echt: "750 ml" wordt geen stukprijs (B1)
+PASS: V10.1b Eenheden g/cl/kg/l/ml/stuks en aantallen zijn uitzonderingen (B1)
+PASS: V10.2 Telefoon/bon/tafel/rekeningnummers worden geen spookgerecht (B2)
+PASS: V10.3 CONTANTI/CONTANTE betaalwoord + straat met tussenvoegsel (B3)
+PASS: V10.4 Fuzzy totaal-/betaal-/btw-woorden bij OCR-verwarring + "4,60-" (B4)
+PASS: V10.5 Plakvakroute levert ambiguousCandidates voor de keuze-UI (B5)
+PASS: V10.6 PDF.js-laadfout geeft eigen eerlijke melding (B6)
+PASS: V10.7 AI-dagteller telt alleen geslaagde calls (B7)
+PASS: V10.8 Service worker cachet PDF.js al bij installatie, best-effort (B7)
+PASS: V12.1 PayPal-koffielink in de footer, exact zoals online, eerlijk in de privacytekst
+PASS: V11.1a Amerikaanse bon met tax: fooi/btw meegeteld en pro rata verdeeld (N1)
+PASS: V11.1b NL-bon met fooiregel: fooi meegeteld en verdeeld (N1)
+PASS: V11.2 Geen verzonnen bedragen uit "Est. 1998", busletter, "Rekening 45,60" (N2)
+PASS: V11.3 Los "bar"-woord mag geen gerecht droppen (N3)
+PASS: V11.4 NL-vormen "6,-" en "2,5", en volume "0,33" is geen prijs (N4)
+PASS: V11.5 Tikkie, MULTIBANCO en Rua (N5)
+PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefetcht (N7)
+PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
+PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
+
+Resultaat: 109/109 geslaagd.

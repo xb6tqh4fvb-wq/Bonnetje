@@ -796,10 +796,23 @@ select {
   gap: 0.6rem;
   flex-wrap: wrap;
 }
-.hosted-toggle {
+/* v23: naam neemt de ruimte, Gast-schakelaar klein, × apart aan de rechterrand */
+.participant-name {
   flex: 1;
-  justify-content: flex-end;
-  font-size: 0.85rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.guest-toggle {
+  min-height: var(--tap-min);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.participant-row .btn-danger-outline {
+  margin-left: auto;
+}
+.guest-help {
+  margin-top: 0.25rem;
 }
 .hosted-card h3 {
   margin-top: 0;

@@ -1286,22 +1286,23 @@ function renderStep2(container) {
   if (session.participants.length === 0) {
     chipList.appendChild(el('p', { className: 'muted', text: t(lang, 'noParticipants') }));
   } else {
+    // v23 (verzoek Henk): één kleine Gast-schakelaar per deelnemer; de uitleg
+    // staat één keer boven de lijst, niet bij elke rij
+    chipList.appendChild(el('p', { className: 'help-text guest-help', text: t(lang, 'guestHelp') }));
     session.participants.forEach((p, idx) => {
-      const hostedBox = el('input', {
-        type: 'checkbox',
-        id: `hosted-${p.id}`,
-        checked: Boolean(getHostedRule(p.id).enabled)
-      });
-      hostedBox.addEventListener('change', (e) => {
-        mutate(() => { getHostedRule(p.id).enabled = e.target.checked; });
-      });
+      const isGast = Boolean(getHostedRule(p.id).enabled);
       chipList.appendChild(
         el('div', { className: 'participant-row' }, [
-          el('strong', { text: p.name }),
-          el('label', { for: `hosted-${p.id}`, className: 'checkbox-row hosted-toggle' }, [
-            hostedBox,
-            el('span', { text: t(lang, 'hostedToggleLabel') })
-          ]),
+          el('strong', { className: 'participant-name', text: p.name }),
+          el('button', {
+            type: 'button',
+            className: `chip-btn guest-toggle ${isGast ? 'active' : ''}`,
+            'aria-pressed': String(isGast),
+            'aria-label': `${t(lang, 'guestToggle')} ${p.name}`,
+            text: `${isGast ? '✓ ' : ''}${t(lang, 'guestToggle')}`,
+            onClick: () =>
+              mutate(() => { getHostedRule(p.id).enabled = !isGast; })
+          }),
           el('button', {
             type: 'button',
             className: 'btn btn-sm btn-danger-outline',

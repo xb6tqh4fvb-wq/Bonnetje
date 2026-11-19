@@ -136,7 +136,9 @@ export const STRINGS = {
     newReceiptBtn: 'Nieuwe bon beginnen',
     newReceiptConfirm: 'De huidige bon en verdeling wissen en met een nieuwe bon starten?',
     // v13: deelnemer betaalt niet mee (te gast, jarig, ...)
-    hostedToggleLabel: 'Betaalt niet mee (te gast, jarig, ...)',
+    guestToggle: 'Gast',
+    guestHelp:
+      'Een gast betaalt niet mee: zijn hele deel (eigen regels, fooi en extra\'s) wordt verdeeld over de rest. Wie er precies voor betaalt kies je in stap 4.',
     hostedCardTitle: '{name} betaalt niet mee',
     hostedShareOf: 'Het deel van {name}: {amount}',
     hostedCarriersLabel: 'Wie nemen dit over?',
@@ -289,7 +291,9 @@ export const STRINGS = {
     newReceiptBtn: 'Start new receipt',
     newReceiptConfirm: 'Clear the current receipt and split to start a new one?',
     // v13: participant does not pay (guest, birthday, ...)
-    hostedToggleLabel: 'Does not pay (guest, birthday, ...)',
+    guestToggle: 'Guest',
+    guestHelp:
+      'A guest does not pay: their whole share (own items, tip and extras) is split across the rest. You choose exactly who pays in step 4.',
     hostedCardTitle: '{name} does not pay',
     hostedShareOf: "{name}'s share: {amount}",
     hostedCarriersLabel: 'Who covers this?',

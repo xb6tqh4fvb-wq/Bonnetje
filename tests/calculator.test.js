@@ -1394,6 +1394,19 @@ PIN 43,00`);
     assertTrue(app.includes('loadReceiptPhoto()'), 'bij laden wordt een bewaarde foto weer getoond');
   });
 
+  test('V23.1 stap 2: één kleine Gast-schakelaar per deelnemer, uitleg één keer', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+    assertTrue(!app.includes('hostedToggleLabel') && !i18n.includes('hostedToggleLabel'), 'lange herhaalde tekst per rij is weg');
+    assertTrue(app.includes('guest-toggle'), 'kleine Gast-schakelaar per rij');
+    assertEqual(app.split("t(lang, 'guestHelp')").length - 1, 1, 'uitleg staat maar op één plek (boven de lijst)');
+    assertTrue(i18n.includes('wordt verdeeld over de rest'), 'uitleg beschrijft wat de rekenkern doet: deel wordt verdeeld over de rest');
+    assertTrue(i18n.includes('kies je in stap 4'), 'uitleg wijst op de drager-keuze in stap 4');
+    assertTrue(app.includes("getHostedRule(p.id).enabled = !isGast"), 'schakelaar zet dezelfde hosted-regel als voorheen (rekenkern ongewijzigd)');
+    assertTrue(app.includes("'aria-pressed': String(isGast)"), 'stand is afleesbaar voor schermlezers');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
@@ -1457,7 +1470,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v22', 'manifest-cache is actueel (v22)');
+    assertEqual(CACHE_NAME, 'bonnetje-v23', 'manifest-cache is actueel (v23)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1469,7 +1482,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '22', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '23', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

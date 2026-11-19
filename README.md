@@ -7,6 +7,15 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v23 (verzoek Henk: "die gast optie is raar, dat moet beter")
+
+Regressietests: 109/109 groen in Node (`node tests/calculator.test.js`), jsdom-smoke 60+ checks groen.
+
+- **Stap 2 opgeruimd:** per deelnemer stond een groot vakje met de lange tekst "Betaalt niet mee (te gast, jarig, ...)" — vijf keer herhaald op een scherm. Nu: één kleine schakelaar "Gast" naast de naam (aan = gevuld met ✓, voor schermlezers als `aria-pressed` afleesbaar) en de uitleg één keer boven de lijst: "Een gast betaalt niet mee: zijn hele deel (eigen regels, fooi en extra's) wordt verdeeld over de rest. Wie er precies voor betaalt kies je in stap 4." Dat is exact wat de rekenkern doet (geverifieerd in `js/calculator.js`: het hele deel van de gast gaat naar de dragers, standaard gelijk over alle niet-gasten, aanpasbaar per gast in stap 4). Het rode × (verwijderen) staat apart aan de rechterrand.
+- **Rekenkern ongewijzigd:** de schakelaar zet dezelfde hosted-regel als voorheen; alle v13-hosted-tests blijven ongewijzigd groen.
+- **Gedrag in stap 3 (eerlijk gemeld):** een gast kan nog steeds regels toegewezen krijgen — dat is bewust en correct: zijn verbruik bepaalt zijn deel, dat daarna door de dragers wordt overgenomen. Smoke-bewijs: gast toegewezen → `hosted: true`, betaalt 0, som per persoon blijft exact gelijk aan het bontotaal.
+- Techniek: cache `bonnetje-v23`. Test V23.1 bewaakt de nieuwe opbouw.
+
 ## Wijzigingen in v22 (verzoek Henk: per regel namen aantikken i.p.v. per persoon de lijst doorlopen)
 
 Regressietests: 105/105 groen in Node (`node tests/calculator.test.js`), jsdom-smoke 60+ checks groen.
