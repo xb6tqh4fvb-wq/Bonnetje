@@ -66,6 +66,7 @@ import {
   getLastGeminiCallInfo
 } from '../js/gemini.js';
 import { mapFirebaseAiError, isOnlineAiUsable } from '../js/firebase-ai.js';
+import { downscalePlan, ONLINE_SCAN_MAX_LONG_SIDE, ONLINE_SCAN_JPEG_QUALITY } from '../js/image-downscale.js';
 import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
 import { getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS } from '../js/storage.js';
@@ -1299,6 +1300,43 @@ PIN 43,00`);
     assertTrue(!toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Twijfelregel kan dicht');
     assertTrue(!isItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Blijft dicht');
     assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
+  });
+
+  test('V18.1 foto verkleinen vóór online scan: alleen verkleinend, verhouding behouden', () => {
+    // iPhone-formaat (3024x4032) -> lange zijde 1800
+    const iphone = downscalePlan(3024, 4032);
+    assertTrue(iphone.needsResize === true, 'grote iPhone-foto moet verkleind worden');
+    assertEqual(iphone.height, ONLINE_SCAN_MAX_LONG_SIDE, 'lange zijde = max');
+    assertEqual(iphone.width, 1350, 'verhouding behouden (3024 * 1800/4032)');
+    // Liggend
+    const land = downscalePlan(4032, 3024);
+    assertEqual(land.width, ONLINE_SCAN_MAX_LONG_SIDE, 'liggend: breedte is lange zijde');
+    assertEqual(land.height, 1350, 'liggend: hoogte geschaald');
+    // Klein genoeg -> ongemoeid
+    const klein = downscalePlan(800, 600);
+    assertTrue(klein.needsResize === false && klein.width === 800 && klein.height === 600, 'kleine foto blijft ongemoeid');
+    // Precies op de grens
+    assertTrue(downscalePlan(1800, 1200).needsResize === false, 'op de grens niet verkleinen');
+    // Ongeldige invoer -> veilig ongemoeid
+    assertTrue(downscalePlan(0, 0).needsResize === false, 'nul is veilig');
+    assertTrue(downscalePlan(NaN, 100).needsResize === false, 'NaN is veilig');
+    // Kwaliteit/max binnen redelijke grenzen (leesbaarheidseis)
+    assertTrue(ONLINE_SCAN_MAX_LONG_SIDE >= 1400 && ONLINE_SCAN_MAX_LONG_SIDE <= 2200, 'max lange zijde binnen leesbare band');
+    assertTrue(ONLINE_SCAN_JPEG_QUALITY >= 0.75 && ONLINE_SCAN_JPEG_QUALITY <= 0.95, 'jpeg-kwaliteit binnen leesbare band');
+  });
+
+  test('V18.2 terugval is niet blind: echte foutcode blijft zichtbaar', () => {
+    const appCheck = mapFirebaseAiError({ code: 'app-check/fetch-stored-token', message: 'App Check: fetch stored token failed' });
+    assertEqual(appCheck.rawCode, 'app-check/fetch-stored-token', 'App Check-code zichtbaar');
+    assertTrue(appCheck.fallbackCode === 'config', 'App Check -> config-terugval');
+    const quota = mapFirebaseAiError({ code: 'resource-exhausted', message: 'Quota exceeded' });
+    assertEqual(quota.rawCode, 'resource-exhausted', 'quotumcode zichtbaar');
+    assertTrue(quota.fallbackCode === 'http_429', 'quotum -> http_429-terugval');
+    const net = mapFirebaseAiError(new TypeError('Failed to fetch'));
+    assertTrue(net.fallbackCode === 'network', 'netwerk -> network-terugval');
+    assertTrue(typeof net.rawCode === 'string' && net.rawCode.length > 0, 'altijd een rawCode');
+    const onbekend = mapFirebaseAiError({ message: 'iets raars' });
+    assertTrue(onbekend.rawCode === 'unknown' || onbekend.rawCode.length > 0, 'onbekende fout krijgt rawCode');
   });
 
   test('V17.7 schakelaar Online AI-scan: standaard aan en per toestel onthouden', () => {

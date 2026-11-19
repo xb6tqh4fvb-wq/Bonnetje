@@ -1,5 +1,5 @@
 // Bonnetje - Service Worker (v14: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
-const CACHE_NAME = 'bonnetje-v17';
+const CACHE_NAME = 'bonnetje-v18';
 
 const APP_SHELL = [
   './',
@@ -11,6 +11,8 @@ const APP_SHELL = [
   './js/firebase-ai.js',
   './js/firebase-config.js',
   './js/gemini.js',
+  './js/image-downscale.js',
+  './js/item-rows.js',
   './js/local-ocr.js',
   './js/i18n.js',
   './js/dictionary.js',

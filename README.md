@@ -7,6 +7,19 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v18 (verzoek Henk: online scan faalde op zijn iPhone, ongedaan-pilletje niet zichtbaar)
+
+Regressietests: 94/94 groen in Node (`node tests/calculator.test.js`).
+
+Aanleiding: Henks echte scan viel live terug op de lokale backup en het ongedaan-maken-pilletje verscheen niet op zijn iPhone. Diagnose: de online route zélf is gezond (endpoint, API, App Check, model en regio 'eu' bewezen werkend; desktop-Chrome-scan live geslaagd). De meest waarschijnlijke oorzaak op zijn toestel: een grote iPhone-foto (3-5 MB, mogelijk HEIC) werd volledig als base64 meegestuurd en de aanroep liep over de time-out van 30 s; daarnaast kon een verouderde service worker een oude versie blijven tonen.
+
+- **Foto verkleind vóór de online aanroep:** nieuwe module `js/image-downscale.js`. Afbeeldingen worden in de browser (canvas) verkleind naar max. 1800 px lange zijde, JPEG 0,85. Het originele bestand blijft voor het lokale terugvalpad. Kan de browser het formaat niet decoderen (bijv. HEIC buiten Safari), dan gaat het origineel mee (de online API accepteert HEIC). PDF's blijven ongemoeid.
+- **Ruimere time-out + zichtbare foutcode:** de online time-out is 60 s. Bij terugval toont de statusregel de echte foutcode (bijv. `app-check/...`, `resource-exhausted`, `time-out`) in plaats van alleen een algemene tekst: `Lokaal gelezen met de backup (online scan mislukt: <code>)`.
+- **OCR-naam uit beeld (verzoek Henk):** de badge "Lokaal gelezen (PP-OCRv6_tiny)" per regel is weg en de OCR-naam komt nergens meer in gewone beeldschermtekst voor. De lokale backup blijft technisch onveranderd als terugval.
+- **Ongedaan maken als rustige rij op de plek van de regel:** het fixed pilletje onderin is vervangen door een rustige lijstrij met kromme pijltje (↩ "Ongedaan maken") op de plek van de verwijderde regel. Die scrollt mee en kan niet onder de Safari-toolbar of buiten beeld vallen. Verdwijnt vanzelf na ±8 s en bij een stapwissel; Stap terug werkt ook nog.
+- **Nieuwe versie zonder dubbel openen:** bij een controller-wisseling van de service worker herlaadt de app eenmalig (sessie blijft in localStorage), plus een update-check bij openen en bij terugkeer naar het tabblad. Ook `js/item-rows.js` toegevoegd aan de app-shell van de sw (ontbrak sinds v17).
+- Cache `bonnetje-v18` in `sw.js` en `js/assets-manifest.js`. Tests V18.1 (verkleinplan: iPhone 3024×4032 → 1800×1350, verhouding behouden, grensgevallen) en V18.2 (foutcode blijft zichtbaar per foutsoort).
+
 ## Wijzigingen in v17 (verzoek Henk: simpelere bonregel, hele bon op één scherm)
 
 Regressietests: 90/90 groen in Node (`node tests/calculator.test.js`), inclusief 6 nieuwe tests voor kruisje, ongedaan maken en uitklappen.

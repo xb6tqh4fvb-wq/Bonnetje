@@ -43,6 +43,7 @@ import {
   restoreDeletedItem,
   compactRowModel
 } from './item-rows.js';
+import { prepareImageForOnlineScan, isDownscalableImage } from './image-downscale.js';
 import {
   createEmptySession,
   loadSession,
@@ -163,7 +164,23 @@ async function copyTextReliable(text) {
 async function initServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js');
+      // v18: was de pagina al onder controle van een oudere SW, dan betekent een
+      // controller-wisseling dat een NIEUWE versie actief is geworden. Eenmalig
+      // herladen zodat de nieuwe versie meteen zichtbaar is (sessie blijft bewaard
+      // in localStorage). Zonder dit moest de app twee keer geopend worden na een deploy.
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      if (hadController) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (sessionStorage.getItem('bonnetje_sw_reloaded')) return;
+          sessionStorage.setItem('bonnetje_sw_reloaded', '1');
+          location.reload();
+        });
+      }
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
     } catch {}
   }
 }
@@ -340,7 +357,7 @@ function showScanError(message, { isPdf = false } = {}) {
 /**
  * Past een scanresultaat (Gemini of lokale backup) toe op de sessie en toont de status.
  */
-function applyScanResult(scanRes, usedLocalBackup) {
+function applyScanResult(scanRes, usedLocalBackup, fallbackReasonForStatus = null) {
   session.items = scanRes.items || [];
   session.unparsedLines = scanRes.unparsedLines || [];
   session.ambiguousCandidates = scanRes.ambiguousCandidates || [];
@@ -362,8 +379,10 @@ function applyScanResult(scanRes, usedLocalBackup) {
   postStatus.hidden = false;
   if (usedLocalBackup) {
     postStatus.className = 'status-box warn';
+    // v18: geen OCR-naam meer in beeld (verzoek Henk); wel de echte reden van de terugval.
+    const why = fallbackReasonForStatus ? ` (${fallbackReasonForStatus})` : '';
     postStatus.textContent =
-      'Lokaal gelezen met backup (ppu-paddle-ocr, PP-OCRv6_tiny). Let op: de lokale backup vertaalt niet; bij een buitenlandse bon kun je later met internet alsnog vertalen.';
+      `Lokaal gelezen met de backup${why}. Let op: de lokale backup vertaalt niet; bij een buitenlandse bon kun je later met internet alsnog vertalen.`;
   } else if (scanRes.emptyResult) {
     postStatus.className = 'status-box warn';
     postStatus.textContent =
@@ -391,7 +410,7 @@ async function runLocalBackupFlow(file) {
   const statusBox = $('#scan-status');
   statusBox.hidden = false;
   statusBox.className = 'status-box info';
-  statusBox.textContent = 'Lokale backup (ppu-paddle-ocr, PP-OCRv6_tiny) wordt gestart…';
+  statusBox.textContent = 'Lokale backup wordt gestart…';
   announce(statusBox.textContent);
   try {
     const scanRes = await runLocalBackupOcr(file, {
@@ -498,13 +517,27 @@ async function handleReceiptFile(file) {
       statusBox.className = 'status-box info';
       statusBox.textContent = `Bon wordt gelezen via Gemini (${AI_MODEL})…`;
       announce(statusBox.textContent);
+      // v18: een grote iPhone-foto (3-5 MB) volledig meesturen duurde te lang (time-out).
+      // Voor de online aanroep wordt de foto in de browser verkleind; het lokale
+      // terugvalpad hieronder gebruikt altijd het originele bestand.
+      let onlineFile = file;
+      if (isDownscalableImage(file)) {
+        try {
+          const prep = await prepareImageForOnlineScan(file);
+          onlineFile = prep.blob;
+        } catch {
+          onlineFile = file;
+        }
+      }
       try {
-        scanRes = await scanReceiptWithGemini(file, { callModel: callFirebaseAiModel });
+        scanRes = await scanReceiptWithGemini(onlineFile, { callModel: callFirebaseAiModel });
       } catch (gemErr) {
         // v14: elke mislukte online aanroep (quotum/spend cap, storing, netwerk, App Check,
-        // ontbrekende config) valt terug op de lokale backup
+        // ontbrekende config) valt terug op de lokale backup.
+        // v18: de terugval is niet meer blind - de statusregel toont de echte foutcode
+        // (bijv. 'app-check/...', 'resource-exhausted', 'time-out').
         if (gemErr.fallbackCode) {
-          fallbackReason = gemErr.message;
+          fallbackReason = `online scan mislukt: ${gemErr.rawCode || gemErr.fallbackCode}`;
         } else {
           throw gemErr;
         }
@@ -520,7 +553,7 @@ async function handleReceiptFile(file) {
       }
       usedLocalBackup = true;
       statusBox.className = 'status-box warn';
-      statusBox.textContent = `Gemini niet beschikbaar (${fallbackReason}). Lokale backup (ppu-paddle-ocr, PP-OCRv6_tiny) wordt gestart…`;
+      statusBox.textContent = `Gemini niet beschikbaar (${fallbackReason}). De lokale backup wordt gestart…`;
       announce(statusBox.textContent);
       scanRes = await runLocalBackupOcr(file, {
         onProgress: (p) => {
@@ -529,7 +562,7 @@ async function handleReceiptFile(file) {
       });
     }
 
-    applyScanResult(scanRes, usedLocalBackup);
+    applyScanResult(scanRes, usedLocalBackup, fallbackReason);
   } catch (err) {
     // Punt 5 (v9): technische fouten (bijv. Engelse decode-fouten) worden vriendelijke NL-meldingen
     showScanError(friendlyScanError(err, { isPdf }), { isPdf });
@@ -704,6 +737,8 @@ function renderStep1(container) {
   // Regels lijst
   const listWrap = el('div', { className: 'items-list' });
   session.items.forEach((item, idx) => {
+    // v18: ongedaan-rij inline op de plek van de verwijderde regel (niet fixed onderaan)
+    if (lastDeletedLine && lastDeletedLine.idx === idx) listWrap.appendChild(buildUndoRow(lang));
     const active = isLineActive(item);
     const lineCheck = validateLineItem(item);
     const trans = translateOffline(item.originalDescription || item.description, customDict);
@@ -780,9 +815,6 @@ function renderStep1(container) {
     const badges = el('div', { className: 'badge-row' });
     if (item.pageNumber && item.pageNumber > 1) {
       badges.appendChild(el('span', { className: 'badge badge-muted', text: `Pagina ${item.pageNumber}` }));
-    }
-    if (item.sourceEngine === 'ppu-paddle-ocr') {
-      badges.appendChild(el('span', { className: 'badge badge-muted', text: 'Lokaal gelezen (PP-OCRv6_tiny)' }));
     }
     if (item.restoredDecimal) {
       badges.appendChild(el('span', { className: 'badge badge-warn', text: 'Herstelde komma — controleer bedrag' }));
@@ -963,6 +995,9 @@ function renderStep1(container) {
     if (expanded) card.appendChild(body);
     listWrap.appendChild(card);
   });
+  if (lastDeletedLine && lastDeletedLine.idx >= session.items.length) {
+    listWrap.appendChild(buildUndoRow(lang));
+  }
   container.appendChild(listWrap);
 
   if (session.unparsedLines && session.unparsedLines.length > 0) {
@@ -2249,9 +2284,11 @@ function openSettingsModal() {
 // ============================================================
 // HOOFD RENDER
 // ============================================================
-// v17: discreet pijltje-pilletje onderin na het verwijderen van een regel (verzoek Henk:
-// geen grote knop/balk, het kromme pijltje zoals bij Stap terug). Visueel klein, duimvriendelijk
-// raakvlak, verdwijnt vanzelf na enkele seconden. Niets gaat definitief kwijt.
+// v18: ongedaan maken als rustige rij met kromme pijltje OP DE PLEK van de verwijderde
+// regel (verzoek Henk 14:46: het fixed pilletje onderin verscheen niet op zijn iPhone).
+// De rij staat in de lijst zelf, scrollt dus gewoon mee en kan niet onder de Safari-
+// toolbar of buiten beeld vallen. Hij verdwijnt vanzelf na enkele seconden en bij een
+// stapwissel. Niets gaat definitief kwijt (Stap terug blijft ook werken).
 let undoBarTimer = null;
 
 function hideUndoBarLater() {
@@ -2259,51 +2296,38 @@ function hideUndoBarLater() {
   undoBarTimer = setTimeout(() => {
     lastDeletedLine = null;
     undoBarTimer = null;
-    renderUndoBar();
+    render();
   }, 8000);
 }
 
-function renderUndoBar() {
-  const lang = settings.lang;
-  let bar = $('#undo-bar');
-  // Alleen in stap 1 tonen; bij een stapwissel verdwijnt het pilletje (Stap terug blijft werken).
-  if (!lastDeletedLine || session.step !== 1) {
-    if (session.step !== 1) {
-      lastDeletedLine = null;
-      if (undoBarTimer) {
-        clearTimeout(undoBarTimer);
-        undoBarTimer = null;
-      }
-    }
-    if (bar) bar.remove();
-    return;
+function clearUndoRow() {
+  lastDeletedLine = null;
+  if (undoBarTimer) {
+    clearTimeout(undoBarTimer);
+    undoBarTimer = null;
   }
-  if (!bar) {
-    bar = el('div', { id: 'undo-bar', className: 'undo-bar', role: 'status' });
-    document.body.appendChild(bar);
-  }
+}
+
+/** Rustige lijstrij met kromme pijltje + "Ongedaan maken" voor op de plek van de verwijderde regel. */
+function buildUndoRow(lang) {
   const name = lastDeletedLine.item.geminiTranslation || lastDeletedLine.item.description || '';
-  bar.innerHTML = '';
-  bar.appendChild(
+  return el('div', { className: 'item-undo-row', role: 'status' }, [
     el('button', {
       type: 'button',
       className: 'undo-pill-btn',
       'aria-label': `${t(lang, 'undoBarAction')}: ${name}`,
       onClick: () => {
-        if (undoBarTimer) {
-          clearTimeout(undoBarTimer);
-          undoBarTimer = null;
-        }
+        const deleted = lastDeletedLine;
+        clearUndoRow();
         mutate(() => {
-          session.items = restoreDeletedItem(session.items, lastDeletedLine);
-          lastDeletedLine = null;
+          session.items = restoreDeletedItem(session.items, deleted);
         }, t(lang, 'lineRestored'));
       }
     }, [
       el('span', { className: 'undo-pill-icon', text: '↩' }),
       el('span', { className: 'undo-pill-text', text: t(lang, 'undoBarAction') })
     ])
-  );
+  ]);
 }
 
 function render() {
@@ -2314,12 +2338,12 @@ function render() {
   const main = $('#main-content');
   main.innerHTML = '';
 
+  if (session.step !== 1 && lastDeletedLine) clearUndoRow();
+
   if (session.step === 1) renderStep1(main);
   else if (session.step === 2) renderStep2(main);
   else if (session.step === 3) renderStep3(main);
   else renderStep4(main);
-
-  renderUndoBar();
 }
 
 $('#btn-undo').addEventListener('click', () => {

@@ -6,7 +6,7 @@
 // gewoon blijft werken met de lokale backup.
 //
 // Elke fout uit callFirebaseAiModel krijgt een fallbackCode, zodat app.js altijd
-// terugvalt op de lokale backup (ppu-paddle-ocr) — precies de afspraak voor v14:
+// terugvalt op de lokale backup — precies de afspraak voor v14:
 // "lokaal lezen als de aanroep mislukt of de spend cap bereikt is".
 
 import {
@@ -21,7 +21,7 @@ import {
 } from './firebase-config.js';
 
 const SDK_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
-const AI_TIMEOUT_MS = 30000;
+const AI_TIMEOUT_MS = 60000; // v18: ruimer; een grote bonfoto duurde >30s en viel terug op lokaal
 
 let modelPromise = null;
 
@@ -63,18 +63,21 @@ export function mapFirebaseAiError(err) {
   const wrap = (text, fallbackCode) => {
     const e = new Error(text);
     e.fallbackCode = fallbackCode;
+    // v18: de echte code (bijv. 'app-check/fetch-stored-token', 'resource-exhausted') blijft
+    // zichtbaar in de statusregel, zodat een mislukte online aanroep niet langer blind terugvalt.
+    e.rawCode = code || fallbackCode;
     return e;
   };
 
   if (/resource.?exhausted|\b429\b|quota|spend cap|billing/.test(hay)) {
     return wrap(
-      'De grens van de online AI-scan is bereikt (quotum of spend cap). De lokale backup (ppu-paddle-ocr), het plakvak en handmatig invoeren blijven beschikbaar.',
+      'De grens van de online AI-scan is bereikt (quotum of spend cap). De lokale backup, het plakvak en handmatig invoeren blijven beschikbaar.',
       'http_429'
     );
   }
   if (/app.?check|permission.?denied|unauthenticated|\b403\b|\b401\b/.test(hay)) {
     return wrap(
-      'De beveiligingscheck (App Check) ontbreekt of is geweigerd, dus de online AI-scan kan nu niet worden aangeroepen. De lokale backup (ppu-paddle-ocr), het plakvak en handmatig invoeren blijven beschikbaar.',
+      'De beveiligingscheck (App Check) ontbreekt of is geweigerd, dus de online AI-scan kan nu niet worden aangeroepen. De lokale backup, het plakvak en handmatig invoeren blijven beschikbaar.',
       'config'
     );
   }
@@ -86,7 +89,7 @@ export function mapFirebaseAiError(err) {
   }
   if (/failed to fetch|network|fetch failed|load failed|time.?out|timed out|abort/.test(hay)) {
     return wrap(
-      'Geen internetverbinding of de aanvraag duurde te lang. De lokale backup (ppu-paddle-ocr), het plakvak en handmatig invoeren blijven beschikbaar.',
+      'Geen internetverbinding of de aanvraag duurde te lang. De lokale backup, het plakvak en handmatig invoeren blijven beschikbaar.',
       'network'
     );
   }
@@ -96,9 +99,10 @@ export function mapFirebaseAiError(err) {
   );
 }
 
-function aiError(text, fallbackCode) {
+function aiError(text, fallbackCode, rawCode) {
   const e = new Error(text);
   e.fallbackCode = fallbackCode;
+  e.rawCode = rawCode || fallbackCode;
   return e;
 }
 
@@ -174,7 +178,7 @@ export async function callFirebaseAiModel(parts, { timeoutMs = AI_TIMEOUT_MS } =
       model.generateContent(parts),
       new Promise((_, reject) => {
         timer = setTimeout(
-          () => reject(aiError('De aanvraag naar de online AI-scan duurde te lang (time-out).', 'network')),
+          () => reject(aiError('De aanvraag naar de online AI-scan duurde te lang (time-out).', 'network', 'time-out')),
           timeoutMs
         );
       })
