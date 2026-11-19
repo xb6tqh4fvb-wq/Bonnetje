@@ -12,8 +12,8 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 Regressietests: 84/84 groen in Node (`node tests/calculator.test.js`).
 
 - **Geen toestemmingsvenster meer:** `confirmGeminiConsent` is verwijderd. De online scan en vertaling gaan direct via Firebase AI Logic, zonder `window.confirm` vooraf. Henk heeft dit expliciet gekozen (13:50, screenshot van het venster: "Weg met die betuttelende onzin"), nadat het AVG-risico (bonfoto naar Google) eerder is toegelicht.
-- **Blijft:** de lokale backup als terugval bij elke fout, de privacy-uitleg onder Instellingen & privacy en alle fout- en statusmeldingen.
-- **Privacytekst aangepast (NL + EN):** de alinea's zeiden nog "alleen nadat jij vooraf expliciet toestemming geeft"; dat was na het weghalen van het venster niet meer waar. De tekst beschrijft nu de directe route en wijst op de lokale backup, het plakvak en handmatig invoeren voor wie niets wil versturen.
+- **Blijft:** de lokale backup als terugval bij elke fout, de privacy-uitleg onder Instellingen & privacy en alle fout- en statusmeldingen. De terugvalmelding claimt niet meer "niets verstuurd naar buiten" (na een mislukte online aanroep is de foto immers al verstuurd); hij zegt alleen nog "Lokaal gelezen met backup (ppu-paddle-ocr, PP-OCRv6_tiny)".
+- **Privacytekst aangepast (NL + EN):** de alinea's zeiden nog "alleen nadat jij vooraf expliciet toestemming geeft"; dat was na het weghalen van het venster niet meer waar. De tekst beschrijft nu de directe route en wijst voor wie niets wil versturen op het plakvak en handmatig invoeren (de lokale backup is géén keuze-optie: een foto gaat altijd eerst naar Google).
 - **Opruiming:** instelling `geminiPrivacyAccepted` verwijderd uit de defaults en bij opstarten uit opgeslagen instellingen gehaald (`cleanupLegacyStorage`); import van `AI_LOCATION` uit app.js weg (was alleen voor het venster).
 - Cache `bonnetje-v16` in `sw.js` en `js/assets-manifest.js`.
 

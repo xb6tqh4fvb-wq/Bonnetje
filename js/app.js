@@ -349,7 +349,7 @@ function applyScanResult(scanRes, usedLocalBackup) {
   if (usedLocalBackup) {
     postStatus.className = 'status-box warn';
     postStatus.textContent =
-      'Lokaal gelezen met backup (ppu-paddle-ocr, PP-OCRv6_tiny — niets verstuurd naar buiten). Let op: de lokale backup vertaalt niet; bij een buitenlandse bon kun je later met internet alsnog vertalen.';
+      'Lokaal gelezen met backup (ppu-paddle-ocr, PP-OCRv6_tiny). Let op: de lokale backup vertaalt niet; bij een buitenlandse bon kun je later met internet alsnog vertalen.';
   } else if (scanRes.emptyResult) {
     postStatus.className = 'status-box warn';
     postStatus.textContent =
