@@ -1,11 +1,21 @@
-# Bonnetje — Samen eerlijk afrekenen (v15)
+# Bonnetje — Samen eerlijk afrekenen (v16)
 
 Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account.
 
 ## Opbouw & terugvalketen
-1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). Altijd met toestemming en een eerlijke melding vooraf.
-2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, geweigerde toestemming, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
+1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). De aanroep gebeurt direct bij het scannen of vertalen (v16: geen apart toestemmingsvenster meer); onder Instellingen & privacy staat precies wat er wordt verstuurd.
+2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v16 (verzoek Henk: toestemmingsvenster weg)
+
+Regressietests: 84/84 groen in Node (`node tests/calculator.test.js`).
+
+- **Geen toestemmingsvenster meer:** `confirmGeminiConsent` is verwijderd. De online scan en vertaling gaan direct via Firebase AI Logic, zonder `window.confirm` vooraf. Henk heeft dit expliciet gekozen (13:50, screenshot van het venster: "Weg met die betuttelende onzin"), nadat het AVG-risico (bonfoto naar Google) eerder is toegelicht.
+- **Blijft:** de lokale backup als terugval bij elke fout, de privacy-uitleg onder Instellingen & privacy en alle fout- en statusmeldingen.
+- **Privacytekst aangepast (NL + EN):** de alinea's zeiden nog "alleen nadat jij vooraf expliciet toestemming geeft"; dat was na het weghalen van het venster niet meer waar. De tekst beschrijft nu de directe route en wijst op de lokale backup, het plakvak en handmatig invoeren voor wie niets wil versturen.
+- **Opruiming:** instelling `geminiPrivacyAccepted` verwijderd uit de defaults en bij opstarten uit opgeslagen instellingen gehaald (`cleanupLegacyStorage`); import van `AI_LOCATION` uit app.js weg (was alleen voor het venster).
+- Cache `bonnetje-v16` in `sw.js` en `js/assets-manifest.js`.
 
 ## Wijzigingen in v15 (verzoek Henk: dubbele "Foto maken"-knop weg)
 

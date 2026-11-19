@@ -33,7 +33,6 @@ import {
 } from './firebase-ai.js';
 import {
   AI_MODEL,
-  AI_LOCATION,
   AI_TERMS_URL
 } from './firebase-config.js';
 import {
@@ -140,30 +139,9 @@ async function copyTextReliable(text) {
   }
 }
 
-/**
- * Expliciete toestemming vóór elke Gemini-aanroep + eerste-keer EU/EER privacymelding.
- */
-function confirmGeminiConsent(purpose, isPdf = false) {
-  const firstTimeNote = !settings.geminiPrivacyAccepted
-    ? `\n\nPrivacy (eerste aanroep): De aanroep loopt via Firebase AI Logic naar de Agent Platform Gemini API van Google (model ${AI_MODEL}, verwerking in de ${AI_LOCATION === 'eu' ? 'EU-multiregio' : `regio ${AI_LOCATION}`}), beveiligd met App Check. De app bevat geen persoonlijke sleutel; de kosten lopen via de app-eigenaar met een vast maandmaximum.`
-    : '';
-
-  const whatIsSent =
-    purpose === 'translate'
-      ? 'Alleen de tekstregels van de bon (geen bonfoto, geen bedragen en geen namen) gaan nu naar Google (Gemini, via Firebase AI Logic) om ze naar het Nederlands te vertalen.'
-      : isPdf
-        ? 'De volledige PDF-bon (alle pagina\'s) gaat nu naar Google (Gemini, via Firebase AI Logic) om de regels en bedragen uit te lezen.'
-        : 'De bonfoto gaat nu naar Google (Gemini, via Firebase AI Logic) om de regels en bedragen uit te lezen.';
-
-  const ok = window.confirm(
-    `${whatIsSent}${firstTimeNote}\n\nGeef je toestemming voor deze online aanroep? (Bij weigeren kun je het plakvak of handmatig invoeren gebruiken.)`
-  );
-  if (ok && !settings.geminiPrivacyAccepted) {
-    settings.geminiPrivacyAccepted = true;
-    saveSettings(settings);
-  }
-  return ok;
-}
+// v16: het toestemmingsvenster voor elke online aanroep is weg (expliciet verzoek Henk).
+// De scan en vertaling gaan direct via Firebase AI Logic; wat er wordt verstuurd staat
+// onder Instellingen & privacy, en bij elke fout valt de app terug op de lokale backup.
 
 // ============================================================
 // SERVICE WORKER (alleen app-shell, geen lokale OCR-modellen)
@@ -493,8 +471,6 @@ async function handleReceiptFile(file) {
       fallbackReason = aiStatusText();
     } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       fallbackReason = 'geen internetverbinding';
-    } else if (!confirmGeminiConsent('scan', isPdf)) {
-      fallbackReason = 'online scannen via Gemini geweigerd';
     }
 
     let scanRes = null;
@@ -649,7 +625,6 @@ function renderStep1(container) {
         disabled: !isAiConfigured(),
         text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
         onClick: async () => {
-          if (!confirmGeminiConsent('translate')) return;
           transFeedback.hidden = false;
           transFeedback.className = 'status-box info';
           transFeedback.textContent = 'Regels worden naar het Nederlands vertaald…';

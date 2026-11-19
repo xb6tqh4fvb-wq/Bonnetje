@@ -6,7 +6,7 @@
 // - PDF.js 4.8.69 (Apache 2.0)
 // - Firebase JS SDK 12.17.0 (Apache 2.0), geladen vanaf googles CDN (gstatic) bij de eerste online AI-aanroep
 
-export const CACHE_NAME = 'bonnetje-v15';
+export const CACHE_NAME = 'bonnetje-v16';
 
 export const APP_SHELL_URLS = [
   './',

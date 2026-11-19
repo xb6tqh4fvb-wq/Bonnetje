@@ -217,5 +217,5 @@ export function translateOffline(description, customDict = {}) {
 }
 
 // v9: de dode functie lookupSinglePhraseOnline (met een MyMemory-endpoint) is verwijderd.
-// Vertalen gebeurt alleen via het offline woordenboek hierboven of via Gemini (met toestemming);
+// Vertalen gebeurt alleen via het offline woordenboek hierboven of via Gemini (online);
 // de app benadert geen andere vertaaldienst en de privacytekst hoeft die dus ook niet te noemen.

@@ -13,8 +13,7 @@ export const DEFAULT_SETTINGS = {
   lang: 'nl',
   theme: 'system', // 'system' | 'light' | 'dark'
   largeText: false,
-  onlineTranslateEnabled: false,
-  geminiPrivacyAccepted: false
+  onlineTranslateEnabled: false
 };
 
 export function createEmptySession() {
@@ -101,6 +100,15 @@ export function saveSettings(settings) {
 export function cleanupLegacyStorage() {
   try {
     localStorage.removeItem(GEMINI_KEY_STORAGE);
+    // v16: geminiPrivacyAccepted uit opgeslagen instellingen halen (venster is weg)
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && 'geminiPrivacyAccepted' in parsed) {
+        delete parsed.geminiPrivacyAccepted;
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed));
+      }
+    }
   } catch {}
 }
 
