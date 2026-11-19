@@ -146,7 +146,7 @@ export const STRINGS = {
     hostedRemainderPart: ', waarvan {cents} restcenten',
     hostedAllOthers: 'Alle anderen (standaard)',
     shareMessageHostedGuest:
-      'Hoi {name}, je was te gast bij het etentje, je hoeft niets te betalen. Je deel van {amount} is voor je overgenomen.',
+      'Hoi {name}, je hoeft deze keer niets te betalen. Je deel van {amount} is voor je overgenomen.',
     shareCarriedPart: ', incl. {amount} overgenomen van {names}'
   },
   en: {
@@ -288,7 +288,7 @@ export const STRINGS = {
     hostedRemainderPart: ', of which {cents} remainder cents',
     hostedAllOthers: 'Everyone else (default)',
     shareMessageHostedGuest:
-      'Hi {name}, you were our guest, you do not have to pay anything. Your share of {amount} has been covered.',
+      'Hi {name}, you do not have to pay anything this time. Your share of {amount} has been covered.',
     shareCarriedPart: ', incl. {amount} covered for {names}'
   }
 };

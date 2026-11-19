@@ -1106,6 +1106,120 @@ PIN 43,00`);
     assertEqual(som, res.grandTotalCents);
   });
 
+  test('v13l) Wisselgeld van een overnemer wordt ná de overname herberekend', () => {
+    // Scenario uit de onafhankelijke controle: bon 10,00 (Aob) + 10,01 (Bob, Cob, Dob),
+    // Aob betaalt niet mee en Bob neemt alles over. Bob moet 13,34 betalen; bij 20,00
+    // contant is het wisselgeld 6,66 (niet 16,66, het bedrag vóór de overname).
+    const mkCashState = (cash) => ({
+      items: [
+        { id: '1', description: 'Koffie', qty: 1, unitPriceCents: 1000, lineTotalCents: 1000, assignedTo: ['a'] },
+        { id: '2', description: 'Lunch', qty: 1, unitPriceCents: 1001, lineTotalCents: 1001, assignedTo: ['b', 'c', 'd'] }
+      ],
+      receiptTotalCents: 2001,
+      participants: [
+        { id: 'a', name: 'Aob' },
+        { id: 'b', name: 'Bob', paidCashCents: cash },
+        { id: 'c', name: 'Cob' },
+        { id: 'd', name: 'Dob' }
+      ],
+      tipMode: 'none',
+      hosted: { a: { enabled: true, carrierIds: ['b'], mode: 'equal', percent: {}, fixedCents: {} } }
+    });
+    const res = calculateSettlement(mkCashState(2000));
+    const bob = res.perPerson.find((p) => p.id === 'b');
+    assertEqual(bob.totalCents, 334 + 1000, 'Bob draagt eigen deel plus overname');
+    assertEqual(bob.changeCents, 666, 'wisselgeld na overname');
+    assertEqual(res.grandTotalCents, 2001);
+    assertTrue(res.invariantExact);
+
+    const teWeinig = calculateSettlement(mkCashState(1000));
+    assertEqual(teWeinig.perPerson.find((p) => p.id === 'b').changeCents, -334, 'tekort na overname zichtbaar');
+
+    // Gast met een contant bedrag: eindbedrag is 0, dus alles komt terug.
+    const gastCash = calculateSettlement({
+      ...mkCashState(null),
+      participants: [
+        { id: 'a', name: 'Aob', paidCashCents: 500 },
+        { id: 'b', name: 'Bob' },
+        { id: 'c', name: 'Cob' },
+        { id: 'd', name: 'Dob' }
+      ]
+    });
+    const aob = gastCash.perPerson.find((p) => p.id === 'a');
+    assertEqual(aob.totalCents, 0);
+    assertEqual(aob.changeCents, 500, 'gast krijgt contant bedrag volledig terug');
+
+    // Zonder hosted-regel blijft het oude gedrag exact hetzelfde.
+    const gewoon = calculateSettlement({
+      items: [{ id: '1', description: 'Diner', qty: 1, unitPriceCents: 3250, lineTotalCents: 3250, assignedTo: ['a'] }],
+      receiptTotalCents: 3250,
+      participants: [{ id: 'a', name: 'Anna', paidCashCents: 5000 }],
+      tipMode: 'none'
+    });
+    assertEqual(gewoon.perPerson[0].changeCents, 1750, 'wisselgeld zonder overname ongewijzigd');
+  });
+
+  test('v13m) Percentages moeten precies 100,00 zijn (99,99 en 100,01 blokkeren)', () => {
+    const on99 = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 49.99, b: 50 }, fixedCents: {} } }
+    }));
+    assertEqual(on99.hostedErrors[0].code, 'percent_sum');
+    assertEqual(on99.canFinalize, false);
+    assertEqual(on99.perPerson.find((p) => p.id === 'c').totalCents, 1001, 'niets stilletjes aangepast');
+    assertEqual(on99.grandTotalCents, 4501, 'totaal op het scherm blijft kloppen');
+
+    // 3 x 33,33 bij drie dragers (99,99%): blokkeren, ook bij een groot deel.
+    const drie = calculateSettlement({
+      items: [{ id: '1', description: 'Groepsbon', qty: 1, unitPriceCents: 99999, lineTotalCents: 99999, assignedTo: ['d'] }],
+      receiptTotalCents: 99999,
+      participants: [
+        { id: 'a', name: 'Anna' }, { id: 'b', name: 'Bram' }, { id: 'c', name: 'Cees' }, { id: 'd', name: 'Daan' }
+      ],
+      tipMode: 'none',
+      hosted: { d: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 33.33, b: 33.33, c: 33.33 }, fixedCents: {} } }
+    });
+    assertEqual(drie.hostedErrors[0].code, 'percent_sum');
+    assertEqual(drie.canFinalize, false);
+    assertEqual(drie.perPerson.find((p) => p.id === 'd').totalCents, 99999, 'ontbrekende centen gaan nergens heen');
+
+    const over100 = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 50.01, b: 50 }, fixedCents: {} } }
+    }));
+    assertEqual(over100.hostedErrors[0].code, 'percent_sum');
+    assertEqual(over100.canFinalize, false);
+
+    // Een decimaal exacte som van 100 (ook met meer decimalen) werkt gewoon.
+    const exact = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 50.005, b: 49.995 }, fixedCents: {} } }
+    }));
+    assertEqual(exact.hostedErrors.length, 0);
+    assertTrue(exact.canFinalize);
+    assertEqual(exact.grandTotalCents, 4501);
+  });
+
+  test('v13n) Bij een fout blijft het echte deel van de gast zichtbaar (geen 0,00)', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'fixed', percent: {}, fixedCents: { a: 600, b: 600 } } }
+    }));
+    assertEqual(res.hostedErrors[0].code, 'fixed_sum');
+    // De gastkaart valt terug op deze rij: het echte deel van Cees is 10,01.
+    assertEqual(res.hostedSummaries.find((h) => h.guestId === 'c'), undefined);
+    const c = res.perPerson.find((p) => p.id === 'c');
+    assertEqual(c.totalCents, 1001, 'echte deel van de gast beschikbaar voor de kaart');
+    assertEqual(res.grandTotalCents, 4501);
+  });
+
+  test('v13o) Gastbericht is neutraal geformuleerd (NL en EN)', () => {
+    const nl = STRINGS.nl.shareMessageHostedGuest;
+    assertTrue(nl.includes('je hoeft deze keer niets te betalen'), 'NL: neutrale formulering');
+    assertTrue(!nl.includes('te gast'), 'NL: geen verplichte reden in het bericht');
+    assertTrue(nl.includes('{name}') && nl.includes('{amount}'), 'NL: plaatsaanduidingen behouden');
+    const en = STRINGS.en.shareMessageHostedGuest;
+    assertTrue(en.includes('do not have to pay anything this time'), 'EN: neutrale formulering');
+    assertTrue(!en.includes('our guest'), 'EN: geen verplichte reden in het bericht');
+    assertTrue(en.includes('{name}') && en.includes('{amount}'), 'EN: plaatsaanduidingen behouden');
+  });
+
   test('v13k) Zonder hosted-regel verandert er niets (achterwaarts compatibel)', () => {
     const res = calculateSettlement(mkHostedState({ hosted: {} }));
     assertEqual(res.perPerson.find((p) => p.id === 'a').totalCents, 2000);

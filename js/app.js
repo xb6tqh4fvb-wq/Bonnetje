@@ -1510,7 +1510,10 @@ function renderHostedCard(container, guest, result) {
   const lang = settings.lang;
   const rule = getHostedRule(guest.id);
   const summary = (result.hostedSummaries || []).find((h) => h.guestId === guest.id);
-  const amountCents = summary ? summary.amountCents : 0;
+  // Bij een fout (bijv. vast bedrag klopt niet) is er geen overname-samenvatting;
+  // toon dan het echte deel van de gast, niet 0,00.
+  const guestRow = (result.perPerson || []).find((r) => r.id === guest.id);
+  const amountCents = summary ? summary.amountCents : guestRow ? guestRow.totalCents : 0;
   const carriers = effectiveCarrierIds(rule, guest.id);
 
   const card = el('section', { className: 'card hosted-card' });

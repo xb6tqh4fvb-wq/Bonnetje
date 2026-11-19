@@ -59,6 +59,10 @@ PASS: v13g) Geen geldige dragers (alleen niet-betalers of onbekenden gekozen) bl
 PASS: v13h) Fooi volgt het overgenomen bedrag (doelbedrag-modus)
 PASS: v13i) Gast met deel van € 0,00 hoeft niets over te nemen
 PASS: v13j) Deeltekst blijft kloppen: gast op € 0,00 en totaal ongewijzigd
+PASS: v13l) Wisselgeld van een overnemer wordt ná de overname herberekend
+PASS: v13m) Percentages moeten precies 100,00 zijn (99,99 en 100,01 blokkeren)
+PASS: v13n) Bij een fout blijft het echte deel van de gast zichtbaar (geen 0,00)
+PASS: v13o) Gastbericht is neutraal geformuleerd (NL en EN)
 PASS: v13k) Zonder hosted-regel verandert er niets (achterwaarts compatibel)
 PASS: V7.7 Netwerkvrije proef lokale backup: geen enkel extern verzoek, werkt met echte ppu-paddle-ocr interface
 PASS: V9.5b Lokale backup: offline met nog-gecachete modellen geeft eerlijke NL-melding, echte 404 blijft "ontbreken op server"
@@ -83,4 +87,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 80/80 geslaagd.
+Resultaat: 84/84 geslaagd.

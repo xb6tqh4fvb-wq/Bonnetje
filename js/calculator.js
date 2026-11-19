@@ -580,7 +580,10 @@ export function calculateSettlement(state) {
       if (invalid) {
         hostedErrors.push({ guestId, guestName, code: 'percent_invalid' });
         shares = null;
-      } else if (Math.abs(pctSum - 100) > 0.011) {
+        // Precies 100,00: geen tolerantie voor afgeronde invoer (99,99 of 100,01 blokkeren
+        // met een eigen melding, er wordt nooit stilletjes aangepast). De kleine marge
+        // vangt alleen zwevendekomma-afronding van de optelling zelf op.
+      } else if (Math.abs(pctSum - 100) > 1e-9) {
         hostedErrors.push({ guestId, guestName, code: 'percent_sum', percentSum: Math.round(pctSum * 100) / 100 });
         shares = null;
       } else {
@@ -622,9 +625,15 @@ export function calculateSettlement(state) {
     }
     guestRow.hostedAmountCents = amountCents;
     guestRow.totalCents = 0;
-    // Contant-veld van de gast blijft werken: betaalde hij/zij toch iets, dan is dat terug te krijgen.
-    guestRow.changeCents = Number.isInteger(guestRow.paidCashCents) ? guestRow.paidCashCents : null;
     hostedSummaries.push({ guestId, guestName, amountCents, shares: shareList });
+  }
+
+  // 5. Contant wisselgeld pas ná de overname berekenen: het eindbedrag van een
+  // overnemer is gestegen (en dat van de gast 0 geworden), dus het wisselgeld uit
+  // stap 3 klopt dan niet meer. Voor een gast met een contant bedrag komt dat
+  // bedrag volledig terug (eindbedrag 0).
+  for (const row of perPerson) {
+    row.changeCents = Number.isInteger(row.paidCashCents) ? row.paidCashCents - row.totalCents : null;
   }
 
   const grandTotalCents = perPerson.reduce((sum, p) => sum + p.totalCents, 0);
