@@ -14,11 +14,9 @@
   </style>
 </head>
 <body>
-  <h1>Bonnetje — Meetpagina (Gemini + lokale backup ppu-paddle-ocr)</h1>
-  <p>Meet de twee echte routes van de app op de 15 synthetische proefbonnen in <code>tests/testset/</code>: (1) <strong>Gemini</strong> (met je eigen sleutel, alleen in deze sessie) en (2) <strong>Lokale backup</strong> (<code>ppu-paddle-ocr</code> met zelf-gehost <code>PP-OCRv6_tiny</code>). Echte telefoonfoto's van vervaagd thermisch papier worden hiermee niet gemeten.</p>
+  <h1>Bonnetje — Meetpagina (Gemini via Firebase AI Logic + lokale backup ppu-paddle-ocr)</h1>
+  <p>Meet de twee echte routes van de app op de 15 synthetische proefbonnen in <code>tests/testset/</code>: (1) <strong>Gemini</strong> (via Firebase AI Logic / Agent Platform Gemini API, zonder eigen sleutel; vereist ingevulde <code>js/firebase-config.js</code>) en (2) <strong>Lokale backup</strong> (<code>ppu-paddle-ocr</code> met zelf-gehost <code>PP-OCRv6_tiny</code>). Echte telefoonfoto's van vervaagd thermisch papier worden hiermee niet gemeten.</p>
   <div class="row">
-    <input type="password" id="api-key" placeholder="Eigen gratis Gemini API-sleutel (alleen voor Gemini-meting)" style="flex:1; min-width:240px;">
-    <input type="text" id="model" value="gemini-2.5-flash" style="width:180px;">
     <button id="btn-gemini">1. Meet Gemini (15 bonnen)</button>
     <button id="btn-local">2. Meet lokale backup (15 bonnen)</button>
     <button id="btn-paste">3. Meet plakvak (15 bonnen / 59 regels)</button>
@@ -42,6 +40,7 @@
 
   <script type="module">
     import { scanReceiptWithGemini } from '../js/gemini.js';
+    import { callFirebaseAiModel, isAiConfigured, aiStatusText } from '../js/firebase-ai.js';
     import { runLocalBackupOcr } from '../js/local-ocr.js';
     import { parsePlainTextReceipt } from '../js/parser.js';
     import { formatCentsNL, isLineActive } from '../js/calculator.js';
@@ -50,10 +49,8 @@
     const tbody = document.querySelector('#table tbody');
 
     async function runSuite(route) {
-      const key = document.getElementById('api-key').value.trim();
-      const model = document.getElementById('model').value.trim() || 'gemini-2.5-flash';
-      if (route === 'gemini' && !key) {
-        status.textContent = 'Vul eerst je eigen Gemini API-sleutel in.';
+      if (route === 'gemini' && !isAiConfigured()) {
+        status.textContent = aiStatusText();
         return;
       }
 
@@ -68,7 +65,7 @@
           const file = new File([blob], rec.id + '.png', { type: 'image/png' });
           let res;
           if (route === 'gemini') {
-            res = await scanReceiptWithGemini(file, key, { model, countQuota: false });
+            res = await scanReceiptWithGemini(file, { callModel: callFirebaseAiModel, countQuota: false });
           } else if (route === 'local') {
             res = await runLocalBackupOcr(file);
           } else {

@@ -1,11 +1,22 @@
-# Bonnetje — Samen eerlijk afrekenen (v13)
+# Bonnetje — Samen eerlijk afrekenen (v14)
 
-Gratis, statische webapp voor GitHub Pages zonder eigen server, zonder account en zonder betaalde diensten.
+Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account.
 
 ## Opbouw & terugvalketen
-1. **Gemini (eerste en standaardroute):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. Altijd met toestemming en een eerlijke melding vooraf.
-2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start alleen als Gemini niet kan (geen internet, HTTP 429, HTTP 503, geen sleutel of geweigerde toestemming). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
+1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). Altijd met toestemming en een eerlijke melding vooraf.
+2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, geweigerde toestemming, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v14 (verzoek Henk: eigen-sleutel-optie eruit, kosten via app-eigenaar met spend cap)
+
+Regressietests: 84/84 groen in Node (`node tests/calculator.test.js`).
+
+- **Eigen Gemini-sleutel verwijderd:** het invoerveld in Instellingen is weg, `loadGeminiApiKey`/`saveGeminiApiKey` zijn uit `js/storage.js`, en `cleanupLegacyStorage()` verwijdert bij het opstarten een eventueel nog opgeslagen sleutel van versies ≤ v13. De app bevat nergens een sleutel van de maker.
+- **Nieuwe online route (`js/firebase-ai.js` + `js/firebase-config.js`):** de Firebase JS SDK (versie-vastgepind op 12.17.0, vanaf googles CDN gstatic.com) wordt pas geladen bij de eerste AI-aanroep. Backend: `AgentPlatformBackend` (de opvolger van `VertexAIBackend`). Model en regio staan als constanten in `js/firebase-config.js` (`AI_MODEL`, `AI_LOCATION`). App Check met `ReCaptchaEnterpriseProvider` wordt geïnitialiseerd zodra de site key is ingevuld.
+- **Model & regio:** `gemini-3.8-flash` in de `eu`-multiregio. De oude `gemini-2.5-flash` is op de Agent Platform-route buiten gebruik gesteld; `gemini-3.8-flash` is de opvolger voor dit soort taken. Een losse EU-regio (bijv. europe-west4) bestaat voor dit model niet: alleen `global`, de `us`- en `eu`-multiregio's en enkele niet-EU-regio's (bron: modelpagina Gemini 3.8 Flash, Google Cloud).
+- **Altijd lokale terugval:** elke fout uit de online aanroep krijgt een `fallbackCode` en valt terug op de lokale backup, inclusief quotum/spend cap (429), storing (5xx), netwerk/time-out, App Check-weigering (403) en ontbrekende config. Dat is de afspraak van v14 en ligt vast in test V9.6.
+- **Config nog in te vullen (2 placeholders):** `js/firebase-config.js` bevat placeholders voor de Firebase-webconfig (apiKey, appId e.d.) en de reCAPTCHA Enterprise site key. Zolang die ontbreken meldt de app eerlijk dat de online AI nog niet is ingesteld en werkt de rest (lokale backup, plakvak, handmatig) gewoon.
+- **Teksten bijgewerkt:** toestemmingsmelding, statusregels, Instellingen & privacy (NL + EN), foutmeldingen en de meetpagina `tests/benchmark.html` beschrijven de nieuwe route.
 
 ## Wijzigingen in v13 (verzoek Henk: deelnemer die niet hoeft te betalen)
 

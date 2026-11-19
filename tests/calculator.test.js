@@ -52,12 +52,12 @@ import {
   parseGeminiReceiptJson,
   parseGeminiTranslationJson,
   scanReceiptWithGemini,
-  mapGeminiError,
   buildReceiptScanPrompt,
   estimateTextTokens,
   estimateReceiptImageTokens,
   getLastGeminiCallInfo
 } from '../js/gemini.js';
+import { mapFirebaseAiError } from '../js/firebase-ai.js';
 import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
 import { getDailyGeminiCallCount } from '../js/storage.js';
@@ -337,10 +337,15 @@ export function runAllTests() {
     assertEqual(resPartial.items[0].needsPriceConfirmation, true);
     assertEqual(resPartial.items[0].lowConfidence, true);
 
-    assertTrue(mapGeminiError(429).includes('daglimiet'));
-    assertTrue(mapGeminiError(503).includes('druk'));
-    assertTrue(mapGeminiError(403).includes('sleutel'));
-    assertTrue(mapGeminiError(0).includes('internet'));
+    // v14: foutmapping van de Firebase AI Logic-route (geen sleutel-fouten meer)
+    assertEqual(mapFirebaseAiError({ code: 'ai/resource-exhausted', message: '429 Quota exceeded' }).fallbackCode, 'http_429');
+    assertTrue(mapFirebaseAiError({ code: 'ai/resource-exhausted', message: '429 Quota exceeded' }).message.includes('spend cap'));
+    assertEqual(mapFirebaseAiError({ code: 'ai/unavailable', message: '503 model overloaded' }).fallbackCode, 'http_5xx');
+    const acErr = mapFirebaseAiError({ code: 'ai/permission-denied', message: '403 PERMISSION_DENIED: To access this model, you must enforce Firebase App Check' });
+    assertEqual(acErr.fallbackCode, 'config');
+    assertTrue(acErr.message.includes('App Check'));
+    assertEqual(mapFirebaseAiError(new TypeError('Failed to fetch')).fallbackCode, 'network');
+    assertTrue(mapFirebaseAiError(new TypeError('Failed to fetch')).message.includes('internet'));
 
     const tMap = parseGeminiTranslationJson('{"translations":[{"id":"1","nl":"Tapbier"}]}');
     assertEqual(tMap['1'], 'Tapbier');
@@ -1319,35 +1324,47 @@ export async function runAsyncTests() {
     }
   });
 
-  await testAsync('V9.6 HTTP 500 en andere 5xx vallen terug op de lokale backup (fallbackCode http_5xx), 429 blijft http_429', async () => {
+  await testAsync('V9.6 v14: elke mislukte online AI-aanroep valt terug op de lokale backup (altijd fallbackCode)', async () => {
     const fakeFile = new Blob([new Uint8Array(32)], { type: 'image/png' });
-    const mkFetch = (status) => async () => ({ ok: false, status, json: async () => ({ error: { message: 'kapot' } }) });
+    const mkFail = (err) => async () => { throw mapFirebaseAiError(err); };
 
-    for (const status of [500, 502, 503]) {
+    // 5xx / overbelasting -> http_5xx
+    for (const raw of [
+      { code: 'ai/internal', message: '500 Internal error' },
+      { code: 'ai/unavailable', message: '503 The model is overloaded' },
+      { code: 'ai/deadline-exceeded', message: '504 deadline' }
+    ]) {
       let err = null;
       try {
-        await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: mkFetch(status), countQuota: false });
+        await scanReceiptWithGemini(fakeFile, { callModel: mkFail(raw), countQuota: false });
       } catch (e) { err = e; }
-      if (!err) throw new Error(`HTTP ${status} moet een fout geven`);
-      if (err.fallbackCode !== 'http_5xx') throw new Error(`HTTP ${status} moet fallbackCode http_5xx geven, kreeg: ${err.fallbackCode}`);
-      if (!/HTTP/.test(err.message)) throw new Error(`HTTP ${status} melding moet status noemen`);
+      if (!err) throw new Error(`${raw.message} moet een fout geven`);
+      if (err.fallbackCode !== 'http_5xx') throw new Error(`${raw.message} moet fallbackCode http_5xx geven, kreeg: ${err.fallbackCode}`);
       if (/could not be decoded|undefined/i.test(err.message)) throw new Error('Geen kale Engelse/technische fout');
     }
 
+    // quotum / spend cap -> http_429
     let err429 = null;
     try {
-      await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: mkFetch(429), countQuota: false });
+      await scanReceiptWithGemini(fakeFile, { callModel: mkFail({ code: 'ai/resource-exhausted', message: '429 Quota exceeded' }), countQuota: false });
     } catch (e) { err429 = e; }
-    if (!err429 || err429.fallbackCode !== 'http_429') throw new Error(`429 moet http_429 blijven, kreeg: ${err429 && err429.fallbackCode}`);
-    if (!err429.message.includes('daglimiet')) throw new Error('429-melding moet daglimiet noemen');
+    if (!err429 || err429.fallbackCode !== 'http_429') throw new Error(`429 moet http_429 zijn, kreeg: ${err429 && err429.fallbackCode}`);
+    if (!err429.message.includes('spend cap')) throw new Error('429-melding moet de spend cap noemen');
 
-    // 400/401/403: geen automatische terugval (sleutelprobleem), maar wel een NL-melding
+    // App Check geweigerd/afgedwongen -> v14 valt óók hierop terug (fallbackCode config), met NL-melding
     let err403 = null;
     try {
-      await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: mkFetch(403), countQuota: false });
+      await scanReceiptWithGemini(fakeFile, { callModel: mkFail({ code: 'ai/permission-denied', message: '403 PERMISSION_DENIED: enforce Firebase App Check' }), countQuota: false });
     } catch (e) { err403 = e; }
-    if (!err403 || err403.fallbackCode) throw new Error('403 mag geen automatische fallbackCode hebben');
-    if (!err403.message.includes('sleutel')) throw new Error('403-melding moet over de sleutel gaan');
+    if (!err403 || err403.fallbackCode !== 'config') throw new Error(`403/App Check moet fallbackCode config geven, kreeg: ${err403 && err403.fallbackCode}`);
+    if (!err403.message.includes('App Check')) throw new Error('403-melding moet over App Check gaan');
+
+    // geen transport meegegeven -> not_configured
+    let errNone = null;
+    try {
+      await scanReceiptWithGemini(fakeFile, { countQuota: false });
+    } catch (e) { errNone = e; }
+    if (!errNone || errNone.fallbackCode !== 'not_configured') throw new Error('Zonder callModel moet fallbackCode not_configured komen');
   });
 
   // ---------- V10: bevindingen onafhankelijke v9-review ----------
@@ -1470,22 +1487,21 @@ export async function runAsyncTests() {
     assertTrue(err && err.code === 'pdfjs_load_failed', `laadfout draagt code pdfjs_load_failed, kreeg: ${err && (err.code || err.message)}`);
   });
 
-  await testAsync('V10.7 Gemini-dagteller telt alleen geslaagde calls (B7)', async () => {
+  await testAsync('V10.7 AI-dagteller telt alleen geslaagde calls (B7)', async () => {
     const fakeFile = new Blob([new Uint8Array(32)], { type: 'image/png' });
     const start = getDailyGeminiCallCount().count;
-    const failFetch = async () => ({ ok: false, status: 500, json: async () => ({ error: { message: 'kapot' } }) });
-    try { await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: failFetch, countQuota: true }); } catch {}
+    const failCall = async () => { throw mapFirebaseAiError({ code: 'ai/internal', message: '500 kapot' }); };
+    try { await scanReceiptWithGemini(fakeFile, { callModel: failCall, countQuota: true }); } catch {}
     assertEqual(getDailyGeminiCallCount().count, start, 'mislukte call (500) telt niet mee');
-    const okFetch = async () => ({
-      ok: true,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: JSON.stringify({
-          items: [{ name: 'Koffie', qty: 1, price: '4,60', uncertain: false }],
-          total: '4,60', currency: 'EUR', language: 'nl'
-        }) }] } }]
-      })
+    const okCall = async () => ({
+      rawText: JSON.stringify({
+        items: [{ name: 'Koffie', qty: 1, price: '4,60', uncertain: false }],
+        total: '4,60', currency: 'EUR', language: 'nl'
+      }),
+      model: 'gemini-3.8-flash',
+      usageMetadata: null
     });
-    await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: okFetch, countQuota: true });
+    await scanReceiptWithGemini(fakeFile, { callModel: okCall, countQuota: true });
     assertEqual(getDailyGeminiCallCount().count, start + 1, 'geslaagde call telt eenmalig');
   });
 
@@ -1621,41 +1637,34 @@ export async function runAsyncTests() {
 
   await testAsync('V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd', async () => {
     const fakeFile = new Blob([new Uint8Array(64)], { type: 'image/png' });
-    const okFetch = async (url, opts) => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: JSON.stringify({
-          items: [{ name: 'Bier', qty: 1, price: '3,50' }],
-          total: '3,50', currency: 'EUR', language: 'nl'
-        }) }] } }],
-        usageMetadata: { promptTokenCount: 1450, candidatesTokenCount: 40, totalTokenCount: 1490 }
-      })
+    const okCall = async () => ({
+      rawText: JSON.stringify({
+        items: [{ name: 'Bier', qty: 1, price: '3,50' }],
+        total: '3,50', currency: 'EUR', language: 'nl'
+      }),
+      model: 'gemini-3.8-flash',
+      usageMetadata: { promptTokenCount: 1450, candidatesTokenCount: 40, totalTokenCount: 1490 }
     });
-    const res = await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: okFetch, countQuota: false });
-    assertTrue(res.geminiMeta && res.geminiMeta.model === 'gemini-2.5-flash', 'Meta bevat het gebruikte standaardmodel');
-    assertEqual(res.geminiMeta.source, 'gemini-api (usageMetadata)', 'Bron is echte usageMetadata');
+    const res = await scanReceiptWithGemini(fakeFile, { callModel: okCall, countQuota: false });
+    assertTrue(res.geminiMeta && res.geminiMeta.model === 'gemini-3.8-flash', 'Meta bevat het gebruikte standaardmodel');
+    assertEqual(res.geminiMeta.source, 'firebase-ai (usageMetadata)', 'Bron is echte usageMetadata');
     assertEqual(res.geminiMeta.promptTokenCount, 1450, 'Prompt-tokens uit respons');
     assertEqual(res.geminiMeta.totalTokenCount, 1490, 'Totaal-tokens uit respons');
     const last = getLastGeminiCallInfo();
-    assertTrue(last && last.kind === 'scan' && last.model === 'gemini-2.5-flash', 'getLastGeminiCallInfo legt de aanroep vast');
-    // De gemockte respons moet ook het ingestelde model op de URL zien
-    assertTrue(String(url => url) !== '', 'dummy');
+    assertTrue(last && last.kind === 'scan' && last.model === 'gemini-3.8-flash', 'getLastGeminiCallInfo legt de aanroep vast');
   });
 
   await testAsync('V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting', async () => {
     const fakeFile = new Blob([new Uint8Array(64)], { type: 'image/png' }); // ongeldig plaatje: createImageBitmap faalt -> afmetingen onbekend (node: geen createImageBitmap)
-    const okFetch = async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: JSON.stringify({
-          items: [{ name: 'Koffie', qty: 1, price: '2,50' }],
-          total: '2,50', currency: 'EUR', language: 'nl'
-        }) }] } }]
-      })
+    const okCall = async () => ({
+      rawText: JSON.stringify({
+        items: [{ name: 'Koffie', qty: 1, price: '2,50' }],
+        total: '2,50', currency: 'EUR', language: 'nl'
+      }),
+      model: 'gemini-3.8-flash',
+      usageMetadata: null
     });
-    const res = await scanReceiptWithGemini(fakeFile, 'testsleutel', { fetchImpl: okFetch, countQuota: false });
+    const res = await scanReceiptWithGemini(fakeFile, { callModel: okCall, countQuota: false });
     assertTrue(res.geminiMeta && res.geminiMeta.source === 'schatting (geen usageMetadata beschikbaar)', 'Schatting is expliciet gelabeld');
     assertTrue(res.geminiMeta.estimate.textTokens > 100, 'Tekstschatting van de vaste scan-prompt aanwezig');
     assertEqual(res.geminiMeta.estimate.textTokens, estimateTextTokens(buildReceiptScanPrompt()), 'Schatting volgt de echte prompt');

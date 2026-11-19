@@ -28,15 +28,15 @@ export function wrongFileTypeMessage() {
   return 'Dit is geen foto of pdf van een bon. Kies een foto (jpg/png/heic) of pdf, of gebruik het plakvak / handmatig invoeren.';
 }
 
-/** Melding voor een gescande pdf terwijl Gemini niet beschikbaar is (geen sleutel / geen toestemming). */
+/** Melding voor een gescande pdf terwijl de online AI-scan niet beschikbaar is. */
 // Punt B6 (v10): jsDelivr geblokkeerd of offline -> PDF.js zelf laadt niet; dat is geen
 // "scan zonder tekstlaag".
 export function pdfReaderLoadFailedMessage() {
-  return 'De pdf-lezer (PDF.js) kon niet geladen worden; meestal is de jsDelivr-CDN geblokkeerd of ben je offline. Daardoor kan de tekstlaag van deze pdf niet lokaal worden gelezen. Maak een foto van de bon, gebruik het plakvak / handmatig invoeren, of stel een gratis Gemini-sleutel in bij Instellingen & privacy om de pdf online te laten lezen.';
+  return 'De pdf-lezer (PDF.js) kon niet geladen worden; meestal is de jsDelivr-CDN geblokkeerd of ben je offline. Daardoor kan de tekstlaag van deze pdf niet lokaal worden gelezen. Maak een foto van de bon of gebruik het plakvak / handmatig invoeren. Met internet kun je de pdf ook online laten lezen via de AI-scan.';
 }
 
 export function scannedPdfWithoutGeminiMessage() {
-  return 'Deze pdf is een scan zonder leesbare tekstlaag. De lokale backup kan alleen foto\u2019s lezen, geen pdf\u2019s. Stel een gratis Gemini-sleutel in bij Instellingen & privacy, of maak een foto van de bon, of gebruik het plakvak / handmatig invoeren.';
+  return 'Deze pdf is een scan zonder leesbare tekstlaag. De lokale backup kan alleen foto\u2019s lezen, geen pdf\u2019s. Probeer het later opnieuw via de online AI-scan, maak een foto van de bon, of gebruik het plakvak / handmatig invoeren.';
 }
 
 /** Melding als de modellen van de lokale backup offline nog niet gecachet zijn. */

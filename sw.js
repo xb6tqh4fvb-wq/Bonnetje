@@ -1,5 +1,5 @@
-// Bonnetje - Service Worker (v13: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
-const CACHE_NAME = 'bonnetje-v13';
+// Bonnetje - Service Worker (v14: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
+const CACHE_NAME = 'bonnetje-v14';
 
 const APP_SHELL = [
   './',
@@ -8,6 +8,8 @@ const APP_SHELL = [
   './js/assets-manifest.js',
   './js/app.js',
   './js/calculator.js',
+  './js/firebase-ai.js',
+  './js/firebase-config.js',
   './js/gemini.js',
   './js/local-ocr.js',
   './js/i18n.js',
@@ -55,7 +57,9 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-  if (url.hostname === 'generativelanguage.googleapis.com') {
+  // API-verkeer (Firebase AI Logic, App Check, installations e.d.) nooit cachen.
+  // De Firebase-SDK zelf (gstatic, versie-vastgepind) mag wel gecachet worden.
+  if (url.hostname.endsWith('googleapis.com') || url.hostname.endsWith('firebaseio.com')) {
     return;
   }
 

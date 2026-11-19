@@ -1,10 +1,12 @@
-// Bonnetje - Centrale lijst van app-bestanden (v10: Gemini eerst, ppu-paddle-ocr PP-OCRv6_tiny als enige lokale backup)
+// Bonnetje - Centrale lijst van app-bestanden (v14: online AI via Firebase AI Logic met
+// Agent Platform Gemini API + App Check, ppu-paddle-ocr PP-OCRv6_tiny als enige lokale backup)
 // Geen Tesseract meer in de app. Backup volledig zelf-gehost: modellen, browsermodule én onnxruntime-WASM lokaal.
 // Licenties:
 // - ppu-paddle-ocr / PP-OCRv6_tiny (Apache 2.0)
 // - PDF.js 4.8.69 (Apache 2.0)
+// - Firebase JS SDK 12.17.0 (Apache 2.0), geladen vanaf googles CDN (gstatic) bij de eerste online AI-aanroep
 
-export const CACHE_NAME = 'bonnetje-v13';
+export const CACHE_NAME = 'bonnetje-v14';
 
 export const APP_SHELL_URLS = [
   './',
@@ -13,6 +15,8 @@ export const APP_SHELL_URLS = [
   './js/assets-manifest.js',
   './js/app.js',
   './js/calculator.js',
+  './js/firebase-ai.js',
+  './js/firebase-config.js',
   './js/gemini.js',
   './js/local-ocr.js',
   './js/i18n.js',

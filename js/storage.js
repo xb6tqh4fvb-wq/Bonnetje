@@ -1,19 +1,18 @@
-// Bonnetje - Lokale opslag, dagteller Gemini & Undo-geschiedenis (100% op het toestel)
+// Bonnetje - Lokale opslag, dagteller AI-aanroepen & Undo-geschiedenis (100% op het toestel)
 
 const STORAGE_KEY = 'bonnetje_state_v1';
 const NAMES_KEY = 'bonnetje_saved_names_v1';
 const SETTINGS_KEY = 'bonnetje_settings_v1';
 const DICT_KEY = 'bonnetje_custom_dict_v1';
+// v14: de optie "eigen Gemini-sleutel" is verdwenen. De oude opslagsleutel blijft hier
+// alleen benoemd om hem bij bestaande gebruikers opruimen (zie cleanupLegacyStorage).
 const GEMINI_KEY_STORAGE = 'bonnetje_gemini_api_key_v1';
 const GEMINI_QUOTA_KEY = 'bonnetje_gemini_quota_v1';
-
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const DEFAULT_SETTINGS = {
   lang: 'nl',
   theme: 'system', // 'system' | 'light' | 'dark'
   largeText: false,
-  geminiModel: DEFAULT_GEMINI_MODEL,
   onlineTranslateEnabled: false,
   geminiPrivacyAccepted: false
 };
@@ -95,21 +94,14 @@ export function saveSettings(settings) {
   } catch {}
 }
 
-export function loadGeminiApiKey() {
+/**
+ * v14-migratie: verwijdert de eventueel nog opgeslagen eigen Gemini-sleutel van
+ * oudere app-versies. Wordt eenmalig bij het opstarten aangeroepen.
+ */
+export function cleanupLegacyStorage() {
   try {
-    return localStorage.getItem(GEMINI_KEY_STORAGE) || '';
-  } catch {
-    return '';
-  }
-}
-
-export function saveGeminiApiKey(key) {
-  const clean = String(key || '').trim();
-  try {
-    if (!clean) localStorage.removeItem(GEMINI_KEY_STORAGE);
-    else localStorage.setItem(GEMINI_KEY_STORAGE, clean);
+    localStorage.removeItem(GEMINI_KEY_STORAGE);
   } catch {}
-  return clean;
 }
 
 function getTodayDateKey() {

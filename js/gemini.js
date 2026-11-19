@@ -1,7 +1,9 @@
-// Bonnetje - Gemini API integratie (v7: eerste route voor bonherkenning en vertalen)
+// Bonnetje - Gemini-integratie: vaste velden, parsing en kostenmeting (v14)
 // Vaste velden: items[], subtotal, vat (enkel of lijst), tip, discount, total, currency, language.
 // Past exact hetzelfde komma-herstel toe als het plakvak (detectReceiptNumberFormat + parseAmountWithFormat).
-// Bevat NOOIT een API-sleutel. Doet NOOIT automatische herhalingen.
+// v14: deze module bevat geen transport meer en NOOIT een API-sleutel (geen sleutel van de
+// gebruiker, geen sleutel van de maker). Het transport komt als callModel-functie van buiten
+// (in de app: callFirebaseAiModel uit firebase-ai.js; in tests: een mock). Doet NOOIT automatische herhalingen.
 
 import { parseEuroToCents, classifyReceiptLine } from './calculator.js';
 import {
@@ -12,10 +14,7 @@ import {
   isAddressOrPostalNumber,
   reconcileBottomUp
 } from './parser.js';
-import { DEFAULT_GEMINI_MODEL, incrementDailyGeminiCallCount } from './storage.js';
-
-export const GEMINI_TERMS_URL = 'https://aistudio.google.com/docs/terms';
-const GEMINI_TIMEOUT_MS = 30000;
+import { incrementDailyGeminiCallCount } from './storage.js';
 
 /**
  * Vast JSON-schema voor bonherkenning (paragraaf 1 & 2).
@@ -39,14 +38,6 @@ export const RECEIPT_SCHEMA_DESCRIPTION = {
   currency: 'string (bijv. "EUR", "USD", "JPY")',
   language: 'string (ISO-taalcode van de bon, bijv. "nl", "es", "en", "de", "fr")'
 };
-
-function withTimeout(promise, ms, msg) {
-  let timer;
-  const tp = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(msg)), ms);
-  });
-  return Promise.race([promise, tp]).finally(() => clearTimeout(timer));
-}
 
 function stripJsonFence(text) {
   const s = String(text || '').trim();
@@ -131,26 +122,6 @@ export function parseGeminiAmountToCents(val) {
   return null;
 }
 
-export function mapGeminiError(status, detail = '') {
-  if (status === 0) {
-    return 'Geen internetverbinding of de aanvraag duurde te lang. De lokale backup (ppu-paddle-ocr), het plakvak en handmatig invoeren blijven beschikbaar.';
-  }
-  if (status === 429) {
-    return 'Het gratis daglimiet van je Gemini-sleutel is waarschijnlijk op (HTTP 429). Morgen werkt het weer; je kunt nu verder met de lokale backup, het plakvak of handmatig invoeren.';
-  }
-  if (status === 503) {
-    return 'Google Gemini heeft het tijdelijk te druk (HTTP 503). Probeer het later opnieuw, of gebruik nu de lokale backup, het plakvak of handmatig invoeren.';
-  }
-  if (status === 400 || status === 401 || status === 403) {
-    return `De Gemini-sleutel is geweigerd, ongeldig of geblokkeerd door websitebeperking (HTTP ${status}). Controleer je sleutel bij Instellingen, of gebruik de lokale backup / plakvak.`;
-  }
-  if (status >= 500) {
-    return `Google Gemini heeft een technische storing (HTTP ${status}). De lokale backup start nu automatisch; je kunt ook het plakvak of handmatig invoeren gebruiken.`;
-  }
-  return `Aanroep naar Gemini is mislukt (HTTP ${status}${detail ? `: ${detail}` : ''}). Gebruik de lokale backup, het plakvak of handmatig invoeren.`;
-}
-
-
 /**
  * Exacte scan-prompt (ook gebruikt door tests en de kostenmeting).
  */
@@ -198,7 +169,7 @@ export function getLastGeminiCallInfo() {
 export function buildGeminiCostInfo(kind, model, usageMetadata, estimateParts) {
   const info = { kind, model, at: new Date().toISOString() };
   if (usageMetadata && typeof usageMetadata === 'object') {
-    info.source = 'gemini-api (usageMetadata)';
+    info.source = 'firebase-ai (usageMetadata)';
     info.promptTokenCount = usageMetadata.promptTokenCount ?? null;
     info.candidatesTokenCount = usageMetadata.candidatesTokenCount ?? null;
     info.totalTokenCount = usageMetadata.totalTokenCount ?? null;
@@ -214,69 +185,63 @@ export function buildGeminiCostInfo(kind, model, usageMetadata, estimateParts) {
   return info;
 }
 
-async function callGeminiApi(apiKey, contents, { model = DEFAULT_GEMINI_MODEL, fetchImpl = fetch, countQuota = true } = {}) {
-  if (!apiKey || !String(apiKey).trim()) {
-    const err = new Error('Geen Gemini API-sleutel ingesteld.');
-    err.fallbackCode = 'no_key';
-    throw err;
-  }
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    const err = new Error(mapGeminiError(0));
-    err.fallbackCode = 'offline';
-    throw err;
-  }
+function missingTransportError() {
+  const err = new Error('Geen online AI-transport beschikbaar (callModel ontbreekt).');
+  err.fallbackCode = 'not_configured';
+  return err;
+}
 
-  const cleanModel = String(model || DEFAULT_GEMINI_MODEL).trim() || DEFAULT_GEMINI_MODEL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+export async function scanReceiptWithGemini(file, { callModel, countQuota = true } = {}) {
+  if (!file) throw new Error('Geen bonfoto of PDF gekozen.');
+  if (typeof callModel !== 'function') throw missingTransportError();
 
-  let res;
-  try {
-    res = await withTimeout(
-      fetchImpl(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: 'application/json'
-          }
-        })
-      }),
-      GEMINI_TIMEOUT_MS,
-      'De aanvraag naar Gemini duurde te lang (time-out).'
-    );
-  } catch (err) {
-    const e = new Error(err?.message && err.message.includes('time-out') ? err.message : mapGeminiError(0));
-    e.fallbackCode = 'network';
-    throw e;
-  }
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result || '');
+      const comma = res.indexOf(',');
+      resolve(comma !== -1 ? res.slice(comma + 1) : res);
+    };
+    reader.onerror = () => reject(new Error('Kon het bestand niet inlezen.'));
+    reader.readAsDataURL(file);
+  });
 
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const errJson = await res.json();
-      detail = errJson?.error?.message || '';
-    } catch {}
-    const e = new Error(mapGeminiError(res.status, detail));
-    e.httpStatus = res.status;
-    if (res.status === 429) e.fallbackCode = 'http_429';
-    else if (res.status >= 500) e.fallbackCode = 'http_5xx';
-    throw e;
-  }
+  const mimeType =
+    file.type || (file.name && file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
-  // Punt B7 (v10): pas tellen als de call is gelukt; mislukte calls (netwerk, 4xx/5xx)
-  // mogen het daglimiet niet aanzien.
+  const prompt = buildReceiptScanPrompt();
+  const parts = [
+    { text: prompt },
+    { inlineData: { mimeType, data: base64 } }
+  ];
+
+  const { rawText, model, usageMetadata } = await callModel(parts);
+  // Punt B7 (v10): pas tellen als de call is gelukt; mislukte calls (netwerk, quotum,
+  // storing) mogen de dagteller niet aanzien.
   if (countQuota) {
     incrementDailyGeminiCallCount();
   }
-
-  const data = await res.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) {
-    throw new Error('Gemini gaf een leeg of onleesbaar antwoord terug.');
-  }
-  return { rawText, model: cleanModel, usageMetadata: data?.usageMetadata || null };
+  // N6-meting (v11): model + tokenkosten vastleggen. Afmetingen van de afbeelding zijn in de
+  // browser te bepalen; lukte dat niet, dan blijft de afbeeldingscomponent null (duidelijk gelabeld).
+  let imageTokens = null;
+  let imageNote = 'afmetingen afbeelding onbekend; alleen tekst geschat';
+  try {
+    if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined' && file instanceof Blob) {
+      const bmp = await createImageBitmap(file);
+      imageTokens = estimateReceiptImageTokens(bmp.width, bmp.height);
+      imageNote = `${bmp.width}x${bmp.height}px, tegels van 768px a 258 tokens (geschat)`;
+      bmp.close();
+    }
+  } catch { /* schatting zonder afbeelding */ }
+  const estimateParts = {
+    textTokens: estimateTextTokens(prompt),
+    imageTokens,
+    imageNote,
+    totalInputTokens: (imageTokens === null ? null : estimateTextTokens(prompt) + imageTokens)
+  };
+  const geminiMeta = buildGeminiCostInfo('scan', model, usageMetadata, estimateParts);
+  // Punt B7 (v10): ruwe modeltekst meegeven zodat de sessie hem kan bewaren (zoals de OCR-route)
+  return { ...parseGeminiReceiptJson(rawText), rawText, geminiMeta };
 }
 
 /**
@@ -524,61 +489,6 @@ export function parseGeminiReceiptJson(rawText) {
   };
 }
 
-export async function scanReceiptWithGemini(file, apiKey, options = {}) {
-  if (!file) throw new Error('Geen bonfoto of PDF gekozen.');
-
-  const base64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const res = String(reader.result || '');
-      const comma = res.indexOf(',');
-      resolve(comma !== -1 ? res.slice(comma + 1) : res);
-    };
-    reader.onerror = () => reject(new Error('Kon het bestand niet inlezen.'));
-    reader.readAsDataURL(file);
-  });
-
-  const mimeType =
-    file.type || (file.name && file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-
-  const prompt = buildReceiptScanPrompt();
-
-  const { rawText, model, usageMetadata } = await callGeminiApi(
-    apiKey,
-    [
-      {
-        role: 'user',
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType, data: base64 } }
-        ]
-      }
-    ],
-    options
-  );
-  // N6-meting (v11): model + tokenkosten vastleggen. Afmetingen van de afbeelding zijn in de
-  // browser te bepalen; lukte dat niet, dan blijft de afbeeldingscomponent null (duidelijk gelabeld).
-  let imageTokens = null;
-  let imageNote = 'afmetingen afbeelding onbekend; alleen tekst geschat';
-  try {
-    if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined' && file instanceof Blob) {
-      const bmp = await createImageBitmap(file);
-      imageTokens = estimateReceiptImageTokens(bmp.width, bmp.height);
-      imageNote = `${bmp.width}x${bmp.height}px, tegels van 768px a 258 tokens (geschat)`;
-      bmp.close();
-    }
-  } catch { /* schatting zonder afbeelding */ }
-  const estimateParts = {
-    textTokens: estimateTextTokens(prompt),
-    imageTokens,
-    imageNote,
-    totalInputTokens: (imageTokens === null ? null : estimateTextTokens(prompt) + imageTokens)
-  };
-  const geminiMeta = buildGeminiCostInfo('scan', model, usageMetadata, estimateParts);
-  // Punt B7 (v10): ruwe modeltekst meegeven zodat de sessie hem kan bewaren (zoals de OCR-route)
-  return { ...parseGeminiReceiptJson(rawText), rawText, geminiMeta };
-}
-
 export function parseGeminiTranslationJson(rawText) {
   let obj;
   try {
@@ -598,7 +508,7 @@ export function parseGeminiTranslationJson(rawText) {
   return map;
 }
 
-export async function translateItemsWithGemini(items, apiKey, options = {}) {
+export async function translateItemsWithGemini(items, { callModel, countQuota = true } = {}) {
   const payload = (items || [])
     .filter((it) => it && it.description && !it.isVatSummary && !it.excluded)
     .map((it) => ({
@@ -610,6 +520,7 @@ export async function translateItemsWithGemini(items, apiKey, options = {}) {
     .filter((x) => x.text.length > 0);
 
   if (payload.length === 0) return {};
+  if (typeof callModel !== 'function') throw missingTransportError();
 
   const prompt =
     'Vertaal de volgende horeca-omschrijvingen op een restaurantbon consequent en natuurlijk naar het Nederlands. ' +
@@ -617,11 +528,10 @@ export async function translateItemsWithGemini(items, apiKey, options = {}) {
     'Verzin geen nieuwe items.\n\n' +
     JSON.stringify(payload);
 
-  const { rawText, model, usageMetadata } = await callGeminiApi(
-    apiKey,
-    [{ role: 'user', parts: [{ text: prompt }] }],
-    options
-  );
+  const { rawText, model, usageMetadata } = await callModel([{ text: prompt }]);
+  if (countQuota) {
+    incrementDailyGeminiCallCount();
+  }
   buildGeminiCostInfo('vertaling', model, usageMetadata, {
     textTokens: estimateTextTokens(prompt),
     imageTokens: 0,

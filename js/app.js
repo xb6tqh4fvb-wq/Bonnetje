@@ -1,5 +1,7 @@
-// Bonnetje - Hoofdapplicatie (v12: Gemini eerst, ppu-paddle-ocr PP-OCRv6_tiny als enige lokale backup,
-// volledig zelf-gehost incl. onnxruntime-WASM, deelknop voor de uitslag)
+// Bonnetje - Hoofdapplicatie (v14: online AI-scan via Firebase AI Logic met de Agent Platform
+// Gemini API (voorheen Vertex AI) en App Check; GEEN eigen sleutel meer in de app.
+// Lokale backup ppu-paddle-ocr PP-OCRv6_tiny, volledig zelf-gehost incl. onnxruntime-WASM,
+// valt in als de online aanroep mislukt of de spend cap bereikt is. Deelknop voor de uitslag)
 import {
   parseEuroToCents,
   formatCentsNL,
@@ -22,11 +24,19 @@ import {
 import { runLocalBackupOcr } from './local-ocr.js';
 import {
   scanReceiptWithGemini,
-  translateItemsWithGemini,
-  GEMINI_TERMS_URL
+  translateItemsWithGemini
 } from './gemini.js';
 import {
-  DEFAULT_GEMINI_MODEL,
+  callFirebaseAiModel,
+  isAiConfigured,
+  aiStatusText
+} from './firebase-ai.js';
+import {
+  AI_MODEL,
+  AI_LOCATION,
+  AI_TERMS_URL
+} from './firebase-config.js';
+import {
   createEmptySession,
   loadSession,
   saveSession,
@@ -34,8 +44,7 @@ import {
   saveNameToHistory,
   loadSettings,
   saveSettings,
-  loadGeminiApiKey,
-  saveGeminiApiKey,
+  cleanupLegacyStorage,
   getDailyGeminiCallCount,
   loadCustomDict,
   saveCustomDictEntry,
@@ -45,9 +54,9 @@ import {
 
 // Externe koffielink (zelfde als de online versie); er gaat geen app-data mee.
 const SUPPORT_URL = 'https://www.paypal.me/Inzane007';
+cleanupLegacyStorage(); // v14: oude eigen Gemini-sleutel (<= v13) opruimen als die er nog staat
 let session = loadSession();
 let settings = loadSettings();
-let geminiApiKey = loadGeminiApiKey();
 let savedNames = loadSavedNames();
 let customDict = loadCustomDict();
 const undoManager = new UndoManager(50);
@@ -136,15 +145,15 @@ async function copyTextReliable(text) {
  */
 function confirmGeminiConsent(purpose, isPdf = false) {
   const firstTimeNote = !settings.geminiPrivacyAccepted
-    ? `\n\nPrivacy (eerste aanroep): Volgens de eigen voorwaarden van Google voor gebruikers in de EU en EER (${GEMINI_TERMS_URL}) traint Google ook op de gratis laag niet met deze gegevens.`
+    ? `\n\nPrivacy (eerste aanroep): De aanroep loopt via Firebase AI Logic naar de Agent Platform Gemini API van Google (model ${AI_MODEL}, verwerking in de ${AI_LOCATION === 'eu' ? 'EU-multiregio' : `regio ${AI_LOCATION}`}), beveiligd met App Check. De app bevat geen persoonlijke sleutel; de kosten lopen via de app-eigenaar met een vast maandmaximum.`
     : '';
 
   const whatIsSent =
     purpose === 'translate'
-      ? 'Alleen de tekstregels van de bon (geen bonfoto, geen bedragen en geen namen) gaan nu naar Google Gemini om ze naar het Nederlands te vertalen.'
+      ? 'Alleen de tekstregels van de bon (geen bonfoto, geen bedragen en geen namen) gaan nu naar Google (Gemini, via Firebase AI Logic) om ze naar het Nederlands te vertalen.'
       : isPdf
-        ? 'De volledige PDF-bon (alle pagina\'s) gaat nu naar Google Gemini om de regels en bedragen uit te lezen.'
-        : 'De bonfoto gaat nu naar Google Gemini om de regels en bedragen uit te lezen.';
+        ? 'De volledige PDF-bon (alle pagina\'s) gaat nu naar Google (Gemini, via Firebase AI Logic) om de regels en bedragen uit te lezen.'
+        : 'De bonfoto gaat nu naar Google (Gemini, via Firebase AI Logic) om de regels en bedragen uit te lezen.';
 
   const ok = window.confirm(
     `${whatIsSent}${firstTimeNote}\n\nGeef je toestemming voor deze online aanroep? (Bij weigeren kun je het plakvak of handmatig invoeren gebruiken.)`
@@ -312,7 +321,7 @@ function showScanError(message, { isPdf = false } = {}) {
   errStatus.className = 'status-box error';
   errStatus.innerHTML = '';
   errStatus.appendChild(el('p', { text: message }));
-  if (lastReceiptFile && geminiApiKey) {
+  if (lastReceiptFile && isAiConfigured()) {
     errStatus.appendChild(
       el('button', {
         type: 'button',
@@ -480,8 +489,8 @@ async function handleReceiptFile(file) {
     statusBox.hidden = false;
 
     let fallbackReason = null;
-    if (!geminiApiKey) {
-      fallbackReason = 'geen Gemini API-sleutel ingesteld';
+    if (!isAiConfigured()) {
+      fallbackReason = aiStatusText();
     } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       fallbackReason = 'geen internetverbinding';
     } else if (!confirmGeminiConsent('scan', isPdf)) {
@@ -493,15 +502,14 @@ async function handleReceiptFile(file) {
 
     if (!fallbackReason) {
       statusBox.className = 'status-box info';
-      statusBox.textContent = `Bon wordt gelezen via Gemini (${settings.geminiModel || DEFAULT_GEMINI_MODEL})…`;
+      statusBox.textContent = `Bon wordt gelezen via Gemini (${AI_MODEL})…`;
       announce(statusBox.textContent);
       try {
-        scanRes = await scanReceiptWithGemini(file, geminiApiKey, {
-          model: settings.geminiModel || DEFAULT_GEMINI_MODEL
-        });
+        scanRes = await scanReceiptWithGemini(file, { callModel: callFirebaseAiModel });
       } catch (gemErr) {
-        // Punt 6 (v9): ook HTTP 500 en andere serverfouten vallen terug op de lokale backup
-        if (gemErr.fallbackCode === 'http_429' || gemErr.fallbackCode === 'http_5xx' || gemErr.fallbackCode === 'offline' || gemErr.fallbackCode === 'network') {
+        // v14: elke mislukte online aanroep (quotum/spend cap, storing, netwerk, App Check,
+        // ontbrekende config) valt terug op de lokale backup
+        if (gemErr.fallbackCode) {
           fallbackReason = gemErr.message;
         } else {
           throw gemErr;
@@ -544,14 +552,13 @@ function renderStep1(container) {
     })
   );
 
-  // Dagteller & sleutelstatus
+  // Dagteller & status van de online AI-route
   const quota = getDailyGeminiCallCount();
-  const modelUsed = settings.geminiModel || DEFAULT_GEMINI_MODEL;
   const quotaInfo = el('div', { className: 'status-box info' }, [
     el('span', {
-      text: geminiApiKey
-        ? `Gemini-aanroepen vandaag op dit toestel: ${quota.count} (model: ${modelUsed}). Het gratis daglimiet verschilt per project en model en is zichtbaar in Google AI Studio.`
-        : 'Geen Gemini API-sleutel ingesteld: scannen en vertalen zijn uitgeschakeld. Het plakvak (iPhone Live Text) en handmatig invoeren werken altijd. Stel je eigen gratis sleutel in bij Instellingen & privacy.'
+      text: isAiConfigured()
+        ? `AI-aanroepen vandaag op dit toestel: ${quota.count} (model: ${AI_MODEL}, via Firebase AI Logic). Bereikt de app-eigenaar het maandmaximum, dan valt de app automatisch terug op de lokale backup.`
+        : aiStatusText()
     })
   ]);
   container.appendChild(quotaInfo);
@@ -662,7 +669,7 @@ function renderStep1(container) {
       el('button', {
         type: 'button',
         className: 'btn btn-secondary btn-sm',
-        disabled: !geminiApiKey,
+        disabled: !isAiConfigured(),
         text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
         onClick: async () => {
           if (!confirmGeminiConsent('translate')) return;
@@ -670,9 +677,7 @@ function renderStep1(container) {
           transFeedback.className = 'status-box info';
           transFeedback.textContent = 'Regels worden naar het Nederlands vertaald…';
           try {
-            const map = await translateItemsWithGemini(session.items, geminiApiKey, {
-              model: settings.geminiModel || DEFAULT_GEMINI_MODEL
-            });
+            const map = await translateItemsWithGemini(session.items, { callModel: callFirebaseAiModel });
             mutate(() => {
               session.items.forEach((it) => {
                 if (map[it.id]) {
@@ -2075,70 +2080,27 @@ function openSettingsModal() {
   $('#settings-title').textContent = t(lang, 'settingsTitle');
   $('#btn-close-settings').textContent = t(lang, 'close');
 
-  // Eigen gratis Gemini API-sleutel + instelbaar model + dagteller
-  body.appendChild(el('h3', { text: 'Eigen gratis Gemini API-sleutel' }));
+  // Online AI-route (v14): via Firebase AI Logic, zonder eigen sleutel
+  body.appendChild(el('h3', { text: 'Online AI-scan (Gemini)' }));
   body.appendChild(
     el('p', {
       className: 'help-text',
-      text: 'Maak een gratis sleutel aan in Google AI Studio (aistudio.google.com). Een nieuwe sleutel werkt daar standaard alleen voor de Gemini API. Koppel nooit een betaalaccount aan dat project. Je kunt optioneel een websitebeperking (HTTP-referrer) op je GitHub Pages-domein instellen als remmer tegen kopiëren (let op: dat is geen waterdichte koppeling).'
+      text: 'De bonscan en vertaling lopen via Firebase AI Logic naar de Agent Platform Gemini API van Google. Je hoeft zelf geen sleutel meer in te stellen en de app bevat ook geen sleutel van de maker. Misbruik wordt geblokkeerd met App Check (reCAPTCHA Enterprise). De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap); wordt dat bereikt, dan valt de app automatisch terug op de lokale backup.'
     })
   );
-  const keyForm = el('form', { className: 'inline-form' });
-  const keyInput = el('input', {
-    type: 'password',
-    value: geminiApiKey,
-    placeholder: 'Plak hier je eigen Gemini API-sleutel',
-    'aria-label': 'Gemini API-sleutel'
-  });
-  keyForm.appendChild(keyInput);
-  keyForm.appendChild(el('button', { type: 'submit', className: 'btn btn-sm btn-primary', text: 'Opslaan' }));
-  if (geminiApiKey) {
-    keyForm.appendChild(
-      el('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-danger-outline',
-        text: 'Verwijder',
-        onClick: () => {
-          geminiApiKey = saveGeminiApiKey('');
-          render();
-          openSettingsModal();
-        }
-      })
-    );
-  }
-  keyForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    geminiApiKey = saveGeminiApiKey(keyInput.value);
-    render();
-    openSettingsModal();
-  });
-  body.appendChild(keyForm);
+  body.appendChild(
+    el('p', {
+      className: 'muted',
+      text: aiStatusText()
+    })
+  );
 
   const quota = getDailyGeminiCallCount();
   body.appendChild(
     el('p', {
       className: 'muted',
-      text: `Aanroepen vandaag op dit toestel: ${quota.count} (${quota.date}). Gratis daglimieten verschillen per project en model en zijn zichtbaar in Google AI Studio.`
+      text: `Aanroepen vandaag op dit toestel: ${quota.count} (${quota.date}).`
     })
-  );
-
-  // Instelbare modelnaam
-  const modelInput = el('input', {
-    type: 'text',
-    id: 'setting-gemini-model',
-    value: settings.geminiModel || DEFAULT_GEMINI_MODEL,
-    placeholder: DEFAULT_GEMINI_MODEL
-  });
-  modelInput.addEventListener('change', (e) => {
-    settings.geminiModel = e.target.value.trim() || DEFAULT_GEMINI_MODEL;
-    saveSettings(settings);
-    render();
-  });
-  body.appendChild(
-    el('label', { for: 'setting-gemini-model', className: 'field-wrap mt' }, [
-      el('span', { text: 'Gemini modelnaam (standaard: gemini-2.5-flash)' }),
-      modelInput
-    ])
   );
 
   // Taal & thema & grote tekst
@@ -2202,17 +2164,17 @@ function openSettingsModal() {
     ])
   );
 
-  // Privacytekst (actueel voor v7: Gemini, vertalen, PDF.js en zelf-gehoste lokale backup)
+  // Privacytekst (actueel voor v14: Firebase AI Logic, vertalen, PDF.js en zelf-gehoste lokale backup)
   body.appendChild(el('h3', { text: t(lang, 'privacyTitle') }));
   for (const para of STRINGS[lang].privacyBody) {
     body.appendChild(el('p', { className: 'help-text', text: para }));
   }
   body.appendChild(
     el('a', {
-      href: GEMINI_TERMS_URL,
+      href: AI_TERMS_URL,
       target: '_blank',
       rel: 'noopener noreferrer',
-      text: 'Bekijk Google Gemini API-voorwaarden'
+      text: 'Bekijk de Firebase AI Logic-documentatie van Google'
     })
   );
 
@@ -2233,7 +2195,6 @@ function openSettingsModal() {
             session = createEmptySession();
             savedNames = [];
             customDict = {};
-            geminiApiKey = '';
             settings = loadSettings();
             applyThemeAndPrefs();
             dialog.close();
