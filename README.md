@@ -1,150 +1,268 @@
-# Bonnetje
+# Bonnetje — Samen eerlijk afrekenen (v12)
 
-**Rekening verdelen in een paar tikken** · *Split a restaurant bill in a few taps*
+Gratis, statische webapp voor GitHub Pages zonder eigen server, zonder account en zonder betaalde diensten.
 
-👉 **https://xb6tqh4fvb-wq.github.io/Bonnetje/**
+## Opbouw & terugvalketen
+1. **Gemini (eerste en standaardroute):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. Altijd met toestemming en een eerlijke melding vooraf.
+2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start alleen als Gemini niet kan (geen internet, HTTP 429, HTTP 503, geen sleutel of geweigerde toestemming). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
+3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
-[Nederlands](#nederlands) · [English](#english)
+## Wijzigingen in v12 (per bevinding, onafhankelijke v11-review)
 
----
+Regressietests: 69/69 groen in Node én echte headless Chrome (68 bestaand + 1 nieuw, V12.1).
 
-## Nederlands
+- **V1 — US-tax verdween uit de verdeling op stap 4 (`js/calculator.js`, `js/app.js`):** de app bewaart erbovenop-getelde btw als `session.receiptVatAddedCents`, maar `calculateSettlement` las `state.vatAddedCents`. Daardoor verdween de tax uit de verdeling en verscheen de vage melding "los eerst het totaalverschil op". De sleutelnamen zijn nu gelijk (`receiptVatAddedCents` overal). Alle `session.*`- en `state.*`-velden in `js/app.js` en `js/calculator.js` zijn nagelopen (grep); dit was de enige mismatch. De bestaande rekentests V11.1a/b voeden de calculator nu met de echte sessie-sleutels, en er zijn twee nieuwe browsertests die door de ECHTE app-route lopen (plakvak -> stap 2 -> verdelen -> stap 4 + deeltekst): een Amerikaanse bon met tax en een NL-bon met fooi. Beide sluiten op stap 1, eindigen op stap 4 met de persoonssommen exact gelijk aan het bontotaal (21,65 resp. 19,00), met de fooi/tax zichtbaar in de deeltekst en zonder de vage melding.
+- **V2 — A-nagebouwde set (98 regels) is nu echt meegeleverd:** `tests/testset-a98/` (15 bonnen, 98 regels) plus generator `scripts/gen-a98-testset.py`. De meting hieronder draait tegen deze meegeleverde set. De claim klopt nu met de inhoud van de zip.
+- **V3 — engine-opmerking: geen actie (staat onder "eerlijk over de grenzen").**
+- **Koffieknop (verzoek Henk, exact zoals de online versie):** `SUPPORT_URL = 'https://www.paypal.me/Inzane007'` (`js/app.js`), footerlink onderaan met `t('support')` — NL "Handig? Trakteer op een kop koffie ☕", EN "Find it useful? Buy me a coffee ☕" — zonder waarschuwingen. De privacytekst vermeldt de externe PayPal-link nu eerlijk (alleen een link, geen app-data). Test V12.1; de koffielink is ook meegecheckt in de browser-test van de app-route.
 
-### Wat doet de app?
+## Metingen v12 (identiek harnas; v12 naast de v11-cijfers van dezelfde sets)
 
-Na een etentje met vrienden: maak een foto van de bon en Bonnetje rekent uit wie wat moet betalen.
+| Meting | v11 | v12 |
+|---|---|---|
+| Plakvak v11-set (28 regels) | 10/10 sluitend, 28/28, 0 valse | 10/10 sluitend, 28/28, 0 valse |
+| Backup OCR v11-set | 7/10 sluitend, 27/28, 7 valse | 7/10 sluitend, 27/28, 7 valse |
+| Plakvak v10-set (29 regels) | 10/10, 29/29, 0 valse | 10/10, 29/29, 0 valse |
+| Backup OCR v10-set | 8/10, 28/29, 4 valse | 8/10, 28/29, 4 valse |
+| Plakvak v9-set (33 regels) | 10/10, 33/33, 0 valse | 10/10, 33/33, 0 valse |
+| Backup OCR v9-set | 8/10, 31/33, 0 valse | 8/10, 31/33, 0 valse |
+| Plakvak A-nagebouwd (98 regels, nu meegeleverd) | 15/15, 98/98, 0 valse | 15/15, 98/98, 0 valse |
+| Backup OCR A-nagebouwd | 9/15, 83/98, 0 valse | 9/15, 83/98, 0 valse |
+| Plakvak B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
+| Backup OCR B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
 
-1. **Bon** – foto maken (of foto/PDF kiezen). De app leest de regels en controleert ze tegen het totaal op de bon.
-2. **Deelnemers** – vul de namen in.
-3. **Verdelen** – kies wie, tik aan wat hij of zij had. Samen een fles wijn? Tik hem bij ieder aan. Iets voor de hele groep? Eén tik.
-4. **Overzicht** – ieders bedrag, inclusief fooi. Vink af wie betaald heeft, zie wat iemand terugkrijgt bij contant betalen en stuur iedereen zijn bedrag via WhatsApp, e-mail of Signal.
+Conclusies:
+- **Geen terugval:** alle scores zijn identiek aan v11, op beide routes, op alle sets.
+- De V1-reparatie zit in de afrekenlaag (stap 4); de parser- en OCR-cijfers veranderen daardoor niet, en de app-route-browsertests bewijzen dat de US-tax- en NL-fooi-bonnen nu ook in de echte bediening sluiten.
 
-Verder: fooi verdelen (bijv. "maak er € 110 van" of per persoon), bonnen uit het buitenland vertalen (Spaans/Engels), app in het Nederlands of Engels, grote tekst, donkere weergave en een knop om een stap terug te gaan.
+## Tests v12
+- `node tests/calculator.test.js`: **69/69 groen**, volledige output in `tests/test-output-v12.txt`.
+- `tests/run-tests.html` in echte headless Chrome: **69/69 groen**.
+- App-route-browsertests (nieuw in het meet-harnas): US-tax en NL-fooi via plakvak t/m stap 4 — beide sluitend, deeltekst met fooi/belasting, geen vage melding, deelknoppen actief; koffielink in de footer aanwezig met de exacte URL.
+- UI-breektests in echte browser: kapot/leeg/verkeerd bestand, pdf zonder PDF.js, offline-modellen, HTTP 500-terugval, klembord-mislukking, plakvak-keuze-UI: allemaal groen; 0 externe app-requests onder de blackhole-proxy.
+- Syntaxcontrole `node --check` op alle js-bestanden en `sw.js`: schoon.
 
-**Gratis, geen account, geen reclame.** Alles blijft op je eigen telefoon; de bon wordt op het toestel zelf uitgelezen en niet naar een server gestuurd.
+## Eerlijk over de grenzen van deze meting (v12)
+- Er is **geen echte Gemini-call** gedaan (geen sleutel beschikbaar); de Gemini-route is getest met gemockte antwoorden. De tokencijfers uit v11 zijn daarom gelabelde schattingen; met een sleutel rapporteert de app de echte usageMetadata.
+- De meetsets zijn synthetisch; echte bonnen kunnen afwijken. De resterende OCR-missers zijn rijfouten van het tiny-model zelf (verschoven bedragen bij scheefstand), geen parserfouten.
+- Browserproeven draaiden in headless Chrome op Linux, niet op een echte iPhone.
 
-**Installeren:** open de link in Safari (iPhone) of Chrome (Android) en kies *Zet op beginscherm*.
+## Wijzigingen in v11 (per bevinding, ter referentie)
 
-### Help de app beter maken
+Regressietests V11.1 t/m V11.8 (68/68 groen in Node én echte headless Chrome).
 
-De app is nieuw en nog niet met veel echte bonnen getest. Juist daar kun je helpen:
+- **N1 — Fooi en erbovenop-getelde btw tellen mee in de afronding (`js/calculator.js`, `js/app.js`):** `validateReceiptTotal` accepteert nu extras (fooi + btw-erbovenop) en eist "som gerechten + fooi/btw == bontotaal". De plakvak- en scanroutes gooien `tipCents`/`vatCents` niet meer weg maar bewaren ze in de sessie (`receiptTipCents`, `receiptVatAddedCents` alleen bij taxMode vat_added). De afrekening verdeelt die bedragen pro rata over de deelnemers (naar rato van subtotaal), zichtbaar als eigen regel per persoon en in de deeltekst. Een Amerikaanse bon met sales tax en een NL-bon met fooiregel zijn nu exact afrondbaar. Tests V11.1a/b.
+- **N2 — Geen verzonnen bedragen meer uit "Est. 1998", busletters en "Rekening 45,60" (`js/parser.js`):** Jaartalabels (est/established/since/sinds/seit/depuis/desde/dal/anno/opgericht/founded) blokkeren komma-herstel; een huisnummer gevolgd door een losse busletter aan het regeleinde ("Avenue Louise 221 B", "Kerkstraat 480 A") is een adres; "Rekening" met een bedrag is het bontotaal (NL/BE), geen gerecht. Test V11.2.
+- **N3 — Los woord "bar" dropt geen gerechten meer (`js/parser.js`):** De zwakke betaalwoorden bar/karte/carte gelden alleen nog als betaling als het het enige woord op de regel is (plus bedrag/leestekens). "Chocolade bar" en "Bar Tapas" blijven gerechten; "BAR 34,00" blijft een betaalregel. Test V11.3.
+- **N4 — NL-bedragsvormen en volumes (`js/parser.js`):** "6,-" en "6," worden 6,00 en "2,5" wordt 2,50 (volgens de decimaalnotatie van de bon). Een expliciet bedrag onder 0,50 op een gerechtregel is een volume ("Cola 0,33") en nooit een (eenheids)prijs: "2 Cola 0,33 6,60" geeft stukprijs 3,30 en "Cola 0,33" alleen wordt geen gerecht van 0,33. Test V11.4.
+- **N5 — Woordlijsten (`js/parser.js`):** Tikkie en MULTIBANCO (+ MB WAY) zijn betaalwoorden; Rua (en Largo/Travessa/Praceta) zijn straatwoorden. Test V11.5.
+- **N7 — Privacytekst over PDF.js-prefetch (`js/i18n.js`):** De tekst zegt nu eerlijk dat het PDF.js-programmabestand al bij het eerste bezoek eenmalig op de achtergrond van jsDelivr wordt opgehaald en gecachet (prefetch, sinds v10), niet pas "bij een PDF". NL en EN. Test V11.7.
 
-- **Werkte het uitlezen niet goed?** Stuur een foto van de bon en een screenshot van het resultaat. (Haal eventueel persoonlijke gegevens zoals pasnummers weg.)
-- **Iets onduidelijk of een fout gevonden?** Laat weten wat je deed, wat je verwachtte en wat er gebeurde, met het type telefoon.
-- **Idee voor iets wat ontbreekt?** Graag!
+- **N6 — Gemini blijft zoals het is (beslissing Henk) + model- en tokenmeting bij elke aanroep (`js/gemini.js`, `js/app.js`):** De scan- en vertaalroute leggen nu bij elke geslaagde aanroep vast welk model is gebruikt (standaard `gemini-2.5-flash`, instelbaar) en wat de tokenkosten zijn: echte `usageMetadata` uit de respons als die er is, anders een expliciet als "schatting" gelabelde berekening (tekst ~4 tekens/token; afbeelding volgens de gedocumenteerde tegelregel van de 2.5-modellen: tegels van 768 px à 258 tokens). De info zit in `session.geminiMeta` en `getLastGeminiCallInfo()`. Tests V11.8a/b.
 
-Heb je een GitHub-account, maak dan een melding aan via [Issues → New issue](https://github.com/xb6tqh4fvb-wq/Bonnetje/issues/new/choose). Geen GitHub? Stuur het gewoon naar degene van wie je de link kreeg.
+**Gemeten tokencijfers (schatting — er was geen API-sleutel beschikbaar, dus geen echte usageMetadata):**
 
-### Steunen
+| Aanroep | Invoer | Uitvoer (geschat) |
+|---|---|---|
+| Scan, testset-bon (1120×936 px) | 313 tekst + 1032 afbeelding = **1345 tokens** | 68–93 tokens |
+| Scan, telefoonfoto (3024×4032 px) | 313 tekst + 6192 afbeelding = **6505 tokens** | ±70–150 tokens (meer gerechten = meer) |
+| Vertaling (10 bonnen, 28 omschrijvingen) | **±433 tokens** | ±100–200 tokens |
 
-Vind je Bonnetje handig? Een kleine bijdrage via de knop **Sponsor** bovenaan deze pagina of via https://www.paypal.me/Inzane007 wordt gewaardeerd, maar is nooit nodig.
+## Metingen v11 (v10 en v11 naast elkaar, identiek harnas en identieke bonnen)
 
----
+Zelfde werkwijze als bij v9/v10: echte headless Chrome, loggende blackhole-proxy, 0 externe app-requests. Nieuwe set: **eigen v11-set** (10 bonnen, 28 regels, met Est./since-regels, busletters, Rekening als totaal, "bar"-gerechten, NL-bedragsvormen, volumes, Tikkie/MULTIBANCO/Rua, US-tax en NL-fooi; `tests/testset-v11/` + generator `scripts/gen-v11-testset.py`). De bonnen uit de controleset van de reviewer zijn niet gebruikt; dit zijn eigen varianten.
 
-## English
+| Meting | v10 | v11 |
+|---|---|---|
+| Plakvak v11-set (28 regels) | 1/10 sluitend, 24/28, 13 valse regels | **10/10 sluitend, 28/28, 0 valse** |
+| Backup OCR v11-set | 2/10 sluitend, 24/28, 11 valse | **7/10 sluitend, 27/28, 7 valse** |
+| Plakvak v10-set (29 regels) | 10/10, 29/29, 0 valse | 10/10, 29/29, 0 valse |
+| Backup OCR v10-set | 8/10, 28/29, 4 valse | 8/10, 28/29, 4 valse |
+| Plakvak v9-set (33 regels) | 10/10, 33/33, 0 valse | 10/10, 33/33, 0 valse |
+| Backup OCR v9-set | 8/10, 31/33, 0 valse | 8/10, 31/33, 0 valse |
+| Plakvak A-nagebouwd (98 regels) | 15/15, 98/98, 0 valse | 15/15, 98/98, 0 valse |
+| Backup OCR A-nagebouwd | 9/15, 83/98, 0 valse | 9/15, 83/98, 0 valse |
+| Plakvak B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
+| Backup OCR B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
 
-### What does the app do?
+Conclusies:
+- **Geen terugval op bekende sets:** alle v10- en oudere scores zijn identiek gebleven, op beide routes.
+- **De v11-set bewijst de fixes:** v10 verzint op deze bonnen 11-13 valse regels (Est.-jaartallen, busletters, "Chocolade bar" als betaling, "0,33" als prijs); v11 sluit alle 10 bonnen op het plakvak met 0 valse regels.
+- De 3 niet-sluitende OCR-bonnen in de v11-set komen door rijfouten van de tiny-OCR zelf (het totaalbedrag belandt op de verkeerde regel; zware scheefstand geeft onleesbare tekst). De valse OCR-regels zijn die verschoven bedragen, geen parserfouten.
 
-After dinner with friends: take a photo of the bill and Bonnetje works out who owes what.
+## Tests v11
+- `node tests/calculator.test.js`: **68/68 groen** (59 bestaand + 9 nieuw), volledige output in `tests/test-output-v11.txt`.
+- `tests/run-tests.html` in echte headless Chrome: **68/68 groen**.
+- Syntaxcontrole `node --check` op alle js-bestanden en `sw.js`: schoon.
+- UI-breektests in echte browser: kapot/leeg/verkeerd bestand, pdf zonder PDF.js, offline-modellen, HTTP 500-terugval, klembord-mislukking, plakvak-keuze-UI: allemaal groen.
+- Meetpagina `tests/measure-v9.html` werkt ook voor de v11-set (`?set=/tests/testset-v11&route=ocr`); generator `scripts/gen-v11-testset.py` meegeleverd.
 
-1. **Bill** – take a photo (or choose a photo/PDF). The app reads the lines and checks them against the total on the bill.
-2. **People** – enter the names.
-3. **Split** – choose who, then tap what they had. Shared a bottle of wine? Tap it for each person. Something for the whole group? One tap.
-4. **Overview** – everyone's amount, including tip. Tick off who has paid, see how much change someone gets when paying cash, and send everyone their amount via WhatsApp, email or Signal.
+## Eerlijk over de grenzen van deze meting (v11)
+- Er is **geen echte Gemini-call** gedaan (geen sleutel beschikbaar); de Gemini-route is getest met gemockte antwoorden en is in v11 ongewijzigd.
+- De meetsets zijn synthetisch; echte bonnen kunnen afwijken.
+- Browserproeven draaiden in headless Chrome op Linux, niet op een echte iPhone.
 
-Also: splitting the tip (e.g. "make it €110" or per person), translating bills from abroad (Spanish/English → Dutch or English), the app in Dutch or English, large text, dark mode and an undo button.
+## Wijzigingen in v10 (per bevinding, ter referentie)
 
-**Free, no account, no ads.** Everything stays on your own phone; the bill is read on the device itself and never sent to a server.
+Elke bevinding heeft eigen regressietests (V10.1 t/m V10.8, 59/59 groen in Node én echte headless Chrome).
 
-**Install:** open the link in Safari (iPhone) or Chrome (Android) and choose *Add to Home Screen*.
+- **B1 — Dode gewicht-/aantal-uitzondering gerepareerd (`js/parser.js`):** In `isDecimalRestoreException` stonden `\s` en `\b` in gewone template literals, waar ze letterlijke "s" en backspace werden; de uitzondering werkte dus nooit en "1 Huiswijn rood 750 ml 18,50" kreeg stukprijs 7,50. Nu `String.raw`, met ml/g/cl/kg/l/oz/lb/stuks/pcs en aantallen (2 x). Tests V10.1a/b.
+- **B2 — Kale cijfergroepen worden geen spookgerecht meer (`js/parser.js`):** Telefoon- ("020 555 0134", "01904 555022"), bon- ("Bon: 1042", "Kassabon nr 2026"), tafel- ("Tafel 123", "Mesa 4"), rekening- ("Rekening 450") en checknummers ("Check 2211") kregen een herstelde komma en werden een gerecht. Robuuste regel (niet alleen een labellijst): administratief label op de regel (NL/EN/DE/FR/ES/IT), twee of meer kale cijfergroepen van 3+ cijfers, voorloopnul, of geïmpliceerd bedrag boven 250,00 -> nooit herstellen. Test V10.2.
+- **B3 — CONTANTI/CONTANTE + straatnamen met tussenvoegsel (`js/parser.js`):** Italiaanse contant-woorden toegevoegd aan de betaalwoorden. Huisnummerherkenning zoekt nu tot 4 woorden terug naar een straatindicator, dus "Carrer de Balmes 112", "Rue de la Paix 12", "Via dei Fori Imperiali 1", "Avenida de Mayo 800" en "Plaza de la Villa 4" worden nooit meer een gerecht van 1,12. Test V10.3.
+- **B4 — Fuzzy sleutelwoorden bij OCR-verwarring (`js/parser.js`):** Totaal-, betaal-, btw-, subtotaal-, fooi-, service- en kortingwoorden worden ook herkend met de bewezen tiny-modelverwarringen (0->o, 1->i, 5->s, 8->b): "T0TAAL", "P1N", "1VA", "5UMME". Totaalwoorden aangevuld met TOTAL A PAYER, AMOUNT DUE en TOTALE COMPLESSIVO. Bedragen met ruis blijven bestaan: "4,60-" wordt 4,60 en "4,8O" wordt 4,80 (alleen als het token verder volledig uit cijfers bestaat). Test V10.4.
+- **B5 — Plakvakroute geeft ambiguousCandidates door (`js/app.js`):** De paste-handler zette de twijfelkandidaten niet in de sessie, dus de keuze-UI verscheen alleen bij scans. Nu wel; browserproef toont de keuze-UI met beide knoppen bij een ambigue geplakte bon. Test V10.5 + browser-UI-test.
+- **B6 — Eerlijke melding als PDF.js niet laadt (`js/parser.js`, `js/app.js`, `js/errors.js`):** Een laadfout van de pdf-lezer zelf (jsDelivr geblokkeerd/offline) heeft nu eigen code `pdfjs_load_failed` en een eigen melding ("De pdf-lezer (PDF.js) kon niet geladen worden..."), niet meer het misleidende "scan zonder tekstlaag". Test V10.6 + browser-UI-test.
+- **B7 — Kleine punten:** Gemini-dagteller telt pas na een geslaagde call (mislukte calls tellen niet meer; test V10.7); dode `js/preprocess.js` verwijderd; `rawText` van Gemini- en OCR-scans wordt in de sessie bewaard; de service worker cachet PDF.js al bij installatie (best-effort: een geblokkeerde jsDelivr breekt de installatie niet; test V10.8).
 
-### Help improve the app
+## Metingen v10 (v9 en v10 naast elkaar, identiek harnas en identieke bonnen)
 
-The app is new and hasn't been tested with many real bills yet. That's where you can help:
+Zelfde werkwijze als bij v9: echte headless Chrome, loggende blackhole-proxy, 0 externe app-requests. Nieuwe set: **eigen v10-set** (10 bonnen, 29 regels, met telefoon-/bon-/tafelnummers, CONTANTI, tussenvoegsel-straatnamen, eenheden, streepjes achter bedragen en scheve/onscherpe foto's; `tests/testset-v10/` + generator `scripts/gen-v10-testset.py`).
 
-- **Did reading the bill go wrong?** Send a photo of the bill and a screenshot of the result. (Feel free to blank out personal details such as card numbers.)
-- **Something unclear, or found a bug?** Tell us what you did, what you expected and what happened, plus your phone model.
-- **An idea for something missing?** Very welcome!
+| Meting | v9 | v10 |
+|---|---|---|
+| Plakvak v10-set (29 regels) | 3/10 sluitend, 27/29, 11 valse regels | **10/10 sluitend, 29/29, 0 valse** |
+| Backup OCR v10-set | 2/10 sluitend, 25/29, 15 valse | **8/10 sluitend, 28/29, 4 valse** |
+| Plakvak v9-set (33 regels) | 10/10, 33/33, 0 valse | 10/10, 33/33, 0 valse |
+| Backup OCR v9-set | 7/10, 29/33, 0 valse | **8/10, 31/33, 0 valse** |
+| Plakvak A-nagebouwd (98 regels) | 15/15, 98/98, 0 valse | 15/15, 98/98, 0 valse |
+| Backup OCR A-nagebouwd | 6/15, 83/98, 0 valse | **9/15, 83/98, 0 valse** |
+| Plakvak B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
+| Backup OCR B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
 
-If you have a GitHub account, open an issue via [Issues → New issue](https://github.com/xb6tqh4fvb-wq/Bonnetje/issues/new/choose). No GitHub? Just send it to whoever shared the link with you.
+Conclusies:
+- **Geen terugval op bekende sets:** alle plakvak-scores blijven 100% en set B blijft 59/59 op beide routes. De OCR-route werd juist beter door de fuzzy totaalherkenning (v9-set 7->8 sluitend, A-nagebouwd 6->9 sluitend, alle gemiste regels blijven zuivere OCR-leesruis).
+- **De v10-set bewijst de fixes:** v9 maakt 11-15 valse regels op deze bonnen (telefoonnummers, CONTANTI-regels, Carrer de Balmes als gerecht); v10 maakt er op het plakvak 0 en sluit alle 10 bonnen.
+- De 2 niet-sluitende OCR-bonnen in de v10-set komen door rij-fouten van de tiny-OCR zelf (bedragen op de verkeerde regel gezet, totaalbedrag los van het totaalwoord); de parser kan een bedrag dat op een andere regel belandt niet terughalen.
 
-### Support
+## Tests v10
+- `node tests/calculator.test.js`: **59/59 groen** (50 bestaand + 9 nieuw), volledige output in `tests/test-output-v10.txt`.
+- `tests/run-tests.html` in echte headless Chrome: **59/59 groen**.
+- Syntaxcontrole `node --check` op alle js-bestanden en `sw.js`: schoon.
+- UI-breektests in echte browser: kapot/leeg/verkeerd bestand, pdf met geblokkeerde PDF.js (nieuwe B6-melding), offline-modellen, HTTP 500-terugval, klembord-mislukking, én de plakvak-keuze-UI (B5): allemaal groen.
+- Meetpagina `tests/measure-v9.html` werkt ook voor de v10-set (`?set=/tests/testset-v10&route=ocr`); generator `scripts/gen-v10-testset.py` meegeleverd.
 
-Find Bonnetje useful? A small contribution via the **Sponsor** button at the top of this page or via https://www.paypal.me/Inzane007 is appreciated, but never required.
+## Eerlijk over de grenzen van deze meting (v10)
+- Er is **geen echte Gemini-call** gedaan (geen sleutel beschikbaar); de Gemini-route is getest met gemockte antwoorden.
+- De meetsets zijn synthetisch; echte bonnen kunnen afwijken. De v10-set is bewust lastiger gemaakt dan dagelijkse bonnen.
+- Browserproeven draaiden in headless Chrome op Linux, niet op een echte iPhone.
 
----
+## Wijzigingen in v9 (per punt, ter referentie)
 
-## Technische details (Nederlands)
+Alle zeven bevindingen uit de onafhankelijke v8-review zijn verwerkt. Elke fix heeft eigen regressietests (V9.1 t/m V9.6 in `tests/calculator.test.js`, 50/50 groen in Node én in echte headless Chrome).
 
-### Zo werkt het
+- **Punt 1 — Komma-herstel raakt nooit meer huisnummers of postcodes (`js/parser.js`):** Nieuwe `isAddressOrPostalNumber()` herkent huisnummers na straatwoorden en straatsuffixen (NL/DE/FR/ES/IT/EN: straat/weg/laan/plein/gracht, rue/avenue/boulevard, Strasse, via/calle, street/road/lane...), Nederlandse postcodes (`1234 AB`), Duitse/Franse/Italiaanse/Spaanse 5-cijfer-postcodes voor of na een plaatsnaam, en Amerikaanse `STAAT 12345` / `12345-6789`. Zo'n regel is geen gerecht en wordt nooit stil `4,80`. Werkt op alle routes (plakvak, lokale OCR en Gemini-verificatie). Regressietests V9.1a t/m V9.1g.
+- **Punt 2 — PIN en varianten als betaalwoord (`js/parser.js`):** `PIN`, `PINNEN`, `PINBETALING`, `PINPAS`, `EC`, `V PAY`, `MASTERCARD`, `AMEX` en `CONTACTLOOS/CONTACTLESS` classificeren als betaling (met woordgrenzen; `Pinot`, `Pinsa`, `Pint`, `Pincho`, `Spinazie` blijven gewoon gerechten). Regressietests V9.2a/b.
+- **Punt 3 — Privacytekst klopt weer (`js/i18n.js`, `js/local-ocr.js`, `js/dictionary.js`):** Rekenmotor staat overal op ~24 MB (was ~12 MB op twee plekken). De dode `lookupSinglePhraseOnline()` met het MyMemory-endpoint is verwijderd; er staat geen enkele functie meer die dat endpoint noemt. Er is bewust geen juridische claim over Google-voorwaarden toegevoegd; dat is aan Henk.
+- **Punt 4 — Btw-regel nooit dubbel geteld (`js/gemini.js`):** Staat een btw-bedrag zowel in `vat[]` als als regel in `items[]`, dan telt de somcontrole het eenmalig mee. Regressietest V9.4.
+- **Punt 5 — Eerlijke Nederlandse foutmeldingen (`js/errors.js`, `js/app.js`, `js/local-ocr.js`):** Kapot/lekker-bestand, 0 bytes, verkeerd bestandstype en een gescande pdf zonder Gemini-sleutel krijgen elk een eigen vriendelijke melding met een werkbare vervolgstap. Offline met nog-gecachete modellen zegt nu eerlijk dat je eenmalig internet nodig hebt; alleen een echte HTTP-status zegt nog "ontbreken op server". Regressietests V9.5/V9.5b + UI-breektests in de browser.
+- **Punt 6 — HTTP 500 is geen dood spoor meer (`js/gemini.js`, `js/app.js`):** Elke 5xx van Gemini valt terug op de lokale backup (`fallbackCode http_5xx`; 429 blijft `http_429`), en elke foutmelding bij een foto biedt de knop "Lokale backup starten". Regressietest V9.6 + browserproef met gesimuleerde 500.
+- **Punt 7 — Klembord-terugval meldt mislukking zichtbaar (`js/app.js`, `js/i18n.js`):** Alle drie de klembordpaden tonen bij falen "Kopiëren naar het klembord is mislukt. Selecteer de tekst en kopieer hem zelf." en kondigen dat aan voor schermlezers. Browserproef met geblokkeerd klembord.
 
-1. **Bon** – maak een foto van de rekening of kies een foto/PDF. De bon wordt op de telefoon zelf uitgelezen (Tesseract, Nederlands); een PDF met tekstlaag wordt direct gelezen. Controleer de regels naast de voorvertoning; het totaal op de bon wordt automatisch vergeleken met de som van de regels.
-2. **Deelnemers** – namen invoeren (meerdere tegelijk met komma's).
-3. **Verdelen** – kies een persoon en tik aan wat die heeft gehad. Alleen regels van de bon zijn kiesbaar.
-   - Een korte uitleg in twee stappen (*kies wie, tik wat*) bij het eerste gebruik.
-   - Aantallen (3× bier): elke tik is één stuk. Met **Splits** maak je van een regel met meerdere stuks losse regels, bv. om twee flessen wijn elk over andere personen te verdelen.
-   - Delen (fles wijn): tik het item bij meerdere personen aan → naar rato verdeeld.
-   - 👥-knop: gelijk over iedereen (ook mensen die later worden toegevoegd), bv. servicekosten.
-4. **Overzicht** – per persoon in één oogopslag: vinkje *betaald*, naam, bedrag en een statusregel (bv. "Contant · terug € 3,16"). Onder *Betaling en details*: betaalwijze (contant / pin / Tikkie), wat iemand geeft en terugkrijgt, de specificatie en een persoonlijk bericht. Bovenaan: betaald, nog open, voortgang. Bij afvinken wordt het betaalde bedrag vastgelegd; verandert de verdeling daarna, dan toont de app het verschil (bijbetalen of teruggeven).
+## Metingen v9 (v8 en v9 naast elkaar, identiek harnas en identieke bonnen)
 
-#### Bon aanleveren
+Alles hieronder is gemeten in echte headless Chrome met een loggende blackhole-proxy: alle niet-lokale requests worden verbroken en gelogd. De app deed in alle meetruns **0 externe requests** (alleen Chrome-interne telemetrie naar google.com/gstatic verscheen in het log; die is geen app-verkeer en werd eveneens verbroken). De eenmalige jsDelivr-aanroep voor PDF.js bij het openen van een pdf is zichtbaar in de UI-test en staat vermeld in de privacytekst.
 
-- Foto maken of een foto/PDF kiezen. PDF's zonder tekstlaag (bv. uit Voorvertoning geëxporteerd) worden met tekstherkenning gelezen.
-- Op een computer: sleep een foto of PDF op de app, of kopieer de bon in Voorvertoning (⌘A, ⌘C) en plak hem in de app (⌘V).
-- Een webapp kan op iPhone/Mac niet in het deelmenu van andere apps verschijnen; daarom deze routes.
+Drie sets: **eigen v9-set** (10 nieuwe bonnen, 33 regels, met adresregels, PIN-betaalregels, postcodes, twee btw-tarieven, scheef tot 8,5° en blur; `tests/testset-v9/` + generator `scripts/gen-v9-testset.py`), **A-nagebouwd** (15 bonnen, 98 regels, stijl van set A uit v6-v8; de originele set A zat niet in de v8-zip) en **B** (15 bonnen, 59 regels, ongewijzigd uit de repo).
 
-#### Verdeling versturen
+| Meting | v8 | v9 |
+|---|---|---|
+| Plakvak eigen v9-set (33 regels) | 7/10 bonnen sluitend, 33/33 regels, 5 valse regels | **10/10 sluitend, 33/33, 0 valse** |
+| Backup OCR eigen v9-set | 4/10 sluitend, 29/33, 9 valse | **7/10 sluitend, 29/33, 0 valse** |
+| Plakvak A-nagebouwd (98 regels) | 10/15 sluitend, 98/98, 10 valse | **15/15 sluitend, 98/98, 0 valse** |
+| Backup OCR A-nagebouwd | 4/15 sluitend, 83/98, 10 valse | **6/15 sluitend, 83/98, 0 valse** |
+| Plakvak B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
+| Backup OCR B (59 regels) | 15/15, 59/59, 0 valse | 15/15, 59/59, 0 valse |
 
-- Naar de hele groep of per deelnemer een persoonlijk bericht met eigen bedrag en specificatie.
-- Via WhatsApp, e-mail of *Meer…* (het deelmenu van het toestel: Signal, Berichten, enz.). Signal heeft geen link om een bericht voor te vullen, dus dat gaat via het deelmenu.
-- Het bericht aan iedereen staat onderaan; het persoonlijke bericht bij de persoon zelf (*Betaling en details*).
-- Optioneel veld voor betaalgegevens (Tikkie-link of IBAN), dat in de berichten wordt opgenomen. Wie al betaald heeft, krijgt een bedankje in plaats van een betaalverzoek.
+Conclusies:
+- **Geen terugval op de bekende sets:** B is op beide routes identiek (59/59). Op A-nagebouwd scoort v9 op de OCR-route exact dezelfde 83/98 herkende regels als v8 op hetzelfde harnas; de gemiste regels zijn OCR-leesruis (bijv. `T0TAAL` met een nul op 8° scheef), geen parserfouten. De v8-claim 98/98 op backup A kon ik op mijn nagebouwde set A niet reproduceren — v8 zelf haalt daar in dit harnas ook 83/98 — maar omdat de originele set A ontbreekt kan ik niet uitsluiten dat mijn set lastiger is dan de originele.
+- **De fixes doen wat ze moeten:** alle valse regels in v8 (adresregels als `Kerkstraat 480` -> € 4,80 en PIN-regels als gerecht) zijn in v9 weg, op alle sets en beide routes. Daardoor sluiten er meer bonnen (plakvak 10/10 en 15/15).
+- De overige OCR-missers op scheve bonnen zijn herkenningsfouten van de tiny-modellen zelf; daar verandert deze versie niets aan.
 
-#### Ongedaan maken
+## Tests v9
+- `node tests/calculator.test.js`: **50/50 groen** (36 bestaand + 14 nieuw), volledige output in `tests/test-output-v9.txt`.
+- `tests/run-tests.html` in echte headless Chrome: **50/50 groen**.
+- Syntaxcontrole `node --check` op alle js-bestanden en `sw.js`: schoon.
+- UI-breektests in echte browser (kapot png, leeg bestand, .txt, gescande pdf zonder sleutel, offline-modellen, gesimuleerde HTTP 500 met terugval, geblokkeerd klembord): alle 7 tonen de juiste Nederlandse melding en/of werkende terugval.
+- Meetpagina `tests/measure-v9.html` (met `<base href="../">`) en generator `scripts/gen-v9-testset.py` zijn meegeleverd zodat de reviewer alles kan herhalen.
 
-- Knop **↶** bovenin (of ⌘Z / Ctrl+Z): stap voor stap terug, tot 50 stappen.
-- Na verwijderen van een bon, persoon of regel verschijnt een melding met *Ongedaan maken*; een extra bevestigingsvraag is daardoor niet meer nodig.
-- Waarschuwingen: bij versturen terwijl nog niet alles verdeeld is, en als een aantal lager wordt dan wat al is toegewezen.
+## Eerlijk over de grenzen van deze meting (v9)
+- Er is **geen echte Gemini-call** gedaan (geen sleutel beschikbaar); de Gemini-route is getest met gemockte antwoorden, inclusief de 500-terugval.
+- De originele set A uit de v6-v8-metingen zat niet in de v8-zip; A-nagebouwd is een eigen reproductie in dezelfde stijl.
+- De meetsets zijn synthetisch; een echte kasbon met afwijkende opmaak kan altijd afwijken.
+- De browserproeven draaiden in headless Chrome op Linux, niet op een echte iPhone.
 
-#### Fooi
+## Wijzigingen in v8 (per punt, ter referentie)
+- **Punt 1 — Syntaxfouten hersteld, tests draaien echt (`js/i18n.js`, `tests/calculator.test.js`):** De twee syntaxfouten uit v7 zijn eruit. De teststrings V7.3/V7.4/V7.5 stonden in v7 kapot door aanhalingstekens in de tekst zelf; ze gebruiken nu template literals. Alle 36 tests draaien en slagen: `node tests/calculator.test.js` (volledige output in `tests/test-output-v8.txt`) of `tests/run-tests.html` in de browser.
+- **Punt 2 — "Geen naam = geen gerecht" echt gefixt (`js/parser.js`):** In v7 werd een kale cijferregel zoals `"480"` (een huisnummer) door de samenvoeglogica alsnog aan de vorige regel geplakt en kon zo toch een gerecht worden of een bedrag beinvloeden. Kale cijferregels zonder letters worden nu nooit meer samengevoegd en nooit een gerecht; bedragen mét decimalen plakken nog wel (gewenst bij afgebroken bedragen). Getest met V8.1 (cijferregel boven, onder en onderaan de bon) en het bestaande V7.4 is groen.
+- **Punt 3 — Lokale backup echt zelf-gehost en werkend (`js/local-ocr.js`, `js/assets-manifest.js`, `js/vendor/`, `models/`):**
+  - Het woordenboek is nu het echte tiny-woordenboek `ppocrv6_tiny_dict.txt` (het gewone `ppocrv6_dict.txt` van de grote modellen gaf foute tekens).
+  - De browsermodule wordt meegeleverd als `js/vendor/ppu-paddle-ocr.mjs` (esbuild-bundle van `ppu-paddle-ocr/web` + `onnxruntime-web`).
+  - onnxruntime laadde zijn WASM stilletjes van een CDN; de module krijgt nu via `setLocalWasmPaths()` een absolute URL naar `js/vendor/ort-wasm/`, waar `ort-wasm-simd-threaded.jsep.mjs` en `.jsep.wasm` (~24 MB) in de repo staan.
+  - Het woordenboek wordt als ArrayBuffer doorgegeven; v7 gaf tekst en de library behandelde dat als URL, waardoor de echte dienst faalde.
+  - Echte netwerkproef in een echte browser (headless Chrome, alle niet-lokale requests geblokkeerd): de backup draait een volledige OCR op een bonfoto, geeft de juiste gerechten en het juiste totaal, en doet **0 externe requests**. Alleen localhost wordt aangeroepen.
+  - Scheve bonnen: naam en prijs worden nu gekoppeld via schuinte-gecorrigeerde bounding-box-rijen (geschatte helling van de bon), niet via kale y-coordinaten. Zie de metingen hieronder.
+- **Punt 4 — Eerlijke privacytekst (`js/i18n.js`):** De tekst noemt nu precies wat waarheen gaat: de bonfoto gaat bij online OCR naar Google Gemini; PDF.js komt van jsDelivr; de lokale backup downloadt ~6 MB aan modellen en ~24 MB aan WASM van dezelfde server als de app en stuurt daarna niets naar buiten. Geen vage beloftes meer.
+- **Punt 5 — Gemini-voorwaardenlink bijgewerkt (`js/gemini.js`):** Verwijst nu naar `https://aistudio.google.com/docs/terms` (de oude link gaf een doorverwijzing).
+- **Punt 6 — Delen zonder waarschuwingen (`js/app.js`, `js/calculator.js`, `js/i18n.js`):** Twee aparte knoppen: "Deel uitslag" deelt de verdeling als tekst (bijv. `Jan € 14,50 · Els € 22,00 · totaal € 36,50`) via het deelvenster van het toestel, met klembord als terugval; "Deel bonfoto" deelt de originele foto (alleen zichtbaar als het toestel dat ondersteunt). Geen contacten, geen waarschuwingen, geen extra stappen.
+- **Punt 7 — Opnieuw gemeten op beide sets:** zie de tabel hieronder. Alles is gemeten met exact dezelfde sets en scripts als bij v6 en v7.
 
-- **Totaal betaald**: vul in wat er aan het restaurant is betaald ("maak er maar € 110 van"); het bedrag boven de bon is de fooi. Met snelknoppen voor ronde bedragen.
-- **Per persoon**: ieder bepaalt zelf zijn fooi. Je vult per deelnemer in wat die in totaal betaalt (of kiest een afgerond bedrag); de fooi is betaald min eigen consumpties. Niet iedereen hoeft fooi te geven.
-- De fooi wordt verdeeld naar verhouding van consumpties of gelijk per persoon.
-- Laat iemand wisselgeld liggen ("Rest is fooi") of geeft iemand extra fooi, dan wordt dat eerst met diens eigen fooi-aandeel verrekend; het overschot verlaagt de fooi van de anderen naar rato. Het bedrag voor een Tikkie past zich automatisch aan.
-- Alle bedragen worden in centen berekend; afrondingsverschillen worden zo verdeeld dat de som altijd exact klopt.
+## Metingen (identieke sets en scripts als v6/v7)
 
-#### Talen
+Twee testsets: **A** (15 bonnen, 98 regels, gegenereerd) en **B** (15 bonnen, 59 regels, uit de repo, met scheve/onscherpe/ruizige foto's). Plakvak = parser op tekst; backup = echte PP-OCRv6_tiny-modellen.
 
-- **App in het Nederlands of Engels**: schakelaar NL/EN rechtsboven. Bedragen en datums volgen de taal (€ 22,50 / €22.50, DD-MM-JJJJ / DD/MM/YYYY).
-- **Bonnen in het Nederlands, Spaans of Engels**: de taal wordt automatisch herkend (of kies hem vooraf). Bij *Automatisch* leest de app eerst in de taal van de app (één taalbestand van ±3 MB); blijkt de bon in een andere taal, dan leest hij nog één keer met het juiste taalbestand. Ook woorden als *total*, *IVA*, *propina*, *tax* en *tip* worden herkend.
-- **Vertalen van de regels**: een ingebouwd horecawoordenboek (offline) vertaalt de omschrijvingen naar de taal van de app, bv. *Pollo a la plancha* → "Gegrilde kip". Het origineel blijft eronder staan, zodat je het op de bon terugvindt. Kent het woordenboek een woord niet, dan kun je de rest **online** laten vertalen (MyMemory; alleen de omschrijvingen worden verstuurd).
-- Een taal toevoegen: een kolom in de tabel in `js/translate.js`, de bonwoorden in `js/parse.js`, het taalbestand in `js/ocr.js` en (voor de app zelf) een blok in `js/i18n.js`.
+| Meting | v6 | v7 | v8 |
+|---|---|---|---|
+| Plakvak A, perfecte tekst (98 regels) | 98/98 | 98/98 | 98/98 |
+| Plakvak A, tesseract-tekst | 89/98 | 89/98 (0 valse) | 89/98 (0 valse) |
+| Plakvak B, perfecte tekst (59 regels) | 59/59 | 59/59 | 59/59 |
+| Plakvak B, tesseract-tekst | 38/59 | 38/59 (1 valse) | 38/59 (1 valse) |
+| Backup A, echte OCR | 90/98 | 98/98 | 98/98 |
+| Backup B, app-route via OCR-boxen | — | 34/59 (6 valse) | **59/59 (0 valse)** |
 
-#### Weergave en leesbaarheid
+De v7-backup koppelde naam en prijs op regelvolgorde of kale y-positie; bij scheve foto's gleed dat weg (34/59, 6 valse gerechtregels). De v8-boxroute schat de helling van de bon en corrigeert de rijindeling: alle 59 regels goed, alle 15 bontotalen goed, nul valse regels. Ter vergelijking: de pure tekstroute van de backup (zonder boxen, alleen terugval die de app in de praktijk niet gebruikt) scoort in v8 28/59 met 6 valse regels; daar staat de 34/59 uit v7 tegenover. De app gebruikt altijd de boxroute zodra de OCR-dienst posities teruggeeft, en dat doet zowel de Node- als de browserversie.
 
-Via de knop **Aa Weergave** bovenin:
+## Eerlijk over de grenzen van deze meting
+- Er is **geen echte Gemini-call** gedaan (geen sleutel beschikbaar); de Gemini-route is getest met gemockte antwoorden.
+- De browserproef draaide in headless Chrome op Linux, niet op een echte iPhone; het plakvak (Live Text) is dus niet op iOS getest.
+- De meetsets zijn synthetisch; een echte kasbon met afwijkende opmaak kan altijd afwijken.
 
-- **Thema**: Automatisch (volgt de telefoon), Licht of Donker.
-- **Tekstgrootte**: Normaal, Groot (120%) of Extra groot (140%). Knoppen en aanraakvlakken groeien mee; de opmaak is getest tot 320 px schermbreedte.
-- **Hoog contrast**: zwartere tekst, duidelijke randen, goed zichtbare selectie en focus. Staat *meer contrast* op de telefoon aan, dan neemt de app dat over.
-- De keuze wordt op het toestel onthouden en direct bij openen toegepast.
-
-### Privacy
-
-Alles blijft op het toestel (localStorage). Geen account, geen server. Uitzondering: de knop *Online vertalen* stuurt de omschrijvingen van de bonregels naar MyMemory. Alleen de leesmodules (Tesseract, pdf.js en de taalbestanden) worden de eerste keer van cdn.jsdelivr.net gedownload en daarna gecachet.
-
-### Ontwikkelen
-
+## Zelf-gehoste modelbestanden ophalen
 ```bash
-python3 -m http.server 8000   # open http://localhost:8000
-npm test                      # unit tests rekenkern en bon-parser
+bash scripts/fetch-local-ocr-assets.sh
 ```
+Zie `models/pp-ocrv6-tiny/README.md` voor de exacte bestanden en checksums.
 
-Geen build-stap: gewone HTML, CSS en JavaScript-modules.
+## Lokaal starten & testen
+```bash
+python3 -m http.server 8000
+```
+- App: `http://localhost:8000/`
+- Automatische tests (69 tests): `http://localhost:8000/tests/run-tests.html` of `node tests/calculator.test.js` (output: `tests/test-output-v12.txt`)
+- Meetpagina v9 (plakvak + lokale backup op de eigen v9-set, A-nagebouwd en B): `http://localhost:8000/tests/measure-v9.html?set=/tests/testset-v9&route=ocr`
+- Oude benchmarkpagina uit v8: `http://localhost:8000/tests/benchmark.html`
 
-### Publiceren
+---
 
-De workflow `.github/workflows/pages.yml` publiceert de app op GitHub Pages bij een push naar `main`
-(eenmalig aanzetten: *Settings → Pages → Source: GitHub Actions*). Daarna op de telefoon openen en
-*Zet op beginscherm* kiezen. Camera en installeren werken alleen via https.
+## Wijzigingen in v7 (per punt, ter referentie)
+## Wijzigingen in v7 (per punt)
+- **Punt 1 — Komma-herstel op de Gemini-route (`js/gemini.js`):** `parseGeminiReceiptJson()` past nu exact dezelfde decimale notatiedetectie (`detectReceiptNumberFormat`) en herstelstap (`parseAmountWithFormat`) toe op alle velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`), met dezelfde uitzonderingen (gewichten, aantallen, percentages, datums, valuta zonder centen). Herstelde bedragen worden zichtbaar gemarkeerd met `restoredDecimal: true` en `lowConfidence: true`.
+- **Punt 2 — Lokale backup op echte `ppu-paddle-ocr`-interface (`js/local-ocr.js`, `js/assets-manifest.js`, `js/parser.js`, `scripts/fetch-local-ocr-assets.sh`):** Aangesloten op de echte `PaddleOcrService` uit `ppu-paddle-ocr/web` met `{ model: { detection, recognition, charactersDictionary } }` en de echte `PP-OCRv6_tiny`-bestanden (`PP-OCRv6_tiny_det.ort`, `PP-OCRv6_tiny_rec.ort`, `ppocrv6_dict.txt`). Downloadscript met SHA-256-checksums toegevoegd zonder externe CDN-links in de app. `mergeOcrLinesToSingleRow()` koppelt naam en prijs op bounding-box-positie (zelfde regelhoogte, naam links, prijs rechts) in plaats van regelvolgorde, en `normalizePunctuation()` herstelt spaties in bedragen zoals `"€2, 49"` → `"€2,49"`.
+- **Punt 3 — Meerdere btw-regels op de Gemini-route (`js/gemini.js`):** Ondersteunt zowel een lijst in `vat[]` als meerdere btw-regels die het model in `items[]` plaatst en telt ze op zodat de somcontrole van onderaf ook bij twee btw-tarieven (bijv. 9% en 21%) sluit.
+- **Punt 4 — Betaalwoorden `BAR`, `KARTE` en `CARTE` (`js/parser.js`):** Toegevoegd met woordgrenzen (`\b`) aan `classifyNonDishKeyword()` zodat Duitse en Franse betaalregels nooit een gerecht worden.
+- **Punt 5 — Geen naam is geen gerecht (`js/parser.js`):** Regels zonder naamdeel (alleen cijfers en tekens, zoals een huisnummer `"480"`) worden nooit een gerecht en blokkeren het afronden niet; losse bedragen wegen hooguit mee als kandidaat-subtotaal of -totaal.
+- **Punt 6 — Kleine herstelpunten:** Privacytekst in `js/i18n.js` en `js/app.js` bijgewerkt voor Gemini, vertalen, PDF.js (jsDelivr) en de zelf-gehoste lokale backup (~6 MB van eigen GitHub Pages); dode v4-bestanden (`js/ocr.js`, `tests/ocr-benchmark.html`) verwijderd; ongebruikte v4/Tesseract i18n-strings opgeruimd; kopregel van `js/app.js` en Service Worker (`sw.js`) bijgewerkt naar v7.
+- **Punt 7 — Tests & meting (`tests/calculator.test.js`, `tests/run-tests.html`, `tests/benchmark.html`):** Alle 25 bestaande tests zijn ongewijzigd behouden. Toegevoegd: `V7.1` (komma-herstel `"1450"` in Gemini items + vaste velden), `V7.2` (twee btw-regels in Gemini), `V7.3` (`BAR`/`KARTE`/`CARTE` met woordgrenzen), `V7.4` (huisnummer zonder naam), `V7.5` (`"€2, 49"` met spatie), `V7.6` (bounding-box kolomkoppeling in wisselende volgorde) en `V7.7` (netwerkvrije proef van `runLocalBackupOcr` met geblokkeerde externe `fetch`).
+
+## Zelf-gehoste modelbestanden ophalen
+```bash
+bash scripts/fetch-local-ocr-assets.sh
+```
+Zie `models/pp-ocrv6-tiny/README.md` voor de exacte bestanden en checksums.
+
+## Lokaal starten & testen
+```bash
+python3 -m http.server 8000
+```
+- App: `http://localhost:8000/`
+- Automatische tests (32 tests: 25 bestaand + 7 nieuw): `http://localhost:8000/tests/run-tests.html` of `node tests/calculator.test.js`
+- Meetpagina (Gemini + lokale backup + plakvak op 15 bonnen / 59 regels): `http://localhost:8000/tests/benchmark.html`

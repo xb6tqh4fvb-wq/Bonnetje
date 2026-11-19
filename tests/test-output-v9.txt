@@ -1,0 +1,52 @@
+PASS: a) Fles wijn € 10,00 gedeeld door 3 personen = exact € 10,00 in hele centen
+PASS: b) Doelbedrag € 110,00 bij bon € 103,40 over 4 deelnemers -> fooi € 6,60 exact verdeeld
+PASS: c) Contant € 50,00 op deel van € 32,50 -> wisselgeld € 17,50 (en tekort bij te weinig)
+PASS: d) Deelnemer zonder items betaalt niets en geen fooi (tenzij expliciet gekozen)
+PASS: e) Niet-toegewezen bonregel geeft waarschuwing en blokkeert afronden
+PASS: f) Doelbedrag € 100,00 bij bontotaal € 103,40 wordt geweigerd (geen negatieve fooi)
+PASS: g) BTW-overzicht onderaan de bon telt nooit mee als te verdelen regel
+PASS: Extra: Korting verlaagt het bedrag en aantal×stukprijs mismatch wordt gemarkeerd
+PASS: Extra: parseEuroToCents weigert halve centen en formatCentsNL toont Nederlandse komma
+PASS: Regressie 4: Ontbrekend bontotaal of lowConfidence blokkeert canFinalize
+PASS: Regressie 5: IVA10% incl, VAT 20% extra, Discount 5,00
+PASS: Regressie 6: 3 bieren à €3,00 (€9,00) -> Jan 2 (€6,00), Petra 1 (€3,00)
+PASS: PDF: hele regel in één tekstitem over 2 pagina's
+PASS: Live Text: losse prijsregels worden samengevoegd
+PASS: Gemini Mock 1: Correct antwoord met inbegrepen IVA sluit exact
+PASS: Gemini Mock 2: Afwijkende leestekens (Chinese volle-breedte-komma) & korting
+PASS: Gemini Mock 3: Kapotte/ongeldige JSON geeft begrijpelijke foutmelding
+PASS: Gemini Mock 4: Ontbrekend bontotaal blokkeert canProceed
+PASS: Gemini Mock 5: Regelsom != bontotaal markeert regels als onzeker en blokkeert
+PASS: Gemini Mock 6: Leeg of deels ingevuld antwoord & foutmeldingen (429/503/403/0)
+PASS: P11.1 Subtotaal: zonder woordlabel (onder gerechten) & boven gerechten & losse btw/fooi/korting
+PASS: P11.2 Lokale backup (ppu-paddle-ocr): losse naam/prijs regels én samengevoegde regels
+PASS: P11.3 Somcontrole van onderaf: btw inbegrepen, VS-belasting erbovenop, en dubbele kandidaat
+PASS: P11.4 Btw-anker: btw, IVA, MwSt, TVA, VAT en tax naast percentage
+PASS: P11.5 Komma-notatie: 1450 -> 14,50, 1.250,00, 1,250.00, uitzonderingen & onbenoemd subtotaal
+PASS: V7.1 Komma-herstel op Gemini-route: "1450" in items én vaste velden + herstelmarkering
+PASS: V7.2 Tweede btw-regel op Gemini-route: beide tarieven (9% en 21%) opgeteld
+PASS: V7.3 Betaalwoorden BAR, KARTE en CARTE (met woordgrenzen)
+PASS: V7.4 Geen naam is geen gerecht: huisnummer "480" wordt geen gerecht en blokkeert niet
+PASS: V7.5 Spaties in bedragen: "€2, 49" wordt genormaliseerd tot € 2,49
+PASS: V7.6 Lokale backup kolomkoppeling op bounding boxes in wisselende volgorde
+PASS: V8.1 Kale cijferregels: boven een naam, onder een naam en onderaan de bon (nooit gerecht, nooit geplakt)
+PASS: V8.2 Zelf-hosting manifest: juiste woordenboeknaam en geen enkele externe URL in de backup-route
+PASS: V8.3 Deeltekst van de uitslag: "Jan € 14,50 · Els € 22,00 · totaal € 36,50"
+PASS: V8.4 Schuinte-correctie: naam en prijs op een scheve regel worden toch gekoppeld
+PASS: V9.1a Komma-herstel slaat NOOIT aan op NL-adres/postcode (plakvak-route)
+PASS: V9.1b Komma-herstel slaat NOOIT aan op US-adres/ZIP (plakvak-route, $-notatie)
+PASS: V9.1c Adres- en postcoderegels in DE/FR/ES/IT (plakvak-route)
+PASS: V9.1d Adresregels op de OCR-route (bounding boxes) worden geen gerechten
+PASS: V9.1e Adresregels op de Gemini-verificatieroute worden overgeslagen, komma-herstel werkt daar nog wel
+PASS: V9.1f Kaaie getallen van 3+ cijfers zonder decimale context worden geen hele euro's meer (Gemini-route)
+PASS: V9.1g isAddressOrPostalNumber dekt NL/EN/DE/FR/ES/IT/US en laat echte bedragen met rust
+PASS: V9.2a Betaalwoord PIN en varianten zijn betaalregels, Pinot/Pinsa/Pint niet
+PASS: V9.2b "PIN 43,00" op alle drie de routes (plakvak, OCR, Gemini)
+PASS: V9.3 Privacytekst en woordenboek: 24 MB rekenmotor, geen MyMemory, geen dode online-functie
+PASS: V9.4 Btw in vat[] én in items[] wordt niet dubbel geteld (dedupe)
+PASS: V9.5 Vriendelijke NL-foutmeldingen voor kapot, leeg of verkeerd bestand
+PASS: V7.7 Netwerkvrije proef lokale backup: geen enkel extern verzoek, werkt met echte ppu-paddle-ocr interface
+PASS: V9.5b Lokale backup: offline met nog-gecachete modellen geeft eerlijke NL-melding, echte 404 blijft "ontbreken op server"
+PASS: V9.6 HTTP 500 en andere 5xx vallen terug op de lokale backup (fallbackCode http_5xx), 429 blijft http_429
+
+Resultaat: 50/50 geslaagd.

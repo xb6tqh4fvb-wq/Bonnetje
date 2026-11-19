@@ -1,0 +1,373 @@
+[
+  {
+    "id": "nl_01_netjes",
+    "file": "testset/nl_01_netjes.png",
+    "lang": "nl",
+    "style": "clean",
+    "items": [
+      {
+        "description": "2 Tapbier",
+        "lineTotalCents": 700
+      },
+      {
+        "description": "1 Bitterballen",
+        "lineTotalCents": 850
+      },
+      {
+        "description": "2 Koffie",
+        "lineTotalCents": 640
+      },
+      {
+        "description": "1 Sate met friet",
+        "lineTotalCents": 1850
+      }
+    ],
+    "totalCents": 4040
+  },
+  {
+    "id": "nl_02_scheef",
+    "file": "testset/nl_02_scheef.png",
+    "lang": "nl",
+    "style": "skewed",
+    "items": [
+      {
+        "description": "1 Fles rode wijn",
+        "lineTotalCents": 2400
+      },
+      {
+        "description": "3 Spa rood",
+        "lineTotalCents": 975
+      },
+      {
+        "description": "2 Biefstuk",
+        "lineTotalCents": 4900
+      },
+      {
+        "description": "1 Salade geitenkaas",
+        "lineTotalCents": 1650
+      }
+    ],
+    "totalCents": 9925
+  },
+  {
+    "id": "nl_03_laagcontrast",
+    "file": "testset/nl_03_laagcontrast.png",
+    "lang": "nl",
+    "style": "low_contrast",
+    "items": [
+      {
+        "description": "2 Cappuccino",
+        "lineTotalCents": 720
+      },
+      {
+        "description": "1 Appeltaart",
+        "lineTotalCents": 495
+      },
+      {
+        "description": "1 Tosti ham kaas",
+        "lineTotalCents": 750
+      }
+    ],
+    "totalCents": 1965
+  },
+  {
+    "id": "nl_04_korting",
+    "file": "testset/nl_04_korting.png",
+    "lang": "nl",
+    "style": "thermal_noise",
+    "items": [
+      {
+        "description": "2 Pizza Margherita",
+        "lineTotalCents": 2500
+      },
+      {
+        "description": "1 Pizza Quattro",
+        "lineTotalCents": 1450
+      },
+      {
+        "description": "1 Korting actie",
+        "lineTotalCents": -500
+      },
+      {
+        "description": "3 Cola",
+        "lineTotalCents": 990
+      }
+    ],
+    "totalCents": 4440
+  },
+  {
+    "id": "nl_05_groot",
+    "file": "testset/nl_05_groot.png",
+    "lang": "nl",
+    "style": "blur",
+    "items": [
+      {
+        "description": "4 Speciaalbier",
+        "lineTotalCents": 2200
+      },
+      {
+        "description": "2 Witte wijn",
+        "lineTotalCents": 1100
+      },
+      {
+        "description": "1 Nachos",
+        "lineTotalCents": 1050
+      },
+      {
+        "description": "3 Burger menu",
+        "lineTotalCents": 5550
+      },
+      {
+        "description": "1 Friet mayo",
+        "lineTotalCents": 440
+      }
+    ],
+    "totalCents": 10340
+  },
+  {
+    "id": "es_01_netjes",
+    "file": "testset/es_01_netjes.png",
+    "lang": "es",
+    "style": "clean",
+    "items": [
+      {
+        "description": "2 Cana",
+        "lineTotalCents": 500
+      },
+      {
+        "description": "1 Agua con gas",
+        "lineTotalCents": 250
+      },
+      {
+        "description": "1 Patatas bravas",
+        "lineTotalCents": 650
+      },
+      {
+        "description": "1 Calamares",
+        "lineTotalCents": 1200
+      }
+    ],
+    "totalCents": 2600
+  },
+  {
+    "id": "es_02_scheef",
+    "file": "testset/es_02_scheef.png",
+    "lang": "es",
+    "style": "skewed",
+    "items": [
+      {
+        "description": "2 Menu del dia",
+        "lineTotalCents": 3600
+      },
+      {
+        "description": "1 Vino tinto",
+        "lineTotalCents": 1400
+      },
+      {
+        "description": "2 Cafe con leche",
+        "lineTotalCents": 440
+      },
+      {
+        "description": "1 Pan y alioli",
+        "lineTotalCents": 350
+      }
+    ],
+    "totalCents": 5790
+  },
+  {
+    "id": "es_03_laagcontrast",
+    "file": "testset/es_03_laagcontrast.png",
+    "lang": "es",
+    "style": "low_contrast",
+    "items": [
+      {
+        "description": "1 Paella",
+        "lineTotalCents": 3200
+      },
+      {
+        "description": "1 Sangria",
+        "lineTotalCents": 1600
+      },
+      {
+        "description": "2 Helado",
+        "lineTotalCents": 900
+      },
+      {
+        "description": "1 Agua sin gas",
+        "lineTotalCents": 220
+      }
+    ],
+    "totalCents": 5920
+  },
+  {
+    "id": "es_04_ruis",
+    "file": "testset/es_04_ruis.png",
+    "lang": "es",
+    "style": "thermal_noise",
+    "items": [
+      {
+        "description": "1 Pulpo",
+        "lineTotalCents": 1850
+      },
+      {
+        "description": "1 Gambas al ajillo",
+        "lineTotalCents": 1450
+      },
+      {
+        "description": "1 Croquetas",
+        "lineTotalCents": 850
+      },
+      {
+        "description": "3 Copa de vino",
+        "lineTotalCents": 1350
+      },
+      {
+        "description": "1 Descuento",
+        "lineTotalCents": -300
+      }
+    ],
+    "totalCents": 5200
+  },
+  {
+    "id": "es_05_onscherp",
+    "file": "testset/es_05_onscherp.png",
+    "lang": "es",
+    "style": "blur",
+    "items": [
+      {
+        "description": "2 Dorada",
+        "lineTotalCents": 3800
+      },
+      {
+        "description": "1 Ensalada mixta",
+        "lineTotalCents": 950
+      },
+      {
+        "description": "1 Botella de vino",
+        "lineTotalCents": 2100
+      },
+      {
+        "description": "2 Carajillo",
+        "lineTotalCents": 600
+      }
+    ],
+    "totalCents": 7450
+  },
+  {
+    "id": "en_01_netjes",
+    "file": "testset/en_01_netjes.png",
+    "lang": "en",
+    "style": "clean",
+    "items": [
+      {
+        "description": "2 Draft beer",
+        "lineTotalCents": 1100
+      },
+      {
+        "description": "1 Fish and chips",
+        "lineTotalCents": 1650
+      },
+      {
+        "description": "1 Garlic bread",
+        "lineTotalCents": 550
+      }
+    ],
+    "totalCents": 3300
+  },
+  {
+    "id": "en_02_scheef",
+    "file": "testset/en_02_scheef.png",
+    "lang": "en",
+    "style": "skewed",
+    "items": [
+      {
+        "description": "1 Bottle of wine",
+        "lineTotalCents": 2800
+      },
+      {
+        "description": "2 Steak",
+        "lineTotalCents": 5200
+      },
+      {
+        "description": "1 Side salad",
+        "lineTotalCents": 650
+      },
+      {
+        "description": "2 Sparkling water",
+        "lineTotalCents": 700
+      }
+    ],
+    "totalCents": 9350
+  },
+  {
+    "id": "en_03_laagcontrast",
+    "file": "testset/en_03_laagcontrast.png",
+    "lang": "en",
+    "style": "low_contrast",
+    "items": [
+      {
+        "description": "2 Coffee",
+        "lineTotalCents": 700
+      },
+      {
+        "description": "1 Orange juice",
+        "lineTotalCents": 450
+      },
+      {
+        "description": "2 Cake",
+        "lineTotalCents": 1100
+      }
+    ],
+    "totalCents": 2250
+  },
+  {
+    "id": "en_04_ruis",
+    "file": "testset/en_04_ruis.png",
+    "lang": "en",
+    "style": "thermal_noise",
+    "items": [
+      {
+        "description": "2 Chicken",
+        "lineTotalCents": 3400
+      },
+      {
+        "description": "1 Fries",
+        "lineTotalCents": 450
+      },
+      {
+        "description": "1 Discount",
+        "lineTotalCents": -400
+      },
+      {
+        "description": "2 Pint",
+        "lineTotalCents": 1200
+      }
+    ],
+    "totalCents": 4650
+  },
+  {
+    "id": "en_05_onscherp",
+    "file": "testset/en_05_onscherp.png",
+    "lang": "en",
+    "style": "blur",
+    "items": [
+      {
+        "description": "1 Salmon",
+        "lineTotalCents": 2250
+      },
+      {
+        "description": "1 Mussels",
+        "lineTotalCents": 1750
+      },
+      {
+        "description": "2 White wine",
+        "lineTotalCents": 1300
+      },
+      {
+        "description": "2 Ice cream",
+        "lineTotalCents": 1100
+      }
+    ],
+    "totalCents": 6400
+  }
+]

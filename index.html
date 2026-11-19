@@ -1,33 +1,50 @@
-<!doctype html>
-<html lang="nl">
+<!DOCTYPE html>
+<html lang="nl" data-theme="system">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Bonnetje</title>
-  <meta name="description" content="Verdeel een restaurantbon eerlijk over de deelnemers.">
-  <meta name="theme-color" content="#0f766e">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f5132">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Bonnetje">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="styles.css">
-  <script>
-    try {
-      var d = JSON.parse(localStorage.getItem('bonnetje.display')) || {};
-      var r = document.documentElement;
-      if (d.theme && d.theme !== 'auto') r.dataset.theme = d.theme;
-      if (d.size) r.dataset.size = d.size;
-      if (d.contrast === true || (d.contrast == null && matchMedia('(prefers-contrast: more)').matches)) r.dataset.contrast = 'on';
-    } catch (e) {}
-  </script>
+  <meta name="apple-mobile-web-app-title" content="Bonnetje">
+  <title>Bonnetje — Samen eerlijk afrekenen</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-  <div id="app"></div>
-  <div id="toast" role="status" aria-live="polite"></div>
-  <noscript>Deze app heeft JavaScript nodig.</noscript>
-  <script type="module" src="js/app.js"></script>
+  <a href="#main-content" class="skip-link">Direct naar de inhoud</a>
+
+  <header class="app-header">
+    <div class="header-top">
+      <div>
+        <h1 id="app-title">Bonnetje</h1>
+        <p id="app-tagline" class="tagline">Samen eerlijk afrekenen</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" id="btn-undo" class="btn btn-secondary btn-sm" disabled>↩ Stap terug</button>
+        <button type="button" id="btn-settings" class="btn btn-secondary btn-sm">⚙ Instellingen &amp; privacy</button>
+      </div>
+    </div>
+
+    <nav id="stepper" class="stepper" aria-label="Stappen"></nav>
+    <div id="offline-banner" class="offline-banner" aria-live="polite"></div>
+  </header>
+
+  <main id="main-content" class="main-content" tabindex="-1"></main>
+
+  <dialog id="settings-dialog" class="modal-dialog" aria-labelledby="settings-title">
+    <div class="modal-head">
+      <h2 id="settings-title">Instellingen &amp; privacy</h2>
+      <button type="button" id="btn-close-settings" class="btn btn-secondary btn-sm">Sluiten</button>
+    </div>
+    <div id="settings-body" class="modal-body"></div>
+  </dialog>
+
+  <footer id="app-footer" class="app-footer"></footer>
+  <div id="sr-announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

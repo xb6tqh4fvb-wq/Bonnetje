@@ -1,65 +1,74 @@
-// Service worker: app werkt offline. De leesmodules (Tesseract, pdf.js, taalbestand)
-// worden na het eerste gebruik ook gecachet.
-const VERSION = 'bonnetje-v6';
-const SHELL = [
+// Bonnetje - Service Worker (v12: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
+const CACHE_NAME = 'bonnetje-v12';
+
+const APP_SHELL = [
   './',
   './index.html',
-  './styles.css',
-  './manifest.webmanifest',
+  './css/styles.css',
+  './js/assets-manifest.js',
   './js/app.js',
-  './js/calc.js',
-  './js/parse.js',
-  './js/ocr.js',
-  './js/store.js',
+  './js/calculator.js',
+  './js/gemini.js',
+  './js/local-ocr.js',
   './js/i18n.js',
-  './js/translate.js',
-  './js/settings.js',
-  './icons/icon.svg',
+  './js/dictionary.js',
+  './js/errors.js',
+  './js/parser.js',
+  './js/storage.js',
+  './js/vendor/ppu-paddle-ocr.mjs',
+  './manifest.webmanifest',
   './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
+// Punt B7 (v10): PDF.js werd pas gecachet na het eerste online pdf-gebruik; cache hem al bij de
+// installatie zodat de pdf-tekstroute daarna ook offline werkt. Apart en best-effort: als jsDelivr
+// onbereikbaar is mag de installatie van de app zelf niet mislukken.
+const PDFJS_URLS = [
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.min.mjs',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs'
+];
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      cache
+        .addAll(APP_SHELL)
+        .then(() => Promise.all(PDFJS_URLS.map((u) => cache.add(u).catch(() => null))))
+    )
   );
+  self.skipWaiting();
 });
 
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  const url = new URL(req.url);
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
 
-  if (url.origin === location.origin) {
-    // Eigen bestanden: netwerk eerst (altijd de nieuwste versie), cache als terugval.
-    e.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(VERSION).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
-    );
-  } else if (url.hostname === 'cdn.jsdelivr.net') {
-    // Versie-gepinde CDN-bestanden: cache eerst.
-    e.respondWith(
-      caches.match(req).then(
-        (hit) =>
-          hit ||
-          fetch(req).then((res) => {
-            if (res.ok) {
-              const copy = res.clone();
-              caches.open(VERSION).then((c) => c.put(req, copy));
-            }
-            return res;
-          })
-      )
-    );
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  if (url.hostname === 'generativelanguage.googleapis.com') {
+    return;
   }
+
+  event.respondWith(
+    caches.match(req, { ignoreSearch: true }).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((networkRes) => {
+        if (networkRes && (networkRes.ok || networkRes.type === 'opaque')) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return networkRes;
+      });
+    })
+  );
 });

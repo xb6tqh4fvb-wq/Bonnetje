@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "name": "Bier",
+      "qty": 2,
+      "unitPrice": 3.0,
+      "lineTotal": 6.0,
+      "uncertain": false
+    },
+    {
+      "name": "Bitterballen",
+      "qty": 1,
+      "unitPrice": 8.5,
+      "lineTotal": 8.5,
+      "uncertain": false
+    }
+  ],
+  "receiptTotal": 16.0,
+  "currency": "EUR",
+  "language": "nl"
+}

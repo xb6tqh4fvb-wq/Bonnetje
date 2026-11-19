@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "name": "Koffie",
+      "qty": 2,
+      "unitPrice": 3.2,
+      "lineTotal": 6.4,
+      "uncertain": false
+    }
+  ],
+  "receiptTotal": null,
+  "currency": "EUR",
+  "language": "nl"
+}

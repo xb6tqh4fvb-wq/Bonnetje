@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head><base href="../"><meta charset="UTF-8"><title>measure</title></head>
+<body>
+<pre id="out">running</pre>
+<script type="module">
+import { runLocalBackupOcr } from '/js/local-ocr.js';
+import { parsePlainTextReceipt } from '/js/parser.js';
+import { isLineActive } from '/js/calculator.js';
+
+const params = new URLSearchParams(location.search);
+const setDir = params.get('set');
+const route = params.get('route') || 'ocr';
+const outEl = document.getElementById('out');
+
+function scoreReceipt(rec, res) {
+  const active = (res.items || []).filter(isLineActive);
+  const used = new Set();
+  let matched = 0;
+  for (const exp of rec.items) {
+    const idx = active.findIndex((a, k) => !used.has(k) && a.lineTotalCents === exp.lineTotalCents);
+    if (idx !== -1) { used.add(idx); matched++; }
+  }
+  const falseLines = active.filter((a, k) => !used.has(k)).map((a) => `${a.description}=${a.lineTotalCents}`);
+  const sumOk = !res.totalMismatch && res.receiptTotalCents === rec.totalCents && res.matchesTotal === true;
+  return {
+    id: rec.id,
+    matched, expected: rec.items.length,
+    falseLines,
+    receiptTotal: res.receiptTotalCents, expectedTotal: rec.totalCents,
+    activeSum: res.activeSumCents,
+    sumOk,
+    closed: matched === rec.items.length && falseLines.length === 0 && sumOk
+  };
+}
+
+const rows = [];
+try {
+  const gt = await (await fetch(setDir + '/ground-truth.json')).json();
+  for (const rec of gt) {
+    let res = null, err = null;
+    const t0 = performance.now();
+    try {
+      if (route === 'ocr') {
+        let imgRes = await fetch(setDir + '/' + rec.file);
+        if (!imgRes.ok) imgRes = await fetch('/tests/' + rec.file);
+        if (!imgRes.ok) throw new Error('bonafbeelding niet gevonden: ' + rec.file);
+        const blob = await imgRes.blob();
+        const file = new File([blob], rec.id + '.png', { type: 'image/png' });
+        res = await runLocalBackupOcr(file, { onProgress: () => {} });
+      } else {
+        const lines = rec.textLines
+          ? rec.textLines.slice()
+          : rec.items.map((it) => `${it.description} ${(it.lineTotalCents / 100).toFixed(2).replace('.', ',')}`)
+              .concat([`TOTAL ${(rec.totalCents / 100).toFixed(2).replace('.', ',')}`]);
+        res = parsePlainTextReceipt(lines.join('\n'));
+      }
+      const row = scoreReceipt(rec, res);
+      row.ms = Math.round(performance.now() - t0);
+      row.rawText = route === 'ocr' ? (res.rawText || '') : undefined;
+      rows.push(row);
+    } catch (e) {
+      rows.push({ id: rec.id, error: String((e && e.message) || e), closed: false });
+    }
+  }
+} catch (e) {
+  rows.push({ fatal: String((e && e.message) || e) });
+}
+const summary = {
+  route, set: setDir,
+  receipts: rows.length,
+  closed: rows.filter((r) => r.closed).length,
+  matchedLines: rows.reduce((s, r) => s + (r.matched || 0), 0),
+  expectedLines: rows.reduce((s, r) => s + (r.expected || 0), 0),
+  falseLines: rows.reduce((s, r) => s + (r.falseLines ? r.falseLines.length : 0), 0)
+};
+window.__RESULT = { summary, rows };
+outEl.textContent = JSON.stringify(window.__RESULT, null, 1);
+document.title = 'MEASURE_DONE';
+</script>
+</body>
+</html>

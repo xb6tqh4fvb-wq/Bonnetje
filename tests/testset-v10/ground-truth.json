@@ -1,0 +1,314 @@
+[
+ {
+  "id": "v10_nl_01_telnummers",
+  "file": "v10_nl_01_telnummers.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Huiswijn rood 750 ml",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Tapbier",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Bitterballen",
+    "lineTotalCents": 850
+   }
+  ],
+  "totalCents": 3400,
+  "textLines": [
+   "GRAND CAFE DE TELEFOON",
+   "Kerkstraat 480",
+   "1011 AB Amsterdam",
+   "Tel: 020 555 0134",
+   "Bon: 1042",
+   "Tafel 123",
+   "1 Huiswijn rood 750 ml 18,50",
+   "2 Tapbier 7,00",
+   "1 Bitterballen 8,50",
+   "TOTAAL 34,00",
+   "PIN 34,00"
+  ]
+ },
+ {
+  "id": "v10_it_01_contanti",
+  "file": "v10_it_01_contanti.png",
+  "lang": "it",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Pinsa romana",
+    "lineTotalCents": 1200
+   },
+   {
+    "description": "1 Vino della casa 750 ml",
+    "lineTotalCents": 1400
+   },
+   {
+    "description": "2 Espresso",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 3100,
+  "textLines": [
+   "RISTORANTE ROMA",
+   "Via dei Fori Imperiali 1",
+   "00186 Roma",
+   "1 Pinsa romana 12,00",
+   "1 Vino della casa 750 ml 14,00",
+   "2 Espresso 5,00",
+   "TOTALE COMPLESSIVO 31,00",
+   "CONTANTI 31,00"
+  ]
+ },
+ {
+  "id": "v10_es_01_carrer",
+  "file": "v10_es_01_carrer.png",
+  "lang": "es",
+  "style": "clean",
+  "items": [
+   {
+    "description": "2 Cana",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Racion pulpo",
+    "lineTotalCents": 1400
+   },
+   {
+    "description": "1 Pan con tomate",
+    "lineTotalCents": 250
+   }
+  ],
+  "totalCents": 2150,
+  "textLines": [
+   "BAR BALMES",
+   "Carrer de Balmes 112",
+   "08008 Barcelona",
+   "Mesa 4",
+   "2 Cana 5,00",
+   "1 Racion pulpo 14,00",
+   "1 Pan con tomate 2,50",
+   "A PAGAR 21,50",
+   "EFECTIVO 21,50"
+  ]
+ },
+ {
+  "id": "v10_fr_01_roquette",
+  "file": "v10_fr_01_roquette.png",
+  "lang": "fr",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Croque monsieur",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "2 Verre de vin",
+    "lineTotalCents": 1200
+   },
+   {
+    "description": "1 Cafe creme",
+    "lineTotalCents": 350
+   }
+  ],
+  "totalCents": 2500,
+  "textLines": [
+   "CAFE ROQUETTE",
+   "Rue de la Roquette 132",
+   "75011 Paris",
+   "1 Croque monsieur 9,50",
+   "2 Verre de vin 12,00",
+   "1 Cafe creme 3,50",
+   "TOTAL A PAYER 25,00",
+   "ESPECES 25,00"
+  ]
+ },
+ {
+  "id": "v10_de_01_rechnung",
+  "file": "v10_de_01_rechnung.png",
+  "lang": "de",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Schnitzel 250 g",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Bier 500 ml",
+    "lineTotalCents": 900
+   },
+   {
+    "description": "1 Apfelstrudel",
+    "lineTotalCents": 650
+   }
+  ],
+  "totalCents": 3400,
+  "textLines": [
+   "GASTHAUS ZUM FON",
+   "Hauptstrasse 48",
+   "10115 Berlin",
+   "Tel 030 555 7788",
+   "Rechnung 450",
+   "1 Schnitzel 250 g 18,50",
+   "2 Bier 500 ml 9,00",
+   "1 Apfelstrudel 6,50",
+   "SUMME 34,00",
+   "BAR BEZAHLT 34,00"
+  ]
+ },
+ {
+  "id": "v10_en_01_check",
+  "file": "v10_en_01_check.png",
+  "lang": "en",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Burger",
+    "lineTotalCents": 1500
+   },
+   {
+    "description": "1 Fries",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "2 Iced Tea",
+    "lineTotalCents": 700
+   }
+  ],
+  "totalCents": 2700,
+  "textLines": [
+   "THE CHECKERED PUB",
+   "48 Church Street",
+   "Austin TX 78701",
+   "Tel 512 555 0199",
+   "Check 2211",
+   "1 Burger 15.00",
+   "1 Fries 5.00",
+   "2 Iced Tea 7.00",
+   "AMOUNT DUE 27.00",
+   "CASH 27.00"
+  ]
+ },
+ {
+  "id": "v10_nl_02_scheef_kassabon",
+  "file": "v10_nl_02_scheef_kassabon.png",
+  "lang": "nl",
+  "style": "skewed",
+  "items": [
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 460
+   },
+   {
+    "description": "1 Tosti",
+    "lineTotalCents": 460
+   },
+   {
+    "description": "1 Soep 250 ml",
+    "lineTotalCents": 550
+   }
+  ],
+  "totalCents": 1470,
+  "textLines": [
+   "LUNCHROOM SCHEEF",
+   "Hoofdweg 221",
+   "1056 GE Amsterdam",
+   "Kassabon nr 2026",
+   "2 Koffie 4,60",
+   "1 Tosti 4,60",
+   "1 Soep 250 ml 5,50",
+   "TOTAAL 14,70",
+   "PIN 14,70"
+  ]
+ },
+ {
+  "id": "v10_nl_03_streepjes",
+  "file": "v10_nl_03_streepjes.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Koffie",
+    "lineTotalCents": 460
+   },
+   {
+    "description": "1 Thee",
+    "lineTotalCents": 340
+   }
+  ],
+  "totalCents": 800,
+  "textLines": [
+   "CAFE STREEPJE",
+   "Plein 12",
+   "1 Koffie 4,60-",
+   "1 Thee 3,40-",
+   "TOTAAL 8,00",
+   "CONTANT 8,00"
+  ]
+ },
+ {
+  "id": "v10_it_02_scheef_fuzzy",
+  "file": "v10_it_02_scheef_fuzzy.png",
+  "lang": "it",
+  "style": "skewed8",
+  "items": [
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Cornetto",
+    "lineTotalCents": 220
+   },
+   {
+    "description": "1 Spremuta",
+    "lineTotalCents": 480
+   }
+  ],
+  "totalCents": 1200,
+  "textLines": [
+   "BAR CENTRALE",
+   "Piazza del Duomo 3",
+   "20121 Milano",
+   "2 Cappuccino 5,00",
+   "1 Cornetto 2,20",
+   "1 Spremuta 4,80",
+   "TOTALE 12,00",
+   "CONTANTE 12,00"
+  ]
+ },
+ {
+  "id": "v10_nl_04_onscherp_gewicht",
+  "file": "v10_nl_04_onscherp_gewicht.png",
+  "lang": "nl",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "1 Kipsate 200 g",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "1 Verse muntthee 33 cl",
+    "lineTotalCents": 350
+   },
+   {
+    "description": "2 Kaasblokjes 250 stuks",
+    "lineTotalCents": 1200
+   }
+  ],
+  "totalCents": 2500,
+  "textLines": [
+   "EETCAFE GEWICHT",
+   "Markt 8",
+   "1 Kipsate 200 g 9,50",
+   "1 Verse muntthee 33 cl 3,50",
+   "2 Kaasblokjes 250 stuks 12,00",
+   "TOTAAL 25,00",
+   "MASTERCARD 25,00"
+  ]
+ }
+]

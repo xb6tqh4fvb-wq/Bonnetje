@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bonnetje — Meetpagina Gemini &amp; lokale backup (15 proefbonnen)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border: 1px solid #ccc; padding: 0.45rem; text-align: left; }
+    th { background: #f0f3f1; }
+    input, button { min-height: 44px; padding: 0.5rem 0.85rem; font-size: 1rem; }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Bonnetje — Meetpagina (Gemini + lokale backup ppu-paddle-ocr)</h1>
+  <p>Meet de twee echte routes van de app op de 15 synthetische proefbonnen in <code>tests/testset/</code>: (1) <strong>Gemini</strong> (met je eigen sleutel, alleen in deze sessie) en (2) <strong>Lokale backup</strong> (<code>ppu-paddle-ocr</code> met zelf-gehost <code>PP-OCRv6_tiny</code>). Echte telefoonfoto's van vervaagd thermisch papier worden hiermee niet gemeten.</p>
+  <div class="row">
+    <input type="password" id="api-key" placeholder="Eigen gratis Gemini API-sleutel (alleen voor Gemini-meting)" style="flex:1; min-width:240px;">
+    <input type="text" id="model" value="gemini-2.5-flash" style="width:180px;">
+    <button id="btn-gemini">1. Meet Gemini (15 bonnen)</button>
+    <button id="btn-local">2. Meet lokale backup (15 bonnen)</button>
+    <button id="btn-paste">3. Meet plakvak (15 bonnen / 59 regels)</button>
+  </div>
+  <p id="status">Klaar om te starten.</p>
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Route</th>
+        <th>Bon</th>
+        <th>Taal</th>
+        <th>Verwacht totaal</th>
+        <th>Gevonden totaal</th>
+        <th>Actieve regelsom</th>
+        <th>Exact goede regels</th>
+        <th>Regelsom klopt</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { scanReceiptWithGemini } from '../js/gemini.js';
+    import { runLocalBackupOcr } from '../js/local-ocr.js';
+    import { parsePlainTextReceipt } from '../js/parser.js';
+    import { formatCentsNL, isLineActive } from '../js/calculator.js';
+
+    const status = document.getElementById('status');
+    const tbody = document.querySelector('#table tbody');
+
+    async function runSuite(route) {
+      const key = document.getElementById('api-key').value.trim();
+      const model = document.getElementById('model').value.trim() || 'gemini-2.5-flash';
+      if (route === 'gemini' && !key) {
+        status.textContent = 'Vul eerst je eigen Gemini API-sleutel in.';
+        return;
+      }
+
+      const gt = await (await fetch('./testset/ground-truth.json')).json();
+      let totalLines = 0, exactLines = 0, exactTotals = 0;
+
+      for (let i = 0; i < gt.length; i++) {
+        const rec = gt[i];
+        status.textContent = `[${route}] Bon ${i + 1}/${gt.length}: ${rec.id}…`;
+        try {
+          const blob = await (await fetch('./' + rec.file)).blob();
+          const file = new File([blob], rec.id + '.png', { type: 'image/png' });
+          let res;
+          if (route === 'gemini') {
+            res = await scanReceiptWithGemini(file, key, { model, countQuota: false });
+          } else if (route === 'local') {
+            res = await runLocalBackupOcr(file);
+          } else {
+            const lines = rec.items.map((it) => `${it.description} ${(it.lineTotalCents / 100).toFixed(2).replace('.', ',')}`);
+            lines.push(`TOTAL ${(rec.totalCents / 100).toFixed(2).replace('.', ',')}`);
+            res = parsePlainTextReceipt(lines.join('\n'));
+          }
+
+          const active = res.items.filter(isLineActive);
+          totalLines += rec.items.length;
+          let matched = 0;
+          const used = new Set();
+          for (const exp of rec.items) {
+            const idx = active.findIndex((a, k) => !used.has(k) && a.lineTotalCents === exp.lineTotalCents);
+            if (idx !== -1) { used.add(idx); matched++; }
+          }
+          exactLines += matched;
+          const sumOk = !res.totalMismatch && res.receiptTotalCents === rec.totalCents && res.activeSumCents === rec.totalCents;
+          if (sumOk) exactTotals++;
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${route}</td><td>${rec.id}</td><td>${rec.lang}</td><td>${formatCentsNL(rec.totalCents)}</td><td>${res.receiptTotalCents !== null ? formatCentsNL(res.receiptTotalCents) : 'Niet gevonden'}</td><td>${formatCentsNL(res.activeSumCents)}</td><td>${matched}/${rec.items.length}</td><td>${sumOk ? 'Ja' : 'Nee'}</td>`;
+          tbody.appendChild(tr);
+        } catch (err) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${route}</td><td>${rec.id}</td><td>${rec.lang}</td><td>${formatCentsNL(rec.totalCents)}</td><td colspan="4">Fout: ${err.message}</td>`;
+          tbody.appendChild(tr);
+        }
+      }
+      status.textContent = `[${route}] Klaar. Regels exact: ${exactLines}/${totalLines}. Sluitende totalen: ${exactTotals}/${gt.length}.`;
+    }
+
+    document.getElementById('btn-gemini').addEventListener('click', () => runSuite('gemini'));
+    document.getElementById('btn-local').addEventListener('click', () => runSuite('local'));
+    document.getElementById('btn-paste').addEventListener('click', () => runSuite('paste'));
+  </script>
+</body>
+</html>

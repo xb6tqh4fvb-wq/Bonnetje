@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "name": "Patatas bravas",
+      "qty": 1,
+      "unitPrice": "6，50",
+      "lineTotal": "6，50",
+      "uncertain": false
+    },
+    {
+      "name": "Descuento",
+      "qty": 1,
+      "unitPrice": "1，50",
+      "lineTotal": "1，50",
+      "uncertain": false
+    }
+  ],
+  "receiptTotal": "5，00",
+  "currency": "EUR",
+  "language": "es"
+}

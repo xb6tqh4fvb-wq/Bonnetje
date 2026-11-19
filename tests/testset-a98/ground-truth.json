@@ -1,0 +1,742 @@
+[
+ {
+  "id": "a_nl_01_netjes",
+  "file": "a_nl_01_netjes.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Sate met friet",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 640
+   },
+   {
+    "description": "1 Bitterballen",
+    "lineTotalCents": 850
+   },
+   {
+    "description": "2 Witte wijn",
+    "lineTotalCents": 1100
+   },
+   {
+    "description": "1 Tosti ham kaas",
+    "lineTotalCents": 675
+   },
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Nachos grande",
+    "lineTotalCents": 950
+   }
+  ],
+  "totalCents": 6765,
+  "textLines": [
+   "RESTAURANT DE SMAK",
+   "Herengracht 123",
+   "1016 BG Amsterdam",
+   "1 Sate met friet 18,50",
+   "2 Koffie 6,40",
+   "1 Bitterballen 8,50",
+   "2 Witte wijn 11,00",
+   "1 Tosti ham kaas 6,75",
+   "2 Cappuccino 7,00",
+   "1 Nachos grande 9,50",
+   "BTW 9% 5,59",
+   "TOTAAL 67,65",
+   "PIN 67,65"
+  ]
+ },
+ {
+  "id": "a_nl_02_scheef",
+  "file": "a_nl_02_scheef.png",
+  "lang": "nl",
+  "style": "skewed",
+  "items": [
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 640
+   },
+   {
+    "description": "1 Bitterballen",
+    "lineTotalCents": 850
+   },
+   {
+    "description": "1 Fles rode wijn",
+    "lineTotalCents": 2400
+   },
+   {
+    "description": "1 Tosti ham kaas",
+    "lineTotalCents": 675
+   },
+   {
+    "description": "1 Soep van de dag",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "1 Sate met friet",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "1 Salade geitenkaas",
+    "lineTotalCents": 1650
+   }
+  ],
+  "totalCents": 8715,
+  "textLines": [
+   "RESTAURANT DE SMAK",
+   "Herengracht 123",
+   "1016 BG Amsterdam",
+   "2 Koffie 6,40",
+   "1 Bitterballen 8,50",
+   "1 Fles rode wijn 24,00",
+   "1 Tosti ham kaas 6,75",
+   "1 Soep van de dag 6,50",
+   "1 Sate met friet 18,50",
+   "1 Salade geitenkaas 16,50",
+   "BTW 9% 7,20",
+   "TOTAAL 87,15",
+   "PIN 87,15"
+  ]
+ },
+ {
+  "id": "a_nl_03_laagcontrast",
+  "file": "a_nl_03_laagcontrast.png",
+  "lang": "nl",
+  "style": "lowcontrast",
+  "items": [
+   {
+    "description": "1 Salade geitenkaas",
+    "lineTotalCents": 1650
+   },
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "2 Tapbier",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Bitterballen",
+    "lineTotalCents": 850
+   },
+   {
+    "description": "3 Spa rood",
+    "lineTotalCents": 975
+   },
+   {
+    "description": "1 Fles rode wijn",
+    "lineTotalCents": 2400
+   }
+  ],
+  "totalCents": 7275,
+  "textLines": [
+   "RESTAURANT DE SMAK",
+   "Herengracht 123",
+   "1016 BG Amsterdam",
+   "1 Salade geitenkaas 16,50",
+   "2 Cappuccino 7,00",
+   "2 Tapbier 7,00",
+   "1 Bitterballen 8,50",
+   "3 Spa rood 9,75",
+   "1 Fles rode wijn 24,00",
+   "BTW 9% 6,01",
+   "TOTAAL 72,75",
+   "PIN 72,75"
+  ]
+ },
+ {
+  "id": "a_nl_04_ruis",
+  "file": "a_nl_04_ruis.png",
+  "lang": "nl",
+  "style": "noise",
+  "items": [
+   {
+    "description": "2 Tapbier",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Fles rode wijn",
+    "lineTotalCents": 2400
+   },
+   {
+    "description": "3 Spa rood",
+    "lineTotalCents": 975
+   },
+   {
+    "description": "1 Salade geitenkaas",
+    "lineTotalCents": 1650
+   },
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 640
+   },
+   {
+    "description": "1 Appeltaart",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 700
+   }
+  ],
+  "totalCents": 7515,
+  "textLines": [
+   "RESTAURANT DE SMAK",
+   "Herengracht 123",
+   "1016 BG Amsterdam",
+   "2 Tapbier 7,00",
+   "1 Fles rode wijn 24,00",
+   "3 Spa rood 9,75",
+   "1 Salade geitenkaas 16,50",
+   "2 Koffie 6,40",
+   "1 Appeltaart 4,50",
+   "2 Cappuccino 7,00",
+   "BTW 9% 6,21",
+   "TOTAAL 75,15",
+   "PIN 75,15"
+  ]
+ },
+ {
+  "id": "a_nl_05_onscherp",
+  "file": "a_nl_05_onscherp.png",
+  "lang": "nl",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "2 Witte wijn",
+    "lineTotalCents": 1100
+   },
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 640
+   },
+   {
+    "description": "1 Nachos grande",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Fles rode wijn",
+    "lineTotalCents": 2400
+   },
+   {
+    "description": "2 Biefstuk",
+    "lineTotalCents": 4900
+   }
+  ],
+  "totalCents": 10690,
+  "textLines": [
+   "RESTAURANT DE SMAK",
+   "Herengracht 123",
+   "1016 BG Amsterdam",
+   "2 Witte wijn 11,00",
+   "2 Koffie 6,40",
+   "1 Nachos grande 9,50",
+   "2 Cappuccino 7,00",
+   "1 Fles rode wijn 24,00",
+   "2 Biefstuk 49,00",
+   "BTW 9% 8,83",
+   "TOTAAL 106,90",
+   "PIN 106,90"
+  ]
+ },
+ {
+  "id": "a_en_01_netjes",
+  "file": "a_en_01_netjes.png",
+  "lang": "en",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Onion Rings",
+    "lineTotalCents": 525
+   },
+   {
+    "description": "1 Sticky Toffee Pudding",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "1 Pint Ale",
+    "lineTotalCents": 520
+   },
+   {
+    "description": "1 Garlic Bread",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "1 Club Sandwich",
+    "lineTotalCents": 975
+   },
+   {
+    "description": "1 Soup of the Day",
+    "lineTotalCents": 625
+   },
+   {
+    "description": "2 Lemonade",
+    "lineTotalCents": 600
+   }
+  ],
+  "totalCents": 4345,
+  "textLines": [
+   "THE OLD TAVERN",
+   "12 Church Lane",
+   "York YO1 7AB",
+   "1 Onion Rings 5.25",
+   "1 Sticky Toffee Pudding 6.50",
+   "1 Pint Ale 5.20",
+   "1 Garlic Bread 4.50",
+   "1 Club Sandwich 9.75",
+   "1 Soup of the Day 6.25",
+   "2 Lemonade 6.00",
+   "TOTAL 43.45",
+   "CARD 43.45"
+  ]
+ },
+ {
+  "id": "a_en_02_scheef",
+  "file": "a_en_02_scheef.png",
+  "lang": "en",
+  "style": "skewed8",
+  "items": [
+   {
+    "description": "2 Lemonade",
+    "lineTotalCents": 600
+   },
+   {
+    "description": "1 Steak Pie",
+    "lineTotalCents": 1350
+   },
+   {
+    "description": "1 Burger",
+    "lineTotalCents": 1500
+   },
+   {
+    "description": "1 Garlic Bread",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "2 Coffee",
+    "lineTotalCents": 640
+   },
+   {
+    "description": "1 Pint Ale",
+    "lineTotalCents": 520
+   }
+  ],
+  "totalCents": 5060,
+  "textLines": [
+   "THE OLD TAVERN",
+   "12 Church Lane",
+   "York YO1 7AB",
+   "2 Lemonade 6.00",
+   "1 Steak Pie 13.50",
+   "1 Burger 15.00",
+   "1 Garlic Bread 4.50",
+   "2 Coffee 6.40",
+   "1 Pint Ale 5.20",
+   "TOTAL 50.60",
+   "CARD 50.60"
+  ]
+ },
+ {
+  "id": "a_en_03_laagcontrast",
+  "file": "a_en_03_laagcontrast.png",
+  "lang": "en",
+  "style": "lowcontrast",
+  "items": [
+   {
+    "description": "1 Steak Pie",
+    "lineTotalCents": 1350
+   },
+   {
+    "description": "1 Sticky Toffee Pudding",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "1 Cheesecake",
+    "lineTotalCents": 695
+   },
+   {
+    "description": "1 House Wine",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "2 Lemonade",
+    "lineTotalCents": 600
+   },
+   {
+    "description": "1 Fries",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "2 Fish & Chips",
+    "lineTotalCents": 2590
+   }
+  ],
+  "totalCents": 7085,
+  "textLines": [
+   "THE OLD TAVERN",
+   "12 Church Lane",
+   "York YO1 7AB",
+   "1 Steak Pie 13.50",
+   "1 Sticky Toffee Pudding 6.50",
+   "1 Cheesecake 6.95",
+   "1 House Wine 7.00",
+   "2 Lemonade 6.00",
+   "1 Fries 5.00",
+   "2 Fish & Chips 25.90",
+   "TOTAL 70.85",
+   "CARD 70.85"
+  ]
+ },
+ {
+  "id": "a_en_04_ruis",
+  "file": "a_en_04_ruis.png",
+  "lang": "en",
+  "style": "noise",
+  "items": [
+   {
+    "description": "2 Fish & Chips",
+    "lineTotalCents": 2590
+   },
+   {
+    "description": "1 Pint Ale",
+    "lineTotalCents": 520
+   },
+   {
+    "description": "1 Sticky Toffee Pudding",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "1 Steak Pie",
+    "lineTotalCents": 1350
+   },
+   {
+    "description": "2 Caesar Salad",
+    "lineTotalCents": 1900
+   },
+   {
+    "description": "1 Club Sandwich",
+    "lineTotalCents": 975
+   }
+  ],
+  "totalCents": 7985,
+  "textLines": [
+   "THE OLD TAVERN",
+   "12 Church Lane",
+   "York YO1 7AB",
+   "2 Fish & Chips 25.90",
+   "1 Pint Ale 5.20",
+   "1 Sticky Toffee Pudding 6.50",
+   "1 Steak Pie 13.50",
+   "2 Caesar Salad 19.00",
+   "1 Club Sandwich 9.75",
+   "TOTAL 79.85",
+   "CARD 79.85"
+  ]
+ },
+ {
+  "id": "a_en_05_onscherp",
+  "file": "a_en_05_onscherp.png",
+  "lang": "en",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "1 Pint Ale",
+    "lineTotalCents": 520
+   },
+   {
+    "description": "1 Steak Pie",
+    "lineTotalCents": 1350
+   },
+   {
+    "description": "1 Soup of the Day",
+    "lineTotalCents": 625
+   },
+   {
+    "description": "2 Caesar Salad",
+    "lineTotalCents": 1900
+   },
+   {
+    "description": "1 Burger",
+    "lineTotalCents": 1500
+   },
+   {
+    "description": "1 Cheesecake",
+    "lineTotalCents": 695
+   },
+   {
+    "description": "1 Fries",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 7090,
+  "textLines": [
+   "THE OLD TAVERN",
+   "12 Church Lane",
+   "York YO1 7AB",
+   "1 Pint Ale 5.20",
+   "1 Steak Pie 13.50",
+   "1 Soup of the Day 6.25",
+   "2 Caesar Salad 19.00",
+   "1 Burger 15.00",
+   "1 Cheesecake 6.95",
+   "1 Fries 5.00",
+   "TOTAL 70.90",
+   "CARD 70.90"
+  ]
+ },
+ {
+  "id": "a_es_01_netjes",
+  "file": "a_es_01_netjes.png",
+  "lang": "es",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Croquetas",
+    "lineTotalCents": 750
+   },
+   {
+    "description": "2 Cana",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Menu del dia",
+    "lineTotalCents": 1250
+   },
+   {
+    "description": "1 Ensalada mixta",
+    "lineTotalCents": 850
+   },
+   {
+    "description": "1 Jamon iberico",
+    "lineTotalCents": 1600
+   },
+   {
+    "description": "1 Flan",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "2 Cafe con leche",
+    "lineTotalCents": 460
+   }
+  ],
+  "totalCents": 5860,
+  "textLines": [
+   "CASA PEPE",
+   "Calle Granada 8",
+   "18002 Granada",
+   "1 Croquetas 7,50",
+   "2 Cana 5,00",
+   "1 Menu del dia 12,50",
+   "1 Ensalada mixta 8,50",
+   "1 Jamon iberico 16,00",
+   "1 Flan 4,50",
+   "2 Cafe con leche 4,60",
+   "IVA 10% 5,33",
+   "TOTAL 58,60",
+   "TARJETA 58,60"
+  ]
+ },
+ {
+  "id": "a_es_02_scheef",
+  "file": "a_es_02_scheef.png",
+  "lang": "es",
+  "style": "skewed",
+  "items": [
+   {
+    "description": "1 Gambas al ajillo",
+    "lineTotalCents": 1150
+   },
+   {
+    "description": "1 Tarta de queso",
+    "lineTotalCents": 550
+   },
+   {
+    "description": "1 Pan y alioli",
+    "lineTotalCents": 250
+   },
+   {
+    "description": "2 Vino tinto",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Jamon iberico",
+    "lineTotalCents": 1600
+   },
+   {
+    "description": "2 Cafe con leche",
+    "lineTotalCents": 460
+   }
+  ],
+  "totalCents": 4710,
+  "textLines": [
+   "CASA PEPE",
+   "Calle Granada 8",
+   "18002 Granada",
+   "1 Gambas al ajillo 11,50",
+   "1 Tarta de queso 5,50",
+   "1 Pan y alioli 2,50",
+   "2 Vino tinto 7,00",
+   "1 Jamon iberico 16,00",
+   "2 Cafe con leche 4,60",
+   "IVA 10% 4,28",
+   "TOTAL 47,10",
+   "TARJETA 47,10"
+  ]
+ },
+ {
+  "id": "a_es_03_laagcontrast",
+  "file": "a_es_03_laagcontrast.png",
+  "lang": "es",
+  "style": "lowcontrast",
+  "items": [
+   {
+    "description": "2 Agua con gas",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Menu del dia",
+    "lineTotalCents": 1250
+   },
+   {
+    "description": "1 Pan y alioli",
+    "lineTotalCents": 250
+   },
+   {
+    "description": "1 Tarta de queso",
+    "lineTotalCents": 550
+   },
+   {
+    "description": "1 Flan",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "1 Gambas al ajillo",
+    "lineTotalCents": 1150
+   },
+   {
+    "description": "2 Cafe con leche",
+    "lineTotalCents": 460
+   }
+  ],
+  "totalCents": 4610,
+  "textLines": [
+   "CASA PEPE",
+   "Calle Granada 8",
+   "18002 Granada",
+   "2 Agua con gas 5,00",
+   "1 Menu del dia 12,50",
+   "1 Pan y alioli 2,50",
+   "1 Tarta de queso 5,50",
+   "1 Flan 4,50",
+   "1 Gambas al ajillo 11,50",
+   "2 Cafe con leche 4,60",
+   "IVA 10% 4,19",
+   "TOTAL 46,10",
+   "TARJETA 46,10"
+  ]
+ },
+ {
+  "id": "a_es_04_ruis",
+  "file": "a_es_04_ruis.png",
+  "lang": "es",
+  "style": "noise",
+  "items": [
+   {
+    "description": "1 Pan y alioli",
+    "lineTotalCents": 250
+   },
+   {
+    "description": "1 Tortilla",
+    "lineTotalCents": 800
+   },
+   {
+    "description": "2 Vino tinto",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Croquetas",
+    "lineTotalCents": 750
+   },
+   {
+    "description": "1 Tarta de queso",
+    "lineTotalCents": 550
+   },
+   {
+    "description": "1 Jamon iberico",
+    "lineTotalCents": 1600
+   }
+  ],
+  "totalCents": 4650,
+  "textLines": [
+   "CASA PEPE",
+   "Calle Granada 8",
+   "18002 Granada",
+   "1 Pan y alioli 2,50",
+   "1 Tortilla 8,00",
+   "2 Vino tinto 7,00",
+   "1 Croquetas 7,50",
+   "1 Tarta de queso 5,50",
+   "1 Jamon iberico 16,00",
+   "IVA 10% 4,23",
+   "TOTAL 46,50",
+   "TARJETA 46,50"
+  ]
+ },
+ {
+  "id": "a_es_05_onscherp",
+  "file": "a_es_05_onscherp.png",
+  "lang": "es",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "1 Patatas bravas",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "1 Flan",
+    "lineTotalCents": 450
+   },
+   {
+    "description": "1 Tortilla",
+    "lineTotalCents": 800
+   },
+   {
+    "description": "2 Vino tinto",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Menu del dia",
+    "lineTotalCents": 1250
+   },
+   {
+    "description": "2 Agua con gas",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 4350,
+  "textLines": [
+   "CASA PEPE",
+   "Calle Granada 8",
+   "18002 Granada",
+   "1 Patatas bravas 6,50",
+   "1 Flan 4,50",
+   "1 Tortilla 8,00",
+   "2 Vino tinto 7,00",
+   "1 Menu del dia 12,50",
+   "2 Agua con gas 5,00",
+   "IVA 10% 3,95",
+   "TOTAL 43,50",
+   "TARJETA 43,50"
+  ]
+ }
+]

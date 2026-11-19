@@ -1,0 +1,338 @@
+[
+ {
+  "id": "v9_nl_01_netjes",
+  "file": "v9_nl_01_netjes.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "2 Tapbier",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Bitterballen",
+    "lineTotalCents": 850
+   },
+   {
+    "description": "1 Sate met friet",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 640
+   }
+  ],
+  "totalCents": 4040,
+  "textLines": [
+   "CAFE DE KERK",
+   "Kerkstraat 480",
+   "1011 AB Amsterdam",
+   "Tel: 020-1234567",
+   "2 Tapbier 7,00",
+   "1 Bitterballen 8,50",
+   "1 Sate met friet 18,50",
+   "2 Koffie 6,40",
+   "BTW 9% 2,72",
+   "TOTAAL 40,40",
+   "PIN 40,40"
+  ]
+ },
+ {
+  "id": "v9_nl_02_scheef",
+  "file": "v9_nl_02_scheef.png",
+  "lang": "nl",
+  "style": "skewed",
+  "items": [
+   {
+    "description": "1 Fles rode wijn",
+    "lineTotalCents": 2400
+   },
+   {
+    "description": "2 Biefstuk",
+    "lineTotalCents": 4900
+   },
+   {
+    "description": "1 Salade geitenkaas",
+    "lineTotalCents": 1650
+   },
+   {
+    "description": "3 Spa rood",
+    "lineTotalCents": 975
+   }
+  ],
+  "totalCents": 9925,
+  "textLines": [
+   "RESTAURANT DE POSTHOORN",
+   "Stationsplein 12",
+   "3511 ED Utrecht",
+   "1 Fles rode wijn 24,00",
+   "2 Biefstuk 49,00",
+   "1 Salade geitenkaas 16,50",
+   "3 Spa rood 9,75",
+   "TOTAAL 99,25",
+   "PIN 99,25"
+  ]
+ },
+ {
+  "id": "v9_nl_03_twee_btw",
+  "file": "v9_nl_03_twee_btw.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "2 Broodje bal",
+    "lineTotalCents": 900
+   },
+   {
+    "description": "1 Soep van de dag",
+    "lineTotalCents": 650
+   },
+   {
+    "description": "2 Witte wijn",
+    "lineTotalCents": 1100
+   }
+  ],
+  "totalCents": 2650,
+  "textLines": [
+   "EETCAFE DE BRUG",
+   "Brugstraat 7A",
+   "6211 LM Maastricht",
+   "2 Broodje bal 9,00",
+   "1 Soep van de dag 6,50",
+   "2 Witte wijn 11,00",
+   "BTW 9% over 15,50 1,28",
+   "BTW 21% over 11,00 1,91",
+   "TOTAAL 26,50",
+   "PIN 26,50"
+  ]
+ },
+ {
+  "id": "v9_en_01_netjes",
+  "file": "v9_en_01_netjes.png",
+  "lang": "en",
+  "style": "clean",
+  "items": [
+   {
+    "description": "2 Fish & Chips",
+    "lineTotalCents": 2590
+   },
+   {
+    "description": "1 Pint Ale",
+    "lineTotalCents": 520
+   },
+   {
+    "description": "1 Sticky Toffee Pudding",
+    "lineTotalCents": 650
+   }
+  ],
+  "totalCents": 3760,
+  "textLines": [
+   "THE CROWN INN",
+   "48 High Street",
+   "Oxford OX1 4AS",
+   "2 Fish & Chips 25.90",
+   "1 Pint Ale 5.20",
+   "1 Sticky Toffee Pudding 6.50",
+   "TOTAL 37.60",
+   "CARD 37.60"
+  ]
+ },
+ {
+  "id": "v9_en_02_us_zip",
+  "file": "v9_en_02_us_zip.png",
+  "lang": "en",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Burger",
+    "lineTotalCents": 1500
+   },
+   {
+    "description": "1 Fries",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 2165,
+  "textLines": [
+   "JOE'S DINER",
+   "123 Main Street",
+   "AUSTIN TX 78701",
+   "1 Burger 15.00",
+   "1 Fries 5.00",
+   "Subtotal 20.00",
+   "Sales tax 8.25% 1.65",
+   "TOTAL 21.65",
+   "VISA 21.65"
+  ]
+ },
+ {
+  "id": "v9_de_01_netjes",
+  "file": "v9_de_01_netjes.png",
+  "lang": "de",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Schnitzel Wiener Art",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Bier vom Fass",
+    "lineTotalCents": 900
+   },
+   {
+    "description": "1 Apfelstrudel",
+    "lineTotalCents": 650
+   }
+  ],
+  "totalCents": 3400,
+  "textLines": [
+   "GASTHAUS ADLER",
+   "Hauptstr. 48",
+   "10115 Berlin",
+   "1 Schnitzel Wiener Art 18,50",
+   "2 Bier vom Fass 9,00",
+   "1 Apfelstrudel 6,50",
+   "MwSt 19% 5,43",
+   "SUMME 34,00",
+   "KARTE 34,00"
+  ]
+ },
+ {
+  "id": "v9_fr_01_laagcontrast",
+  "file": "v9_fr_01_laagcontrast.png",
+  "lang": "fr",
+  "style": "lowcontrast",
+  "items": [
+   {
+    "description": "1 Croque monsieur",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "2 Verre de vin",
+    "lineTotalCents": 1200
+   },
+   {
+    "description": "1 Cafe creme",
+    "lineTotalCents": 350
+   }
+  ],
+  "totalCents": 2500,
+  "textLines": [
+   "BISTROT DU COIN",
+   "12 rue de la Paix",
+   "75002 Paris",
+   "1 Croque monsieur 9,50",
+   "2 Verre de vin 12,00",
+   "1 Cafe creme 3,50",
+   "TVA 20% 4,17",
+   "TOTAL 25,00",
+   "CARTE 25,00"
+  ]
+ },
+ {
+  "id": "v9_es_01_ruis",
+  "file": "v9_es_01_ruis.png",
+  "lang": "es",
+  "style": "noise",
+  "items": [
+   {
+    "description": "2 Cana",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Racion pulpo",
+    "lineTotalCents": 1400
+   },
+   {
+    "description": "1 Pan y alioli",
+    "lineTotalCents": 250
+   }
+  ],
+  "totalCents": 2150,
+  "textLines": [
+   "BAR MANOLO",
+   "Calle Mayor 25",
+   "28013 Madrid",
+   "2 Cana 5,00",
+   "1 Racion pulpo 14,00",
+   "1 Pan y alioli 2,50",
+   "IVA 10% 1,95",
+   "TOTAL 21,50",
+   "TARJETA 21,50"
+  ]
+ },
+ {
+  "id": "v9_it_01_onscherp",
+  "file": "v9_it_01_onscherp.png",
+  "lang": "it",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "1 Pinsa romana",
+    "lineTotalCents": 1200
+   },
+   {
+    "description": "1 Vino della casa",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "2 Espresso",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 2400,
+  "textLines": [
+   "TRATTORIA DA LUIGI",
+   "Via Roma 10",
+   "20121 Milano",
+   "1 Pinsa romana 12,00",
+   "1 Vino della casa 7,00",
+   "2 Espresso 5,00",
+   "TOTALE 24,00",
+   "CONTACTLESS 24,00"
+  ]
+ },
+ {
+  "id": "v9_nl_04_groot_scheef",
+  "file": "v9_nl_04_groot_scheef.png",
+  "lang": "nl",
+  "style": "skewed8",
+  "items": [
+   {
+    "description": "3 Tapbier",
+    "lineTotalCents": 1125
+   },
+   {
+    "description": "1 Nachos grande",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "2 Cappuccino",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Tosti ham kaas",
+    "lineTotalCents": 675
+   },
+   {
+    "description": "1 Appeltaart",
+    "lineTotalCents": 450
+   }
+  ],
+  "totalCents": 3900,
+  "textLines": [
+   "GRAND CAFE CENTRAL",
+   "Damrak 70",
+   "1012 LM Amsterdam",
+   "KvK 12345678",
+   "3 Tapbier 11,25",
+   "1 Nachos grande 9,50",
+   "2 Cappuccino 7,00",
+   "1 Tosti ham kaas 6,75",
+   "1 Appeltaart 4,50",
+   "BTW 9% 3,22",
+   "TOTAAL 39,00",
+   "PIN 39,00"
+  ]
+ }
+]

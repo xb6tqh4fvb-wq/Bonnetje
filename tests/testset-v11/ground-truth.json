@@ -1,0 +1,311 @@
+[
+ {
+  "id": "v11_nl_01_est_fooi",
+  "file": "v11_nl_01_est_fooi.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Chocolade bar",
+    "lineTotalCents": 350
+   },
+   {
+    "description": "2 Koffie",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Lunch van de dag",
+    "lineTotalCents": 1250
+   }
+  ],
+  "totalCents": 2300,
+  "textLines": [
+   "EETCAFE OUD GLORIE",
+   "Est. 1998",
+   "Kerkstraat 480 A",
+   "1011 AB Amsterdam",
+   "1 Chocolade bar 3,50",
+   "2 Koffie 5,00",
+   "1 Lunch van de dag 12,50",
+   "Fooi 2,00",
+   "Rekening 23,00",
+   "Tikkie 23,00"
+  ]
+ },
+ {
+  "id": "v11_be_01_busletter",
+  "file": "v11_be_01_busletter.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Waterzooi",
+    "lineTotalCents": 1950
+   },
+   {
+    "description": "2 Witte wijn",
+    "lineTotalCents": 1100
+   }
+  ],
+  "totalCents": 3050,
+  "textLines": [
+   "BRASSERIE LOUISE",
+   "Avenue Louise 221 B",
+   "1050 Brussel",
+   "1 Waterzooi 19,50",
+   "2 Witte wijn 11,00",
+   "Rekening 30,50",
+   "MAESTRO 30,50"
+  ]
+ },
+ {
+  "id": "v11_nl_02_bedragsvormen",
+  "file": "v11_nl_02_bedragsvormen.png",
+  "lang": "nl",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Pils",
+    "lineTotalCents": 600
+   },
+   {
+    "description": "1 Koffie",
+    "lineTotalCents": 250
+   },
+   {
+    "description": "1 Cola 0,33",
+    "lineTotalCents": 330
+   }
+  ],
+  "totalCents": 1180,
+  "textLines": [
+   "CAFE KORT NOTITIE",
+   "Plein 4",
+   "1 Pils 6,-",
+   "1 Koffie 2,5",
+   "1 Cola 0,33 3,30",
+   "TOTAAL 11,80",
+   "PIN 11,80"
+  ]
+ },
+ {
+  "id": "v11_es_01_bar_tapas",
+  "file": "v11_es_01_bar_tapas.png",
+  "lang": "es",
+  "style": "clean",
+  "items": [
+   {
+    "description": "2 Cana",
+    "lineTotalCents": 500
+   },
+   {
+    "description": "1 Bar Tapas del dia",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "1 Pan",
+    "lineTotalCents": 150
+   }
+  ],
+  "totalCents": 1600,
+  "textLines": [
+   "BAR TAPAS SOL",
+   "Calle de la Palma 22",
+   "28004 Madrid",
+   "Since 1987",
+   "2 Cana 5,00",
+   "1 Bar Tapas del dia 9,50",
+   "1 Pan 1,50",
+   "TOTAL 16,00",
+   "EFECTIVO 16,00"
+  ]
+ },
+ {
+  "id": "v11_pt_01_multibanco",
+  "file": "v11_pt_01_multibanco.png",
+  "lang": "pt",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Bacalhau",
+    "lineTotalCents": 1350
+   },
+   {
+    "description": "2 Vinho verde",
+    "lineTotalCents": 700
+   },
+   {
+    "description": "1 Cafe",
+    "lineTotalCents": 120
+   }
+  ],
+  "totalCents": 2170,
+  "textLines": [
+   "TASCA AUGUSTA",
+   "Rua Augusta 15",
+   "1100-053 Lisboa",
+   "1 Bacalhau 13,50",
+   "2 Vinho verde 7,00",
+   "1 Cafe 1,20",
+   "TOTAL 21,70",
+   "MULTIBANCO 21,70"
+  ]
+ },
+ {
+  "id": "v11_en_01_us_tax",
+  "file": "v11_en_01_us_tax.png",
+  "lang": "en",
+  "style": "clean",
+  "items": [
+   {
+    "description": "1 Burger",
+    "lineTotalCents": 1500
+   },
+   {
+    "description": "1 Fries",
+    "lineTotalCents": 500
+   }
+  ],
+  "totalCents": 2165,
+  "textLines": [
+   "MELT DINER",
+   "Est. 2004",
+   "77 Congress Ave",
+   "Austin TX 78701",
+   "1 Burger 15.00",
+   "1 Fries 5.00",
+   "Subtotal 20.00",
+   "Sales tax 8.25% 1.65",
+   "TOTAL 21.65",
+   "CASH 21.65"
+  ]
+ },
+ {
+  "id": "v11_de_01_seit_scheef",
+  "file": "v11_de_01_seit_scheef.png",
+  "lang": "de",
+  "style": "skewed",
+  "items": [
+   {
+    "description": "1 Schnitzel 250 g",
+    "lineTotalCents": 1850
+   },
+   {
+    "description": "2 Bier 500 ml",
+    "lineTotalCents": 900
+   },
+   {
+    "description": "1 Brezel",
+    "lineTotalCents": 250
+   }
+  ],
+  "totalCents": 3000,
+  "textLines": [
+   "BRAUHAUS ZUM ALDEN",
+   "Seit 1899",
+   "Hauptstrasse 48",
+   "10115 Berlin",
+   "1 Schnitzel 250 g 18,50",
+   "2 Bier 500 ml 9,00",
+   "1 Brezel 2,50",
+   "SUMME 30,00",
+   "BAR 30,00"
+  ]
+ },
+ {
+  "id": "v11_nl_03_scheef_rekening",
+  "file": "v11_nl_03_scheef_rekening.png",
+  "lang": "nl",
+  "style": "skewed8",
+  "items": [
+   {
+    "description": "2 Soep 250 ml",
+    "lineTotalCents": 1100
+   },
+   {
+    "description": "1 Stoofpot 300 g",
+    "lineTotalCents": 1750
+   },
+   {
+    "description": "2 Cola 0,33",
+    "lineTotalCents": 660
+   }
+  ],
+  "totalCents": 3810,
+  "textLines": [
+   "RESTAURANT SCHEVE TOREN",
+   "Sinds 2010",
+   "Hoofdweg 221",
+   "1056 GE Amsterdam",
+   "2 Soep 250 ml 11,00",
+   "1 Stoofpot 300 g 17,50",
+   "2 Cola 0,33 6,60",
+   "Fooi 3,00",
+   "Rekening 38,10",
+   "PIN 38,10"
+  ]
+ },
+ {
+  "id": "v11_fr_01_onscherp",
+  "file": "v11_fr_01_onscherp.png",
+  "lang": "fr",
+  "style": "blurry",
+  "items": [
+   {
+    "description": "1 Croque monsieur",
+    "lineTotalCents": 950
+   },
+   {
+    "description": "2 Verre de vin",
+    "lineTotalCents": 1200
+   },
+   {
+    "description": "1 Tarte citron",
+    "lineTotalCents": 650
+   }
+  ],
+  "totalCents": 2800,
+  "textLines": [
+   "CAFE DU COMMERCE",
+   "Depuis 1975",
+   "Rue de la Roquette 132",
+   "75011 Paris",
+   "1 Croque monsieur 9,50",
+   "2 Verre de vin 12,00",
+   "1 Tarte citron 6,50",
+   "TOTAL A PAYER 28,00",
+   "CARTE 28,00"
+  ]
+ },
+ {
+  "id": "v11_nl_04_ruis",
+  "file": "v11_nl_04_ruis.png",
+  "lang": "nl",
+  "style": "noise",
+  "items": [
+   {
+    "description": "1 Kapsalon 400 g",
+    "lineTotalCents": 1250
+   },
+   {
+    "description": "2 Cola 0,33",
+    "lineTotalCents": 660
+   },
+   {
+    "description": "1 Extra saus 50 ml",
+    "lineTotalCents": 100
+   }
+  ],
+  "totalCents": 2010,
+  "textLines": [
+   "AFHAALCENTRALE SNEL",
+   "Anno 2015",
+   "Stationsplein 12 B",
+   "1 Kapsalon 400 g 12,50",
+   "2 Cola 0,33 6,60",
+   "1 Extra saus 50 ml 1,00",
+   "TOTAAL 20,10",
+   "CONTACTLOOS 20,10"
+  ]
+ }
+]

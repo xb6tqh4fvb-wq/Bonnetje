@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "name": "",
+      "qty": 1,
+      "unitPrice": null,
+      "lineTotal": null,
+      "uncertain": true
+    }
+  ],
+  "receiptTotal": null,
+  "currency": "EUR",
+  "language": "nl"
+}

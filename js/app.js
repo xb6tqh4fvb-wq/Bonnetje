@@ -1,1131 +1,2033 @@
+// Bonnetje - Hoofdapplicatie (v12: Gemini eerst, ppu-paddle-ocr PP-OCRv6_tiny als enige lokale backup,
+// volledig zelf-gehost incl. onnxruntime-WASM, deelknop voor de uitslag)
 import {
-  computeSplit, formatEuro, formatEuroShort, formatPlain, parseEuro, uid, unitsLeft, itemWeights,
-  roundUpSuggestions, personRoundUps, splitLine,
-} from './calc.js';
-import { parseReceiptText } from './parse.js';
-import { readReceiptFile } from './ocr.js';
-import { load, save } from './store.js';
-import { t, getLang, setLang, fmtDate, UI_LANGS } from './i18n.js';
-import { loadSettings, saveSettings, applySettings } from './settings.js';
-import { translateName, detectLanguage, translateOnline, RECEIPT_LANGS } from './translate.js';
+  parseEuroToCents,
+  formatCentsNL,
+  validateLineItem,
+  isLineActive,
+  validateReceiptTotal,
+  calculateSettlement,
+  buildSettlementShareText
+} from './calculator.js';
+import { t, STRINGS } from './i18n.js';
+import { translateOffline } from './dictionary.js';
+import { extractPdfTextAllPages, parsePlainTextReceipt } from './parser.js';
+import {
+  friendlyScanError,
+  emptyFileMessage,
+  wrongFileTypeMessage,
+  pdfReaderLoadFailedMessage,
+  scannedPdfWithoutGeminiMessage
+} from './errors.js';
+import { runLocalBackupOcr } from './local-ocr.js';
+import {
+  scanReceiptWithGemini,
+  translateItemsWithGemini,
+  GEMINI_TERMS_URL
+} from './gemini.js';
+import {
+  DEFAULT_GEMINI_MODEL,
+  createEmptySession,
+  loadSession,
+  saveSession,
+  loadSavedNames,
+  saveNameToHistory,
+  loadSettings,
+  saveSettings,
+  loadGeminiApiKey,
+  saveGeminiApiKey,
+  getDailyGeminiCallCount,
+  loadCustomDict,
+  saveCustomDictEntry,
+  wipeAllLocalData,
+  UndoManager
+} from './storage.js';
 
-const state = load();
-const ui = { tab: 'bon', person: null, ocr: null, open: {}, trBusy: false, settings: false };
-const display = loadSettings();
-applySettings(display);
-const $app = document.getElementById('app');
-const $toast = document.getElementById('toast');
-const RL_KEY = 'bonnetje.receiptLang';
+// Externe koffielink (zelfde als de online versie); er gaat geen app-data mee.
 const SUPPORT_URL = 'https://www.paypal.me/Inzane007';
-let receiptLang = (() => {
-  try {
-    return localStorage.getItem(RL_KEY) || 'auto';
-  } catch {
-    return 'auto';
-  }
-})();
+let session = loadSession();
+let settings = loadSettings();
+let geminiApiKey = loadGeminiApiKey();
+let savedNames = loadSavedNames();
+let customDict = loadCustomDict();
+const undoManager = new UndoManager(50);
 
-// ---------- helpers ----------
-const esc = (s) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const bill = () => state.bills.find((b) => b.id === state.currentId);
-const findBill = (id) => state.bills.find((x) => x.id === id);
-const initials = (name) =>
-  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
-const COLORS = ['#2563eb', '#db2777', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d', '#c026d3', '#ea580c'];
-const colorOf = (b, pid) => COLORS[Math.max(0, b.people.findIndex((p) => p.id === pid)) % COLORS.length];
-const langName = (l) => t('lang_' + l);
-const showOrig = (it) => it.orig && it.orig.trim().toLowerCase() !== it.name.trim().toLowerCase();
+// Foto wordt NIET in localStorage bewaard, alleen tijdelijk in het werkgeheugen
+let currentPhotoObjectUrl = null;
+let lastReceiptFile = null;
 
-// ---------- ongedaan maken ----------
-// Na elke wijziging een momentopname van de gegevens (zonder foto's: die worden apart
-// bewaard en via een kenmerk teruggezet). Alleen in het geheugen, max. 50 stappen.
-const undoStack = [];
-const images = new Map(); // dataURL -> kenmerk
-const imageByToken = new Map();
-function snapshot() {
-  // Alleen de bonnen; navigatie (welke bon open is) telt niet als stap.
-  return JSON.stringify(state.bills, (k, v) => {
-    if (k !== 'image' || !v) return v;
-    if (!images.has(v)) {
-      const tok = 'img#' + images.size;
-      images.set(v, tok);
-      imageByToken.set(tok, v);
+// Centrale DOM-helper: boolean eigenschappen via echte DOM-properties (NOOIT disabled="false")
+const BOOL_PROPS = new Set(['disabled', 'checked', 'selected', 'required', 'hidden', 'readOnly', 'multiple']);
+const $ = (sel) => document.querySelector(sel);
+
+export const el = (tag, attrs = {}, children = []) => {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'className') {
+      node.className = v;
+    } else if (k === 'text') {
+      node.textContent = v;
+    } else if (k === 'value') {
+      node.value = v ?? '';
+    } else if (BOOL_PROPS.has(k)) {
+      node[k] = Boolean(v);
+    } else if (k.startsWith('on') && typeof v === 'function') {
+      node.addEventListener(k.slice(2).toLowerCase(), v);
+    } else if (v !== null && v !== undefined && v !== false) {
+      node.setAttribute(k, String(v));
     }
-    return images.get(v);
-  });
-}
-let lastSnap = snapshot();
-function recordUndo() {
-  const snap = snapshot();
-  if (snap === lastSnap) return;
-  undoStack.push(lastSnap);
-  if (undoStack.length > 50) undoStack.shift();
-  lastSnap = snap;
-}
-function undo() {
-  if (!undoStack.length) return;
-  const prev = undoStack.pop();
-  state.bills = JSON.parse(prev, (k, v) => (k === 'image' && v ? imageByToken.get(v) ?? null : v));
-  if (!state.bills.some((b) => b.id === state.currentId)) go(null);
-  lastSnap = snapshot();
-  save(state);
-  render();
-  toast(t('undone'));
-}
-
-function commit() {
-  recordUndo();
-  if (!save(state)) toast(t('storageFull'));
-  render();
-}
-
-// Na een achtergrondtaak (uitlezen, vertalen) niet opnieuw tekenen terwijl iemand typt:
-// dan pas bij het verlaten van het invoerveld.
-let pendingRender = false;
-function commitSoon() {
-  recordUndo();
-  if (!save(state)) toast(t('storageFull'));
-  const a = document.activeElement;
-  if (a && a.tagName === 'INPUT' && $app.contains(a)) pendingRender = true;
-  else render();
-}
-document.addEventListener('focusout', () => {
-  if (!pendingRender) return;
-  pendingRender = false;
-  setTimeout(render, 0);
-});
-
-// ---------- navigatie (terugknop van telefoon/browser) ----------
-let navPushed = false;
-function go(billId, tab) {
-  const fromHome = !state.currentId;
-  if (billId !== state.currentId) ui.person = null;
-  state.currentId = billId;
-  if (tab) ui.tab = tab;
-  const st = { billId, tab: ui.tab };
-  if (billId && fromHome) {
-    history.pushState(st, '');
-    navPushed = true;
-  } else history.replaceState(st, '');
-}
-window.addEventListener('popstate', (e) => {
-  const st = e.state || {};
-  state.currentId = st.billId && findBill(st.billId) ? st.billId : null;
-  ui.tab = st.tab || 'bon';
-  ui.settings = false;
-  navPushed = !!state.currentId;
-  commit();
-});
-
-let toastTimer;
-/** Korte melding; met withUndo een knop "Ongedaan maken" (langer zichtbaar). */
-function toast(msg, withUndo = false) {
-  $toast.textContent = msg;
-  if (withUndo) {
-    const btn = document.createElement('button');
-    btn.textContent = t('undo');
-    btn.addEventListener('click', () => {
-      $toast.classList.remove('show');
-      undo();
-    });
-    $toast.append(' ', btn);
   }
-  $toast.classList.toggle('has-action', withUndo);
-  $toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $toast.classList.remove('show'), withUndo ? 6000 : 2400);
-}
-
-function newBill() {
-  const b = {
-    id: uid(),
-    createdAt: Date.now(),
-    title: t('billDefault', { date: fmtDate(Date.now()) }),
-    autoTitle: true,
-    image: null,
-    lang: null,
-    translatedTo: null,
-    receiptTotalCents: null,
-    items: [],
-    people: [],
-    tip: { mode: 'none', amountCents: 0, paidTotalCents: null, distribution: 'proportional' },
-  };
-  state.bills.unshift(b);
-  go(b.id, 'bon');
-  return b;
-}
-
-function splitItem(b, id) {
-  const it = findItem(b, id);
-  b.items.splice(b.items.indexOf(it), 1, ...splitLine(it, uid));
-}
-
-// ---------- vertalen ----------
-function applyTranslation(b) {
-  const to = getLang();
-  for (const it of b.items) {
-    const src = it.orig ?? it.name;
-    it.orig = src;
-    const r = translateName(src, b.lang, to);
-    it.name = r.text;
-    it.coverage = r.coverage;
+  for (const c of children) {
+    if (typeof c === 'string') node.appendChild(document.createTextNode(c));
+    else if (c) node.appendChild(c);
   }
-  b.translatedTo = to;
+  return node;
+};
+
+function announce(message) {
+  const region = $('#sr-announcements');
+  if (!region) return;
+  region.textContent = '';
+  setTimeout(() => {
+    region.textContent = message;
+  }, 50);
 }
 
-function undoTranslation(b) {
-  for (const it of b.items) {
-    if (it.orig != null) it.name = it.orig;
-    delete it.coverage;
-  }
-  b.translatedTo = null;
-}
-
-const untranslated = (b) => (b.translatedTo ? b.items.filter((it) => it.orig && (it.coverage ?? 1) < 1) : []);
-
-async function translateRestOnline(b) {
-  ui.trBusy = true;
+function mutate(fn, announcementText = null) {
+  undoManager.push(session);
+  fn();
+  saveSession(session);
   render();
-  let ok = 0;
+  if (announcementText) announce(announcementText);
+}
+
+function applyThemeAndPrefs() {
+  const html = document.documentElement;
+  html.lang = settings.lang;
+  html.dataset.theme = settings.theme;
+  html.classList.toggle('large-text', Boolean(settings.largeText));
+}
+
+async function copyTextReliable(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+  }
   try {
-    for (const it of untranslated(b)) {
-      it.name = await translateOnline(it.orig, b.lang, b.translatedTo);
-      it.coverage = 1;
-      ok++;
-    }
-    toast(t('trOnlineDone', { n: ok }));
-  } catch (e) {
-    console.error(e);
-    toast(ok ? t('trOnlineDone', { n: ok }) : t('trOnlineFail'));
-  }
-  ui.trBusy = false;
-  commitSoon();
-}
-
-const HINT_KEY = 'bonnetje.hintSeen';
-let hintFlag = (() => {
-  try {
-    return localStorage.getItem(HINT_KEY) === '1';
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
   } catch {
     return false;
   }
-})();
-// De uitgebreide uitleg blijft staan tot de eerste keer dat iets is toegewezen (en daarna weg).
-let hintShownThisVisit = !hintFlag;
-const hintSeen = () => hintFlag && !hintShownThisVisit;
-function markHintSeen() {
-  if (hintFlag) return;
-  hintFlag = true;
-  try {
-    localStorage.setItem(HINT_KEY, '1');
-  } catch {}
 }
 
-const ocrBusy = () => !!(ui.ocr && !ui.ocr.error);
-
-async function importFile(file, b) {
-  if (ocrBusy()) return toast(t('busy'));
-  ui.ocr = { billId: b.id, label: t('busy'), progress: 0 };
-  go(b.id, 'bon');
-  render();
-  try {
-    const progress = (p) => {
-      ui.ocr = { billId: b.id, ...p };
-      updateProgress();
-    };
-    // 'Automatisch': eerst lezen in de taal van de app (één taalbestand, sneller en minder
-    // downloaden); blijkt de bon in een andere taal, dan nog één keer met dat taalbestand.
-    const first = receiptLang !== 'auto' ? receiptLang : getLang();
-    let res = await readReceiptFile(file, progress, first);
-    let parsed = parseReceiptText(res.text);
-    let detected = receiptLang !== 'auto' ? receiptLang : detectLanguage(res.text, parsed.items.map((i) => i.name)) || first;
-    if (receiptLang === 'auto' && detected !== first && !(res.source === 'pdf')) {
-      progress({ label: t('ocrRetry', { lang: langName(detected) }), progress: 0 });
-      res = await readReceiptFile(file, progress, detected);
-      parsed = parseReceiptText(res.text);
-    }
-    b.image = res.previewUrl;
-    b.rawText = res.text;
-    const newItems = parsed.items.map((it) => ({ id: uid(), assign: {}, ...it, orig: it.name }));
-    if (b.items.length && !confirm(t('replaceLines'))) b.items.push(...newItems);
-    else b.items = newItems;
-    if (parsed.totalCents != null) b.receiptTotalCents = parsed.totalCents;
-    if (parsed.title && b.autoTitle) b.title = parsed.title;
-    b.lang = detected;
-    b.translatedTo = null;
-    ui.ocr = null;
-    if (b.lang !== getLang() && newItems.length) {
-      applyTranslation(b);
-      toast(t('trToast', { lang: langName(b.lang) }));
-    } else {
-      toast(newItems.length ? t('linesFound', { n: newItems.length }) : t('noLines'));
-    }
-  } catch (e) {
-    console.error(e);
-    ui.ocr = { billId: b.id, error: e.message || t('readFailed') };
-  }
-  commitSoon();
-}
-
-// Alleen de voortgangsbalk bijwerken (als die in beeld is), nooit het hele scherm.
-function updateProgress() {
-  const el = document.querySelector('.ocr');
-  if (!el || !ui.ocr) return;
-  el.querySelector('.ocr-label').textContent = ui.ocr.label;
-  el.querySelector('.bar > span').style.width = `${Math.round((ui.ocr.progress || 0) * 100)}%`;
-}
-
-// ---------- views ----------
-function render() {
-  document.documentElement.lang = getLang();
-  const b = bill();
-  $app.innerHTML = (b ? viewBill(b) : viewHome()) + (ui.settings ? viewSettings() : '');
-  document.title = b ? `${b.title} · Bonnetje` : 'Bonnetje';
-}
-
-const fileButtons = () => `
-  <label class="btn primary big">${icon('camera')} ${t('takePhoto')}
-    <input type="file" accept="image/*" capture="environment" data-action="file" hidden></label>
-  <label class="btn big">${icon('file')} ${t('choose')}
-    <input type="file" accept="image/*,application/pdf,.pdf" data-action="file" hidden></label>`;
-
-const langSwitch = () =>
-  `<div class="lang-switch" role="group" aria-label="Language">${UI_LANGS.map(
-    (l) => `<button class="${getLang() === l ? 'active' : ''}" data-action="ui-lang" data-lang="${l}">${l.toUpperCase()}</button>`
-  ).join('')}</div>`;
-
-const undoButton = () =>
-  `<button class="settings-btn undo-btn" data-action="undo" aria-label="${t('undo')}" title="${t('undo')}" ${undoStack.length ? '' : 'disabled'}>${icon('undo')}</button>`;
-
-const settingsButton = (withLabel) =>
-  `<button class="settings-btn" data-action="settings" aria-label="${t('display')}">${icon('textsize')}${withLabel ? ` <span>${t('display')}</span>` : ''}</button>`;
-
-function viewSettings() {
-  const seg = (key, opts) =>
-    `<div class="seg">${opts
-      .map(([v, l]) => `<button class="${display[key] === v ? 'active' : ''}" data-action="set-display" data-key="${key}" data-value="${v}" aria-pressed="${display[key] === v}">${l}</button>`)
-      .join('')}</div>`;
-  return `<div class="overlay" data-action="settings-close-bg">
-    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <h2 id="settings-title">${t('settingsTitle')}
-        <button class="icon-btn" data-action="settings-close" aria-label="${t('close')}">${icon('x')}</button></h2>
-      <div class="field"><span>${t('language')}</span>${`<div class="seg">${UI_LANGS.map(
-        (l) => `<button class="${getLang() === l ? 'active' : ''}" data-action="ui-lang" data-lang="${l}">${l === 'nl' ? 'Nederlands' : 'English'}</button>`
-      ).join('')}</div>`}</div>
-      <div class="field"><span>${t('theme')}</span>${seg('theme', [['auto', t('themeAuto')], ['light', t('themeLight')], ['dark', t('themeDark')]])}
-        <small class="muted">${t('themeHelp')}</small></div>
-      <div class="field"><span>${t('textSize')}</span>${seg('size', [['normal', t('sizeNormal')], ['large', t('sizeLarge')], ['xl', t('sizeXl')]])}</div>
-      <label class="switch"><span><strong>${t('contrast')}</strong><br><small class="muted">${t('contrastHelp')}</small></span>
-        <input type="checkbox" role="switch" data-action="set-contrast" ${display.contrast ? 'checked' : ''}></label>
-      <div class="sample"><span class="muted small">${t('sample')}</span>
-        <div class="row-between"><strong>${t('sampleLine')}</strong><strong>${formatEuro(2450)}</strong></div></div>
-      <button class="btn primary big" data-action="settings-close">${t('close')}</button>
-    </section>
-  </div>`;
-}
-
-function viewHome() {
-  const list = state.bills
-    .map((b) => {
-      const r = computeSplit(b);
-      const paid = r.persons.filter((p) => p.paid).length;
-      return `<li class="bill-row">
-        <button class="bill-open" data-action="open" data-id="${b.id}">
-          <strong>${esc(b.title)}</strong>
-          <span class="muted">${fmtDate(b.createdAt)} · ${b.people.length} ${t('persons')} · ${formatEuro(r.itemsTotal)}</span>
-          ${b.people.length ? `<span class="pill ${paid === b.people.length ? 'ok' : ''}">${t('paidOf', { a: paid, b: b.people.length })}</span>` : ''}
-        </button>
-        <button class="icon-btn" data-action="delete-bill" data-id="${b.id}" aria-label="${t('delete')}">${icon('trash')}</button>
-      </li>`;
-    })
-    .join('');
-  return `
-  <header class="topbar"><h1>${icon('receipt')} Bonnetje</h1>${langSwitch()}${undoStack.length ? undoButton() : ''}${settingsButton(true)}</header>
-  <main class="wrap">
-    <section class="card hero">
-      <h2>${t('newBill')}</h2>
-      <p class="muted">${t('heroText')}</p>
-      <div class="stack">${fileButtons()}
-        <button class="btn ghost" data-action="manual">${t('noPhoto')}</button>
-      </div>
-      <div class="receipt-lang">
-        <span class="label">${t('receiptLang')}</span>
-        <div class="seg small">${['auto', ...RECEIPT_LANGS]
-          .map((l) => `<button class="${receiptLang === l ? 'active' : ''}" data-action="receipt-lang" data-lang="${l}">${l === 'auto' ? t('auto') : langName(l)}</button>`)
-          .join('')}</div>
-      </div>
-    </section>
-    ${list ? `<section><h2 class="section-title">${t('earlier')}</h2><ul class="bill-list">${list}</ul></section>` : ''}
-    <p class="foot muted desktop-only">${t('dropHint')}</p>
-    <p class="foot muted">${t('privacy')}</p>
-    <p class="foot"><a class="support-link" href="${SUPPORT_URL}" target="_blank" rel="noopener">${t('support')}</a></p>
-  </main>`;
-}
-
-function viewBill(b) {
-  const r = computeSplit(b);
-  const tabs = [
-    ['bon', '1', t('tabBon'), b.items.length ? '' : '!'],
-    ['deelnemers', '2', t('tabPeople'), b.people.length || ''],
-    ['verdelen', '3', t('tabAssign'), r.unassignedCents && b.people.length ? '!' : ''],
-    ['overzicht', '4', t('tabOverview'), ''],
-  ];
-  const body = { bon: viewBon, deelnemers: viewPeople, verdelen: viewAssign, overzicht: viewOverview }[ui.tab](b, r);
-  return `
-  <header class="topbar">
-    <button class="icon-btn" data-action="home" aria-label="${t('back')}">${icon('back')}</button>
-    <h1 class="ellipsis">${esc(b.title)}</h1>
-    <span class="topbar-total">${formatEuro(r.itemsTotal)}</span>
-    ${undoButton()}
-    ${settingsButton(false)}
-  </header>
-  <main class="wrap with-nav">${body}</main>
-  <nav class="tabs">${tabs
-    .map(
-      ([id, n, label, badge]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-action="tab" data-tab="${id}">
-        <span class="tab-n">${n}</span><span>${label}</span>${badge !== '' ? `<span class="badge ${badge === '!' ? 'warn' : ''}">${badge}</span>` : ''}
-      </button>`
-    )
-    .join('')}</nav>`;
-}
-
-function viewTranslation(b) {
-  if (!b.lang || !b.items.length) return '';
-  const ui_ = getLang();
-  if (b.lang === ui_ && !b.translatedTo) return '';
-  const rest = untranslated(b);
-  const translatedHere = b.translatedTo === ui_;
-  return `<section class="card translate">
-    <div class="row-between"><h3>${icon('globe')} ${t('trTitle')}</h3>
-      <select data-action="bill-lang" aria-label="${t('receiptLang')}">${RECEIPT_LANGS.map(
-        (l) => `<option value="${l}" ${b.lang === l ? 'selected' : ''}>${langName(l)}</option>`
-      ).join('')}</select></div>
-    <p class="muted small">${t('trDetected', { lang: langName(b.lang) })} ${translatedHere ? t('trTranslated') : ''}</p>
-    <div class="row-wrap">
-      ${
-        translatedHere
-          ? `<button class="btn small-btn" data-action="tr-undo">${t('trUndo')}</button>`
-          : b.lang !== ui_
-            ? `<button class="btn primary small-btn" data-action="tr-do">${icon('globe')} ${t('trDo')}</button>`
-            : `<button class="btn small-btn" data-action="tr-undo">${t('trUndo')}</button>`
-      }
-    </div>
-    ${
-      translatedHere && rest.length
-        ? `<div class="alert warn">${t('trPartial', { n: rest.length })}</div>
-           <button class="btn small-btn" data-action="tr-online" ${ui.trBusy ? 'disabled' : ''}>${icon('globe')} ${ui.trBusy ? t('trOnlineBusy') : t('trOnline')}</button>
-           <p class="muted small">${t('trOnlineNote')}</p>`
-        : ''
-    }
-  </section>`;
-}
-
-function viewBon(b, r) {
-  const o = ui.ocr?.billId === b.id ? ui.ocr : null;
-  const ocr = o
-    ? o.error
-      ? `<div class="alert error">${esc(o.error)}</div>`
-      : `<div class="ocr card" role="status"><span class="ocr-label">${esc(o.label)}</span>
-           <div class="bar"><span style="width:${Math.round((o.progress || 0) * 100)}%"></span></div>
-           <p class="muted small">${t('langDownload')}</p></div>`
+/**
+ * Expliciete toestemming vóór elke Gemini-aanroep + eerste-keer EU/EER privacymelding.
+ */
+function confirmGeminiConsent(purpose, isPdf = false) {
+  const firstTimeNote = !settings.geminiPrivacyAccepted
+    ? `\n\nPrivacy (eerste aanroep): Volgens de eigen voorwaarden van Google voor gebruikers in de EU en EER (${GEMINI_TERMS_URL}) traint Google ook op de gratis laag niet met deze gegevens.`
     : '';
-  const diff = b.receiptTotalCents != null ? r.itemsTotal - b.receiptTotalCents : 0;
-  const rows = b.items
-    .map(
-      (it) => `<div class="item-edit ${(it.coverage ?? 1) < 1 && b.translatedTo ? 'partial' : ''}">
-        <input class="qty" type="number" min="1" step="1" inputmode="numeric" value="${it.qty}" data-action="item-field" data-field="qty" data-id="${it.id}" aria-label="${t('qty')}">
-        <input class="name" value="${esc(it.name)}" placeholder="${t('desc')}" data-action="item-field" data-field="name" data-id="${it.id}" aria-label="${t('desc')}">
-        <input class="price" inputmode="decimal" value="${formatPlain(it.priceCents)}" data-action="item-field" data-field="price" data-id="${it.id}" aria-label="${t('amount')}">
-        <button class="icon-btn" data-action="item-del" data-id="${it.id}" aria-label="${t('delLine')}">${icon('x')}</button>
-        ${showOrig(it) ? `<span class="orig">${t('original')}: ${esc(it.orig)}</span>` : ''}
-        ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${t('split', { n: it.qty })}</button>` : ''}
-      </div>`
-    )
-    .join('');
-  return `
-  <section class="card">
-    <label class="field"><span>${t('billName')}</span><input value="${esc(b.title)}" data-action="title"></label>
-  </section>
-  ${ocr}
-  ${
-    b.image
-      ? `<details class="card preview" ${ui.open.preview === false ? '' : 'open'} data-action="preview-toggle">
-           <summary>${t('preview')}</summary><img src="${esc(b.image)}" alt="${t('photoAlt')}"></details>`
-      : !o
-        ? `<section class="card"><h3>${t('readBill')}</h3><div class="stack">${fileButtons()}</div></section>`
-        : ''
-  }
-  ${viewTranslation(b)}
-  <section class="card">
-    <div class="row-between"><h3>${t('lines')}</h3><span class="muted small">${t('linesHead')}</span></div>
-    ${rows || `<p class="muted">${t('noLinesYet')}</p>`}
-    <button class="btn ghost" data-action="item-add">${icon('plus')} ${t('addLine')}</button>
-    <div class="totals">
-      <div class="row-between"><span>${t('sumLines')}</span><strong>${formatEuro(r.itemsTotal)}</strong></div>
-      <label class="row-between"><span>${t('totalOnBill')}</span>
-        <input class="price" inputmode="decimal" placeholder="${t('optional')}" value="${b.receiptTotalCents != null ? formatPlain(b.receiptTotalCents) : ''}" data-action="receipt-total"></label>
-      ${
-        b.receiptTotalCents != null
-          ? diff
-            ? `<div class="alert warn">${t('diff', { d: formatEuro(diff) })}</div>`
-            : `<div class="alert ok">${icon('check')} ${t('matches')}</div>`
-          : ''
-      }
-    </div>
-    ${b.image ? `<label class="btn ghost small-btn">${icon('camera')} ${t('otherPhoto')}<input type="file" accept="image/*,application/pdf,.pdf" data-action="file" hidden></label>` : ''}
-  </section>
-  <button class="btn primary big next" data-action="tab" data-tab="deelnemers">${t('nextPeople')} ${icon('next')}</button>`;
-}
 
-function viewPeople(b) {
-  const list = b.people
-    .map(
-      (p) => `<li class="person-row">
-        <span class="avatar" style="background:${colorOf(b, p.id)}">${esc(initials(p.name))}</span>
-        <input value="${esc(p.name)}" data-action="person-rename" data-id="${p.id}" aria-label="${t('name')}">
-        <button class="icon-btn" data-action="person-del" data-id="${p.id}" aria-label="${t('delete')}">${icon('trash')}</button>
-      </li>`
-    )
-    .join('');
-  return `
-  <section class="card">
-    <h3>${t('whoJoined')}</h3>
-    <form class="add-person" data-action="person-add">
-      <input name="pname" placeholder="${t('name')}" autocomplete="off" enterkeyhint="done" ${b.people.length ? '' : 'autofocus'}>
-      <button class="btn primary" type="submit">${icon('plus')} ${t('add')}</button>
-    </form>
-    <p class="muted small">${t('peopleTip')}</p>
-    <ul class="person-list">${list}</ul>
-  </section>
-  ${b.people.length ? `<button class="btn primary big next" data-action="tab" data-tab="verdelen">${t('nextAssign')} ${icon('next')}</button>` : ''}`;
-}
+  const whatIsSent =
+    purpose === 'translate'
+      ? 'Alleen de tekstregels van de bon (geen bonfoto, geen bedragen en geen namen) gaan nu naar Google Gemini om ze naar het Nederlands te vertalen.'
+      : isPdf
+        ? 'De volledige PDF-bon (alle pagina\'s) gaat nu naar Google Gemini om de regels en bedragen uit te lezen.'
+        : 'De bonfoto gaat nu naar Google Gemini om de regels en bedragen uit te lezen.';
 
-function viewAssign(b, r) {
-  if (!b.people.length) return emptyHint(t('addPeopleFirst'), 'deelnemers', t('toPeople'));
-  if (!b.items.length) return emptyHint(t('noItems'), 'bon', t('toBon'));
-  if (!b.people.some((p) => p.id === ui.person)) ui.person = b.people[0].id;
-  const sel = b.people.find((p) => p.id === ui.person);
-  const chips = b.people
-    .map((p) => {
-      const pr = r.persons.find((x) => x.id === p.id);
-      return `<button class="chip ${p.id === ui.person ? 'active' : ''}" style="--c:${colorOf(b, p.id)}" data-action="select-person" data-id="${p.id}">
-        <span class="avatar sm" style="background:${colorOf(b, p.id)}">${esc(initials(p.name))}</span>
-        <span>${esc(p.name)}</span><small>${formatEuro(pr.subtotalCents)}</small></button>`;
-    })
-    .join('');
-  const rows = b.items
-    .map((it) => {
-      const weights = itemWeights(it, b.people);
-      const mine = it.everyone ? 1 : it.assign?.[ui.person] || 0;
-      const left = unitsLeft(it, b.people);
-      const W = weights.reduce((a, [, w]) => a + w, 0);
-      const badges = weights
-        .map(([pid, w]) => {
-          const p = b.people.find((x) => x.id === pid);
-          return `<span class="mini" style="background:${colorOf(b, pid)}" title="${esc(p.name)}">${esc(initials(p.name))}${w > 1 ? `×${w}` : ''}</span>`;
-        })
-        .join('');
-      const status = it.everyone
-        ? `<span class="pill ok">${t('everyone')}</span>`
-        : left > 0
-          ? `<span class="pill warn">${t('left', { a: left, b: it.qty })}</span>`
-          : W > it.qty
-            ? `<span class="pill">${t('shared')}</span>`
-            : `<span class="pill ok">${t('assigned')}</span>`;
-      return `<div class="assign-row ${mine ? 'mine' : ''}" style="--c:${colorOf(b, ui.person)}">
-        <button class="assign-main" data-action="unit" data-delta="1" data-id="${it.id}">
-          <span class="assign-name">${it.qty > 1 ? `<b>${it.qty}×</b> ` : ''}${esc(it.name) || `<em class="muted">${t('desc')}</em>`}</span>
-          ${showOrig(it) ? `<span class="orig">${esc(it.orig)}</span>` : ''}
-          <span class="assign-meta">${formatEuro(it.priceCents)} ${status}</span>
-          <span class="badges">${badges}</span>
-        </button>
-        ${it.qty > 1 ? `<button class="link small split" data-action="item-split" data-id="${it.id}">${icon('split')} ${t('split', { n: it.qty })}</button>` : ''}
-        <div class="stepper">
-          <button data-action="unit" data-delta="-1" data-id="${it.id}" aria-label="${t('less')}" ${mine ? '' : 'disabled'}>−</button>
-          <span>${mine}</span>
-          <button data-action="unit" data-delta="1" data-id="${it.id}" aria-label="${t('more')}">+</button>
-        </div>
-        <button class="icon-btn everyone ${it.everyone ? 'on' : ''}" data-action="everyone" data-id="${it.id}" aria-label="${t('splitAll')}" title="${t('splitAll')}">${icon('users')}</button>
-      </div>`;
-    })
-    .join('');
-  return `
-  <div class="chips">${chips}</div>
-  ${
-    hintSeen()
-      ? `<p class="hint">${t('step2', { name: `<strong>${esc(sel.name)}</strong>` })}. ${t('step3', { icon: icon('users') })}</p>`
-      : `<div class="steps-hint"><span><b>1</b> ${t('step1')}</span><span><b>2</b> ${t('step2', { name: esc(sel.name) })}</span><small>${t('step3', { icon: icon('users') })}</small></div>`
-  }
-  <section class="assign-list">${rows}</section>
-  ${
-    r.unassignedCents
-      ? `<div class="alert warn sticky-note">${t('unassigned', { a: formatEuro(r.unassignedCents) })}</div>`
-      : `<div class="alert ok sticky-note">${icon('check')} ${t('allAssigned')}</div>`
-  }
-  <button class="btn primary big next" data-action="tab" data-tab="overzicht">${t('toOverview')} ${icon('next')}</button>`;
-}
-
-function viewOverview(b, r) {
-  if (!b.people.length) return emptyHint(t('addPeopleFirst'), 'deelnemers', t('toPeople'));
-  const tp = b.tip;
-  const pct = r.dueTotal ? Math.round((r.paidTotal / r.dueTotal) * 100) : 0;
-  const paidCount = r.persons.filter((p) => p.paid).length;
-  const cards = r.persons.map((p) => personCard(b, p)).join('');
-  return `
-  <section class="summary card">
-    <div class="stat"><span>${t('sBill')}</span><strong>${formatEuro(r.itemsTotal)}</strong></div>
-    <div class="stat"><span>${t('sTip')}</span><strong>${formatEuro(r.tipTotal)}</strong></div>
-    <div class="stat"><span>${t('sPaid')}</span><strong class="ok-text">${formatEuro(r.paidTotal)}</strong></div>
-    <div class="stat"><span>${t('sOpen')}</span><strong class="${r.openTotal ? 'warn-text' : 'ok-text'}">${formatEuro(r.openTotal)}</strong></div>
-    <div class="progress"><div class="bar"><span style="width:${pct}%"></span></div><small>${t('paidCount', { a: paidCount, b: r.persons.length })}</small></div>
-  </section>
-  ${r.unassignedCents ? `<div class="alert warn">${t('stillUnassigned', { a: formatEuro(r.unassignedCents) })} <button class="link" data-action="tab" data-tab="verdelen">${t('tabAssign')}</button></div>` : ''}
-  <details class="card tipbox" ${ui.open.tip ? 'open' : ''} data-action="tip-toggle">
-    <summary><span>${t('tipTitle')}</span><strong>${tp.mode === 'none' && !r.tipTotal ? t('none') : formatEuro(r.tipTotal)}</strong></summary>
-    <div class="seg">${[['none', t('tmNone')], ['total', t('tmTotal')], ...(tp.mode === 'amount' ? [['amount', t('tmAmount')]] : []), ['perPerson', t('tmPerPerson')]]
-      .map(([m, l]) => `<button class="${tp.mode === m ? 'active' : ''}" data-action="tip-mode" data-mode="${m}">${l}</button>`)
-      .join('')}</div>
-    ${
-      tp.mode === 'amount'
-        ? `<label class="field"><span>${t('tipAmountLabel')}</span><input inputmode="decimal" value="${formatPlain(tp.amountCents)}" data-action="tip-value"></label>`
-        : tp.mode === 'total'
-          ? `<label class="field"><span>${t('paidRestaurant', { a: formatEuro(r.itemsTotal) })}</span><input inputmode="decimal" placeholder="${t('eg')} ${formatPlain(roundUpSuggestions(r.itemsTotal)[1] ?? 0)}" value="${tp.paidTotalCents != null ? formatPlain(tp.paidTotalCents) : ''}" data-action="tip-value"></label>
-             <div class="quick">${roundUpSuggestions(r.itemsTotal).map((c) => `<button data-action="tip-paid-quick" data-cents="${c}">${formatEuroShort(c)}</button>`).join('')}</div>
-             ${
-               tp.paidTotalCents == null
-                 ? ''
-                 : tp.paidTotalCents < r.itemsTotal
-                   ? `<div class="alert warn">${t('lessThanBill', { a: formatEuro(r.itemsTotal - tp.paidTotalCents) })}</div>`
-                   : `<div class="alert ok">${t('tipIs', { a: formatEuro(r.tipTarget) })}</div>`
-             }`
-          : ''
-    }
-    ${
-      tp.mode === 'total' || tp.mode === 'amount'
-        ? `<span class="label">${t('distribute')}</span><div class="seg">${[['proportional', t('proportional')], ['equal', t('equal')]]
-            .map(([d, l]) => `<button class="${tp.distribution === d ? 'active' : ''}" data-action="tip-dist" data-dist="${d}">${l}</button>`)
-            .join('')}</div>`
-        : ''
-    }
-    <p class="muted small">${tp.mode === 'perPerson' ? t('perPersonHelp2') : tp.mode === 'total' ? t('tipHelp2') : t('noTipHelp')}</p>
-  </details>
-  <section class="people-cards">${cards}</section>
-  ${viewSend(b, r)}`;
-}
-
-const changeBox = (c) =>
-  c == null
-    ? ''
-    : `<div class="change ${c >= 0 ? 'ok' : 'bad'}"><span>${c >= 0 ? t('change') : t('stillOwes')}</span><strong>${formatEuro(Math.abs(c))}</strong></div>`;
-
-function personCard(b, p) {
-  const cash = p.method === 'contant';
-  const quick = [];
-  if (cash) {
-    quick.push([t('exactCash'), p.dueCents]);
-    for (const n of [500, 1000, 2000, 5000, 10000]) if (n > p.dueCents && quick.length < 4) quick.push([formatEuroShort(n), n]);
-  }
-  const methodName = { contant: t('mCash'), pin: t('mCard'), tikkie: t('mTikkie') }[p.method];
-  // Eén statusregel onder de naam: het belangrijkste in één oogopslag.
-  const status = [methodName];
-  if (cash && p.changeCents != null)
-    status.push(p.changeCents >= 0 ? `${t('change').toLowerCase()} <strong>${formatEuro(p.changeCents)}</strong>` : `${t('stillOwes').toLowerCase()} <strong>${formatEuro(-p.changeCents)}</strong>`);
-  if (p.tipCents) status.push(`${t('tipLine').toLowerCase()} ${formatEuro(p.tipCents)}`);
-  const lines = p.lines
-    .map((l) => `<li><span>${l.units > 1 ? `${l.units}× ` : ''}${esc(l.name)}${l.shared ? ` <em>${t('sharedTag')}</em>` : ''}</span><span>${formatEuro(l.cents)}</span></li>`)
-    .join('');
-  // Details standaard dicht (overzicht blijft kort); open/dicht wordt onthouden.
-  const detailsOpen = !!ui.open['p' + p.id];
-  const perPerson = b.tip.mode === 'perPerson';
-  const tipBlock = perPerson
-    ? `<label class="field inline"><span>${t('pays')}</span><input inputmode="decimal" placeholder="${formatPlain(p.subtotalCents)}" value="${p.payCents != null ? formatPlain(p.payCents) : ''}" data-action="pay" data-id="${p.id}"></label>
-       <div class="quick">${[[t('exact'), p.subtotalCents], ...personRoundUps(p.subtotalCents).map((c) => [formatEuroShort(c), c])]
-         .concat(cash && p.givenCents != null && p.givenCents > p.subtotalCents ? [[t('restTip'), p.givenCents]] : [])
-         .map(([l, c]) => `<button class="${p.payCents === c ? 'active' : ''}" data-action="pay-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
-       ${p.underpaidCents ? `<div class="alert warn">${t('underpaid', { a: formatEuro(p.underpaidCents), b: formatEuro(p.subtotalCents) })}</div>` : ''}`
-    : cash && p.givenCents != null && p.givenCents > p.subtotalCents
-      ? p.extraTipCents
-        ? `<div class="row-between small"><span>${t('tipChange')}: <strong>${formatEuro(p.extraTipCents)}</strong></span><button class="link" data-action="undo-keep" data-id="${p.id}">${t('giveChange')}</button></div>`
-        : `<button class="btn ghost small-btn" data-action="keep-change" data-id="${p.id}">${t('restTip')}</button>`
-      : '';
-  return `<article class="person-card card compact ${p.paid ? 'is-paid' : ''}" style="--c:${colorOf(b, p.id)}">
-    <header>
-      <label class="paid-toggle" title="${t('paid')}">
-        <input type="checkbox" data-action="paid" data-id="${p.id}" ${p.paid ? 'checked' : ''} aria-label="${esc(p.name)} ${t('paid')}">
-        <span class="check">${icon('check')}</span>
-      </label>
-      <div class="who"><strong>${esc(p.name)}</strong><span class="muted small status">${p.paid ? `✓ ${t('paid')} · ` : ''}${status.join(' · ')}</span></div>
-      <div class="due"><strong>${formatEuro(p.dueCents)}</strong></div>
-    </header>
-    ${
-      p.paidDiffCents
-        ? `<div class="alert warn">${t(p.paidDiffCents > 0 ? 'paidMore' : 'paidLess', { paid: formatEuro(p.paidCents), d: formatEuro(Math.abs(p.paidDiffCents)) })}
-             <button class="link" data-action="paid-settle" data-id="${p.id}">${t('settled')}</button></div>`
-        : ''
-    }
-    <details ${detailsOpen ? 'open' : ''} data-action="person-toggle" data-id="${p.id}">
-      <summary>${t('details')}</summary>
-      <div class="details-body">
-        <span class="label">${t('payMethod')}</span>
-        <div class="seg small">${[['contant', t('mCash')], ['pin', t('mCard')], ['tikkie', t('mTikkie')]]
-          .map(([m, l]) => `<button class="${p.method === m ? 'active' : ''}" data-action="method" data-method="${m}" data-id="${p.id}">${l}</button>`)
-          .join('')}</div>
-        ${
-          cash
-            ? `<div class="cash">
-                 <label class="field inline"><span>${t('gives')}</span><input inputmode="decimal" placeholder="${formatPlain(0)}" value="${p.givenCents != null ? formatPlain(p.givenCents) : ''}" data-action="given" data-id="${p.id}"></label>
-                 <div class="quick">${quick.map(([l, c]) => `<button data-action="given-quick" data-id="${p.id}" data-cents="${c}">${l}</button>`).join('')}</div>
-                 ${changeBox(p.changeCents)}
-               </div>`
-            : p.method === 'tikkie'
-              ? `<button class="btn small-btn" data-action="copy" data-cents="${p.dueCents}">${t('copyAmount')} (${formatPlain(p.dueCents)})</button>`
-              : ''
-        }
-        ${tipBlock}
-        <span class="label">${t('spec')}</span>
-        <ul class="lines">${lines || `<li class="muted">${t('nothingYet')}</li>`}
-          ${p.tipCents ? `<li><span>${t('tipLine')}</span><span>${formatEuro(p.tipCents)}</span></li>` : ''}</ul>
-        <span class="label">${t('sendTo', { name: esc(p.name) })}</span>
-        ${sendButtons(p.id)}
-      </div>
-    </details>
-  </article>`;
-}
-
-const emptyHint = (msg, tab, label) =>
-  `<section class="card empty"><p>${msg}</p><button class="btn primary" data-action="tab" data-tab="${tab}">${label}</button></section>`;
-
-const sendButtons = (id) => `<div class="send-btns">
-    <button class="btn small-btn wa" data-action="send" data-via="wa" data-id="${id}">${icon('chat')} WhatsApp</button>
-    <button class="btn small-btn" data-action="send" data-via="mail" data-id="${id}">${icon('mail')} ${t('email')}</button>
-    <button class="btn small-btn" data-action="send" data-via="share" data-id="${id}">${icon('share')} ${t('more')}</button>
-  </div>`;
-
-function viewSend(b, r) {
-  return `<section class="card send">
-    <h3>${icon('share')} ${t('sendAll')}</h3>
-    ${sendButtons('all')}
-    <label class="field"><span>${t('payInfo')}</span><input value="${esc(b.payInfo || '')}" placeholder="${t('payInfoPh')}" data-action="pay-info" autocomplete="off"></label>
-    <p class="muted small">${t('sendHelp2')}</p>
-  </section>`;
-}
-
-function personText(b, p) {
-  const lines = p.lines.map(
-    (l) => `• ${l.units > 1 ? `${l.units}× ` : ''}${l.name}${l.shared ? ` ${t('sharedTag')}` : ''}: ${formatEuro(l.cents)}`
+  const ok = window.confirm(
+    `${whatIsSent}${firstTimeNote}\n\nGeef je toestemming voor deze online aanroep? (Bij weigeren kun je het plakvak of handmatig invoeren gebruiken.)`
   );
-  if (p.tipCents) lines.push(`• ${t('tipLine')}: ${formatEuro(p.tipCents)}`);
-  return [
-    t('msgHi', { name: p.name }),
-    t('msgShare', { title: b.title, date: fmtDate(b.createdAt, false), a: formatEuro(p.dueCents) }),
-    '',
-    t('msgSpec'),
-    ...lines,
-    '',
-    p.paid && p.paidDiffCents <= 0
-      ? t('msgPaid')
-      : [p.paid ? t('msgStillDue', { d: formatEuro(p.paidDiffCents) }) : '', b.payInfo ? t('msgPayVia', { info: b.payInfo }) : '']
-          .filter(Boolean)
-          .join('\n'),
-    t('msgThanks'),
-  ]
-    .filter((x, i, arr) => !(x === '' && arr[i - 1] === ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n');
+  if (ok && !settings.geminiPrivacyAccepted) {
+    settings.geminiPrivacyAccepted = true;
+    saveSettings(settings);
+  }
+  return ok;
 }
 
-async function send(via, text, subject) {
-  if (via === 'wa') return void window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-  if (via === 'mail') return void (location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`);
-  if (navigator.share) {
+// ============================================================
+// SERVICE WORKER (alleen app-shell, geen lokale OCR-modellen)
+// ============================================================
+async function initServiceWorker() {
+  if ('serviceWorker' in navigator) {
     try {
-      return await navigator.share({ title: subject, text });
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-    }
+      await navigator.serviceWorker.register('./sw.js');
+    } catch {}
   }
-  return copy(text);
 }
 
-function shareText(b) {
-  const r = computeSplit(b);
-  const lines = r.persons.map((p) => {
-    const tip = p.tipCents ? t('shareTip', { a: formatEuro(p.tipCents) }) : '';
-    return `• ${p.name}: ${formatEuro(p.dueCents)}${tip}${p.paid ? (p.paidDiffCents > 0 ? t('shareStillDue', { d: formatEuro(p.paidDiffCents) }) : t('sharePaid')) : ''}`;
+function renderConnectionBanner() {
+  const box = $('#offline-banner');
+  if (!box) return;
+  box.innerHTML = '';
+
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (isOffline) {
+    box.className = 'offline-banner status-missing';
+    box.appendChild(
+      el('span', {
+        text: 'Geen internetverbinding: scannen en vertalen via Gemini werken alleen met internet. Het plakvak (iPhone Live Text), handmatig invoeren en verdelen werken wel gewoon.'
+      })
+    );
+  } else {
+    box.className = 'offline-banner';
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+}
+
+window.addEventListener('online', renderConnectionBanner);
+window.addEventListener('offline', renderConnectionBanner);
+
+// ============================================================
+// HEADER & STAPPENBALK (MET VEILIGHEIDSCONTROLES)
+// ============================================================
+// Punt N1 (v11): fooi en erbovenop-getelde btw van de bon zelf horen bij het bontotaal.
+function receiptExtrasFromSession() {
+  return {
+    tipCents: Number.isInteger(session.receiptTipCents) ? session.receiptTipCents : 0,
+    vatAddedCents: Number.isInteger(session.receiptVatAddedCents) ? session.receiptVatAddedCents : 0
+  };
+}
+
+function canNavigateToStep(targetStep) {
+  if (targetStep <= session.step) return true;
+  const totalCheck = validateReceiptTotal(session.items, session.receiptTotalCents, receiptExtrasFromSession());
+  if (targetStep >= 2 && !totalCheck.canProceed) return false;
+  if (targetStep >= 3 && session.participants.length === 0) return false;
+  return true;
+}
+
+function renderHeader() {
+  const lang = settings.lang;
+  $('#app-title').textContent = t(lang, 'appName');
+  const footer = $('#app-footer');
+  if (footer) {
+    footer.innerHTML = '';
+    footer.appendChild(
+      el('a', {
+        href: SUPPORT_URL,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        className: 'support-link',
+        text: t(lang, 'support')
+      })
+    );
+  }
+  $('#app-tagline').textContent = t(lang, 'tagline');
+
+  const undoBtn = $('#btn-undo');
+  undoBtn.textContent = `↩ ${t(lang, 'undo')}`;
+  undoBtn.disabled = !undoManager.canUndo();
+  undoBtn.setAttribute('aria-label', t(lang, 'undo'));
+
+  const settingsBtn = $('#btn-settings');
+  settingsBtn.textContent = `⚙ ${t(lang, 'settings')}`;
+  settingsBtn.setAttribute('aria-label', t(lang, 'settings'));
+
+  const stepper = $('#stepper');
+  stepper.innerHTML = '';
+  const stepNames = STRINGS[lang].steps;
+  stepNames.forEach((label, idx) => {
+    const stepNum = idx + 1;
+    const isCurrent = session.step === stepNum;
+    const allowed = canNavigateToStep(stepNum);
+    const btn = el('button', {
+      type: 'button',
+      className: `step-pill ${isCurrent ? 'active' : ''}`,
+      disabled: !allowed,
+      'aria-current': isCurrent ? 'step' : null,
+      text: label,
+      onClick: () => {
+        if (session.step !== stepNum && canNavigateToStep(stepNum)) {
+          mutate(() => {
+            session.step = stepNum;
+          });
+        }
+      }
+    });
+    stepper.appendChild(btn);
   });
-  return [
-    `🧾 ${b.title} – ${fmtDate(b.createdAt, false)}`,
-    ...lines,
-    t('shareTotal', { a: formatEuro(r.dueTotal) }) + (r.tipTotal ? t('shareTipTotal', { a: formatEuro(r.tipTotal) }) : ''),
-    r.openTotal ? t('shareOpen', { a: formatEuro(r.openTotal) }) : t('shareAllPaid'),
-    ...(b.payInfo && r.openTotal ? [t('payVia', { info: b.payInfo })] : []),
-  ].join('\n');
 }
 
-async function copy(text) {
+// ============================================================
+// STAP 1: BON (GEMINI / PDF / PLAKVAK / HANDMATIG)
+// ============================================================
+function createNewItem(isDiscount = false) {
+  return {
+    id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    description: isDiscount ? (settings.lang === 'nl' ? 'Korting' : 'Discount') : '',
+    originalDescription: '',
+    geminiTranslation: '',
+    qty: 1,
+    unitPriceCents: isDiscount ? -100 : 0,
+    lineTotalCents: isDiscount ? -100 : 0,
+    assignedTo: [],
+    assignedQuantities: {},
+    lineType: isDiscount ? 'discount' : 'item',
+    isVatSummary: false,
+    needsVatDecision: false,
+    needsPriceConfirmation: false,
+    needsDiscountConfirmation: false,
+    excluded: false,
+    lowConfidence: false
+  };
+}
+
+function applyLineType(item, newType) {
+  item.lineType = newType;
+  item.isVatSummary = newType === 'vat_summary';
+  item.excluded = newType === 'ignored';
+  item.needsVatDecision = false;
+  item.needsDiscountConfirmation = false;
+  if (newType === 'discount' && Number.isInteger(item.lineTotalCents) && item.lineTotalCents > 0) {
+    item.lineTotalCents = -Math.abs(item.lineTotalCents);
+    if (Number.isInteger(item.unitPriceCents)) {
+      item.unitPriceCents = -Math.abs(item.unitPriceCents);
+    }
+  } else if ((newType === 'item' || newType === 'surcharge') && Number.isInteger(item.lineTotalCents) && item.lineTotalCents < 0) {
+    item.lineTotalCents = Math.abs(item.lineTotalCents);
+    if (Number.isInteger(item.unitPriceCents)) {
+      item.unitPriceCents = Math.abs(item.unitPriceCents);
+    }
+  }
+}
+
+function showScanError(message, { isPdf = false } = {}) {
+  render();
+  const errStatus = $('#scan-status');
+  errStatus.hidden = false;
+  errStatus.className = 'status-box error';
+  errStatus.innerHTML = '';
+  errStatus.appendChild(el('p', { text: message }));
+  if (lastReceiptFile && geminiApiKey) {
+    errStatus.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        text: '↻ Opnieuw proberen',
+        onClick: () => handleReceiptFile(lastReceiptFile)
+      })
+    );
+  }
+  // Punt 6 (v9): geen doodlopende route — bied altijd de lokale backup aan bij foto's
+  if (lastReceiptFile && !isPdf) {
+    errStatus.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-primary',
+        text: '⚡ Lokale backup starten (niets gaat naar buiten)',
+        onClick: () => runLocalBackupFlow(lastReceiptFile)
+      })
+    );
+  }
+  announce(message);
+}
+
+/**
+ * Past een scanresultaat (Gemini of lokale backup) toe op de sessie en toont de status.
+ */
+function applyScanResult(scanRes, usedLocalBackup) {
+  session.items = scanRes.items || [];
+  session.unparsedLines = scanRes.unparsedLines || [];
+  session.ambiguousCandidates = scanRes.ambiguousCandidates || [];
+  // Punt B7 (v10): bewaar de ruwe scantekst in de sessie, net als op de plak- en pdf-tekstroutes
+  session.rawText = scanRes.rawText || '';
+  session.receiptCurrency = scanRes.currency || 'EUR';
+  session.receiptLanguage = scanRes.language || null;
+  session.receiptTotalCents = scanRes.receiptTotalCents;
+  // Punt N1 (v11): fooi en erbovenop-getelde btw van de bon bewaren voor de afronding
+  session.receiptTipCents = scanRes.tipCents || 0;
+  session.receiptVatAddedCents = scanRes.taxMode === 'vat_added' ? scanRes.vatCents || 0 : 0;
+  session.receiptTotalSource = scanRes.receiptTotalCents !== null ? (usedLocalBackup ? 'local_ocr' : 'gemini') : null;
+  // N6-meting (v11): model + tokenkosten van de Gemini-aanroep bewaren (usageMetadata of gelabelde schatting)
+  session.geminiMeta = scanRes.geminiMeta || null;
+  saveSession(session);
+  render();
+
+  const postStatus = $('#scan-status');
+  postStatus.hidden = false;
+  if (usedLocalBackup) {
+    postStatus.className = 'status-box warn';
+    postStatus.textContent =
+      'Lokaal gelezen met backup (ppu-paddle-ocr, PP-OCRv6_tiny — niets verstuurd naar buiten). Let op: de lokale backup vertaalt niet; bij een buitenlandse bon kun je later met internet alsnog vertalen.';
+  } else if (scanRes.emptyResult) {
+    postStatus.className = 'status-box warn';
+    postStatus.textContent =
+      'Gemini vond geen bonregels in dit bestand. Gebruik het plakvak (iPhone Live Text) of voer de regels handmatig in.';
+  } else if (scanRes.ambiguousCandidates && scanRes.ambiguousCandidates.length > 1) {
+    postStatus.className = 'status-box warn';
+    postStatus.textContent =
+      'Er zijn meerdere mogelijke interpretaties voor het subtotaal of de btw. Kies hieronder zelf de juiste combinatie.';
+  } else if (scanRes.totalMismatch) {
+    postStatus.className = 'status-box warn';
+    postStatus.textContent =
+      'Bon gelezen via Gemini, maar de regelsom klopt niet met het bontotaal. De regels zijn gemarkeerd als onzeker — controleer en corrigeer ze hieronder.';
+  } else {
+    postStatus.className = 'status-box info';
+    postStatus.textContent = `Bon gelezen via Gemini${scanRes.language ? ` (taal: ${scanRes.language})` : ''}. Controleer elke regel en het totaalbedrag.`;
+  }
+  announce(postStatus.textContent);
+}
+
+/**
+ * Start de lokale backup (ppu-paddle-ocr) rechtstreeks voor een foto (knop in foutmeldingen,
+ * punt 6 v9) en past het resultaat toe. Gooit niets weg; fouten krijgen een NL-melding.
+ */
+async function runLocalBackupFlow(file) {
+  const statusBox = $('#scan-status');
+  statusBox.hidden = false;
+  statusBox.className = 'status-box info';
+  statusBox.textContent = 'Lokale backup (ppu-paddle-ocr, PP-OCRv6_tiny) wordt gestart…';
+  announce(statusBox.textContent);
   try {
-    await navigator.clipboard.writeText(text);
-    toast(t('copied'));
-  } catch {
-    prompt(t('copyPrompt'), text);
+    const scanRes = await runLocalBackupOcr(file, {
+      onProgress: (p) => {
+        if (p.message) statusBox.textContent = p.message;
+      }
+    });
+    applyScanResult(scanRes, true);
+  } catch (err) {
+    showScanError(friendlyScanError(err, { isPdf: false }), { isPdf: false });
   }
 }
 
-// ---------- events ----------
-const findItem = (b, id) => b.items.find((i) => i.id === id);
-const findPerson = (b, id) => b.people.find((p) => p.id === id);
+async function handleReceiptFile(file) {
+  if (!file) return;
+  lastReceiptFile = file;
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isImage = !isPdf && typeof file.type === 'string' && file.type.startsWith('image/');
 
-$app.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-action]');
-  if (!el || ['INPUT', 'FORM', 'DETAILS', 'SELECT'].includes(el.tagName)) return;
-  const b = bill();
-  const { action, id } = el.dataset;
-  switch (action) {
-    case 'undo':
-      return undo();
-    case 'settings':
-      ui.settings = true;
-      render();
-      return document.querySelector('.sheet [data-action=settings-close]')?.focus();
-    case 'settings-close-bg':
-      if (e.target !== el) return; // alleen klik naast het paneel
-    // fallthrough
-    case 'settings-close':
-      ui.settings = false;
-      render();
-      return document.querySelector('[data-action=settings]')?.focus();
-    case 'set-display':
-      display[el.dataset.key] = el.dataset.value;
-      saveSettings(display);
-      return render();
-    case 'ui-lang':
-      setLang(el.dataset.lang);
-      return render();
-    case 'receipt-lang':
-      receiptLang = el.dataset.lang;
+  // Punt 5 (v9): vriendelijke Nederlandse meldingen bij leeg of verkeerd bestand,
+  // voordat er iets wordt gestart.
+  if (file.size === 0) {
+    showScanError(emptyFileMessage(), { isPdf });
+    return;
+  }
+  if (!isPdf && !isImage) {
+    showScanError(wrongFileTypeMessage(), { isPdf });
+    return;
+  }
+
+  // Schone statusovergang: wis oude regels en oud totaal direct (bewaar in Undo)
+  undoManager.push(session);
+  session.items = [];
+  session.unparsedLines = [];
+  session.rawText = '';
+  session.receiptLanguage = null;
+  session.receiptTotalCents = null;
+  session.receiptTotalSource = null;
+  session.receiptTipCents = 0;
+  session.geminiMeta = null;
+  session.receiptVatAddedCents = 0;
+  saveSession(session);
+  render();
+
+  const liveStatus = $('#scan-status');
+  liveStatus.hidden = false;
+  liveStatus.className = 'status-box info';
+  let pdfJsLoadFailed = false;
+
+  try {
+    // 1. PDF met echte tekstlaag op alle pagina's: direct lokaal uitlezen zonder API-aanroep
+    if (isPdf) {
+      liveStatus.textContent = 'PDF-pagina\'s worden gecontroleerd op directe tekst…';
       try {
-        localStorage.setItem(RL_KEY, receiptLang);
-      } catch {}
-      return render();
-    case 'manual':
-      newBill();
-      return commit();
-    case 'open': {
-      const ob = findBill(id);
-      go(id, ob.people.length ? 'overzicht' : ob.items.length ? 'deelnemers' : 'bon');
-      return commit();
-    }
-    case 'delete-bill': {
-      const title = findBill(id).title;
-      state.bills = state.bills.filter((x) => x.id !== id);
-      if (ui.ocr?.billId === id && ui.ocr.error) ui.ocr = null;
-      commit();
-      return toast(t('deleted', { name: title }), true);
-    }
-    case 'home':
-      if (navPushed) return history.back(); // popstate tekent het startscherm
-      go(null);
-      return commit();
-    case 'tab':
-      go(state.currentId, el.dataset.tab);
+        const pdfRes = await extractPdfTextAllPages(file, (p) => {
+          liveStatus.textContent = `PDF pagina ${p.page}/${p.totalPages} lezen…`;
+        });
+        if (!pdfRes.hasScannedPages && pdfRes.parsed.items.length > 0) {
+          session.items = pdfRes.parsed.items;
+          session.unparsedLines = pdfRes.parsed.unparsedLines;
+          session.rawText = pdfRes.rawText;
+          session.receiptTotalCents = pdfRes.parsed.receiptTotalCents;
+          session.receiptTotalSource = pdfRes.parsed.receiptTotalCents !== null ? 'pdf_text' : null;
+          saveSession(session);
+          render();
+          const post = $('#scan-status');
+          post.hidden = false;
+          post.className = 'status-box info';
+          post.textContent = `Tekst direct uit alle ${pdfRes.totalPages} PDF-pagina's gelezen. Controleer elke regel en het totaal.`;
+          announce(post.textContent);
+          return;
+        }
+      } catch (pdfErr) {
+        // Punt B6 (v10): als PDF.js zelf niet laadt (jsDelivr geblokkeerd / offline), onthoud dat;
+        // de melding "scan zonder tekstlaag" is dan misleidend.
+        if (pdfErr && pdfErr.code === 'pdfjs_load_failed') pdfJsLoadFailed = true;
+        // Als PDF.js niet laadt of geen tekstlaag heeft, ga door naar Gemini voor de hele PDF
+      }
+    } else {
+      if (currentPhotoObjectUrl) URL.revokeObjectURL(currentPhotoObjectUrl);
+      currentPhotoObjectUrl = URL.createObjectURL(file);
       render();
-      return window.scrollTo(0, 0);
-    case 'tr-do':
-      applyTranslation(b);
-      return commit();
-    case 'tr-undo':
-      undoTranslation(b);
-      return commit();
-    case 'tr-online':
-      return translateRestOnline(b);
-    case 'item-add':
-      b.items.push({ id: uid(), name: '', qty: 1, priceCents: 0, assign: {} });
-      commit();
-      return document.querySelector('.item-edit:last-of-type .name')?.focus();
-    case 'item-del': {
-      const name = findItem(b, id).name || t('desc');
-      b.items = b.items.filter((i) => i.id !== id);
-      commit();
-      return toast(t('deleted', { name }), true);
     }
-    case 'item-split':
-      splitItem(b, id);
-      commit();
-      return toast(t('splitDone'), true);
-    case 'person-del': {
-      const p = findPerson(b, id);
-      b.people = b.people.filter((x) => x.id !== id);
-      b.items.forEach((i) => delete i.assign?.[id]);
-      commit();
-      return toast(t('deleted', { name: p.name }), true);
+
+    // 2. Foto of gescande PDF -> Gemini eerst, lokale backup (ppu-paddle-ocr PP-OCRv6_tiny) als Gemini niet kan
+    const statusBox = $('#scan-status');
+    statusBox.hidden = false;
+
+    let fallbackReason = null;
+    if (!geminiApiKey) {
+      fallbackReason = 'geen Gemini API-sleutel ingesteld';
+    } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      fallbackReason = 'geen internetverbinding';
+    } else if (!confirmGeminiConsent('scan', isPdf)) {
+      fallbackReason = 'online scannen via Gemini geweigerd';
     }
-    case 'select-person':
-      ui.person = id;
-      return render();
-    case 'unit': {
-      markHintSeen();
-      const it = findItem(b, id);
-      if (it.everyone) {
-        it.everyone = false;
-        it.assign = Object.fromEntries(b.people.map((p) => [p.id, 1]));
+
+    let scanRes = null;
+    let usedLocalBackup = false;
+
+    if (!fallbackReason) {
+      statusBox.className = 'status-box info';
+      statusBox.textContent = `Bon wordt gelezen via Gemini (${settings.geminiModel || DEFAULT_GEMINI_MODEL})…`;
+      announce(statusBox.textContent);
+      try {
+        scanRes = await scanReceiptWithGemini(file, geminiApiKey, {
+          model: settings.geminiModel || DEFAULT_GEMINI_MODEL
+        });
+      } catch (gemErr) {
+        // Punt 6 (v9): ook HTTP 500 en andere serverfouten vallen terug op de lokale backup
+        if (gemErr.fallbackCode === 'http_429' || gemErr.fallbackCode === 'http_5xx' || gemErr.fallbackCode === 'offline' || gemErr.fallbackCode === 'network') {
+          fallbackReason = gemErr.message;
+        } else {
+          throw gemErr;
+        }
       }
-      it.assign ||= {};
-      const v = Math.max(0, (it.assign[ui.person] || 0) + Number(el.dataset.delta));
-      if (v) it.assign[ui.person] = v;
-      else delete it.assign[ui.person];
-      return commit();
     }
-    case 'everyone': {
-      const it = findItem(b, id);
-      it.everyone = !it.everyone;
-      it.assign = {};
-      return commit();
-    }
-    case 'tip-mode':
-      b.tip.mode = el.dataset.mode;
-      ui.open.tip = true;
-      return commit();
-    case 'pay-quick':
-      findPerson(b, id).payCents = Number(el.dataset.cents);
-      return commit();
-    case 'tip-paid-quick':
-      b.tip.paidTotalCents = Number(el.dataset.cents);
-      return commit();
-    case 'tip-dist':
-      b.tip.distribution = el.dataset.dist;
-      return commit();
-    case 'method': {
-      const p = findPerson(b, id);
-      if (p.method === 'contant' && el.dataset.method !== 'contant') {
-        p.givenCents = null;
-        p.extraTipCents = 0; // was wisselgeld als fooi; zonder contant geen wisselgeld
+
+    if (!scanRes && fallbackReason) {
+      // Punt 5 (v9): de lokale backup kan geen PDF's lezen. Bij een gescande PDF zonder
+      // bruikbare Gemini-route: duidelijke NL-melding i.p.v. een Engelse decode-fout.
+      if (isPdf) {
+        // Punt B6 (v10): eerlijke melding als de pdf-lezer zelf niet laadde
+        throw new Error(pdfJsLoadFailed ? pdfReaderLoadFailedMessage() : scannedPdfWithoutGeminiMessage());
       }
-      p.method = el.dataset.method;
-      return commit();
+      usedLocalBackup = true;
+      statusBox.className = 'status-box warn';
+      statusBox.textContent = `Gemini niet beschikbaar (${fallbackReason}). Lokale backup (ppu-paddle-ocr, PP-OCRv6_tiny) wordt gestart…`;
+      announce(statusBox.textContent);
+      scanRes = await runLocalBackupOcr(file, {
+        onProgress: (p) => {
+          if (p.message) statusBox.textContent = p.message;
+        }
+      });
     }
-    case 'given-quick':
-      findPerson(b, id).givenCents = Number(el.dataset.cents);
-      return commit();
-    case 'keep-change': {
-      const p = findPerson(b, id);
-      const pr = computeSplit(b).persons.find((x) => x.id === id);
-      p.extraTipCents = Math.max(0, p.givenCents - pr.subtotalCents);
-      toast(t('toTip', { a: formatEuro(p.extraTipCents), name: p.name }));
-      return commit();
-    }
-    case 'paid-settle': {
-      const p = findPerson(b, id);
-      p.paidCents = computeSplit(b).persons.find((x) => x.id === id).dueCents;
-      return commit();
-    }
-    case 'undo-keep':
-      findPerson(b, id).extraTipCents = 0;
-      return commit();
-    case 'copy':
-      return copy(formatPlain(Number(el.dataset.cents)));
-    case 'send': {
-      const un = computeSplit(b).unassignedCents;
-      if (un && !confirm(t('sendUnassigned', { a: formatEuro(un) }))) return;
-      const subject = t('mailSubject', { title: b.title });
-      if (id === 'all') return send(el.dataset.via, shareText(b), subject);
-      const p = computeSplit(b).persons.find((x) => x.id === id);
-      return send(el.dataset.via, personText(b, p), subject);
-    }
+
+    applyScanResult(scanRes, usedLocalBackup);
+  } catch (err) {
+    // Punt 5 (v9): technische fouten (bijv. Engelse decode-fouten) worden vriendelijke NL-meldingen
+    showScanError(friendlyScanError(err, { isPdf }), { isPdf });
   }
-});
-
-$app.addEventListener('toggle', (e) => {
-  const el = e.target;
-  if (el.dataset?.action === 'tip-toggle') ui.open.tip = el.open;
-  if (el.dataset?.action === 'preview-toggle') ui.open.preview = el.open;
-  if (el.dataset?.action === 'person-toggle') ui.open['p' + el.dataset.id] = el.open;
-}, true);
-
-$app.addEventListener('change', (e) => {
-  const el = e.target;
-  const b = bill();
-  const { action, id } = el.dataset;
-  switch (action) {
-    case 'file': {
-      const file = el.files?.[0];
-      if (!file) return;
-      return importFile(file, b || newBill());
-    }
-    case 'bill-lang':
-      undoTranslation(b);
-      b.lang = el.value;
-      if (b.lang !== getLang()) applyTranslation(b);
-      return commit();
-    case 'title':
-      b.title = el.value.trim() || b.title;
-      b.autoTitle = false;
-      return commit();
-    case 'item-field': {
-      const it = findItem(b, id);
-      const f = el.dataset.field;
-      if (f === 'name') {
-        it.name = el.value.trim();
-        it.coverage = 1;
-      }
-      if (f === 'qty') {
-        it.qty = Math.max(1, Math.round(Number(el.value) || 1));
-        const W = it.everyone ? 0 : Object.values(it.assign || {}).reduce((a, w) => a + w, 0);
-        if (W > it.qty) toast(t('qtyBelow', { n: W, q: it.qty }));
-      }
-      if (f === 'price') {
-        const c = parseEuro(el.value);
-        if (c == null) toast(t('invalidAmount'));
-        else it.priceCents = c;
-      }
-      return commit();
-    }
-    case 'set-contrast':
-      display.contrast = el.checked;
-      saveSettings(display);
-      return render();
-    case 'pay-info':
-      b.payInfo = el.value.trim();
-      return commit();
-    case 'receipt-total':
-      b.receiptTotalCents = el.value.trim() ? parseEuro(el.value) : null;
-      return commit();
-    case 'person-rename':
-      findPerson(b, id).name = el.value.trim() || findPerson(b, id).name;
-      return commit();
-    case 'tip-value':
-      if (b.tip.mode === 'amount') b.tip.amountCents = Math.max(0, parseEuro(el.value) || 0);
-      else b.tip.paidTotalCents = el.value.trim() ? parseEuro(el.value) : null;
-      return commit();
-    case 'given':
-      findPerson(b, id).givenCents = el.value.trim() ? parseEuro(el.value) : null;
-      return commit();
-    case 'pay':
-      findPerson(b, id).payCents = el.value.trim() ? parseEuro(el.value) : null;
-      return commit();
-    case 'extra-tip':
-      findPerson(b, id).extraTipCents = Math.max(0, parseEuro(el.value) || 0);
-      return commit();
-    case 'paid': {
-      const p = findPerson(b, id);
-      p.paid = el.checked;
-      if (el.checked) {
-        p.paidCents = computeSplit(b).persons.find((x) => x.id === id).dueCents;
-        toast(t('hasPaid', { name: p.name }));
-      } else delete p.paidCents;
-      return commit();
-    }
-  }
-});
-
-// Live wisselgeld tonen tijdens het typen, zonder de invoer te verstoren.
-$app.addEventListener('input', (e) => {
-  const el = e.target;
-  if (el.dataset.action !== 'given') return;
-  const b = bill();
-  const p = findPerson(b, el.dataset.id);
-  const old = p.givenCents;
-  p.givenCents = el.value.trim() ? parseEuro(el.value) : null;
-  const pr = computeSplit(b).persons.find((x) => x.id === p.id);
-  p.givenCents = old;
-  const card = el.closest('.person-card');
-  card.querySelector('.change')?.remove();
-  card.querySelector('.cash')?.insertAdjacentHTML('beforeend', changeBox(pr.changeCents));
-});
-
-$app.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const form = e.target;
-  if (form.dataset.action !== 'person-add') return;
-  const b = bill();
-  const names = form.elements.pname.value.split(',').map((s) => s.trim()).filter(Boolean);
-  if (!names.length) return;
-  for (const name of names)
-    b.people.push({ id: uid(), name, method: 'contant', givenCents: null, extraTipCents: 0, paid: false });
-  commit();
-  document.querySelector('.add-person input')?.focus();
-});
-
-// ---------- icons ----------
-function icon(name) {
-  const p = {
-    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
-    file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
-    receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
-    back: '<path d="M15 5l-7 7 7 7"/>',
-    next: '<path d="M9 5l7 7-7 7"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>',
-    x: '<path d="M6 6l12 12M18 6L6 18"/>',
-    trash: '<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',
-    check: '<path d="M5 12l5 5 9-10"/>',
-    users: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c3 0 5 2.5 5 5.5"/>',
-    share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
-    chat: '<path d="M4 20l1.5-4A8 8 0 1 1 8 18.5z"/>',
-    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
-    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-    split: '<path d="M12 3v6M12 9l-6 6M12 9l6 6M6 15v6M18 15v6"/>',
-    textsize: '<path d="M3 19l5-13 5 13M4.8 14.5h6.4"/><path d="M14 19l3.5-9 3.5 9M15.2 16h4.6"/>',
-    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
-  }[name];
-  return `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
 
-document.addEventListener('keydown', (e) => {
-  // ⌘Z / Ctrl+Z buiten invoervelden: ongedaan maken
-  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+function renderStep1(container) {
+  const lang = settings.lang;
+  container.appendChild(el('h2', { text: t(lang, 'step1Title') }));
+  container.appendChild(
+    el('p', {
+      className: 'help-text',
+      text: 'Maak een foto van de bon, kies een foto of PDF, plak tekst via iPhone Live Text, of typ de regels handmatig in. Controleer herkende bedragen altijd zelf.'
+    })
+  );
+
+  // Dagteller & sleutelstatus
+  const quota = getDailyGeminiCallCount();
+  const modelUsed = settings.geminiModel || DEFAULT_GEMINI_MODEL;
+  const quotaInfo = el('div', { className: 'status-box info' }, [
+    el('span', {
+      text: geminiApiKey
+        ? `Gemini-aanroepen vandaag op dit toestel: ${quota.count} (model: ${modelUsed}). Het gratis daglimiet verschilt per project en model en is zichtbaar in Google AI Studio.`
+        : 'Geen Gemini API-sleutel ingesteld: scannen en vertalen zijn uitgeschakeld. Het plakvak (iPhone Live Text) en handmatig invoeren werken altijd. Stel je eigen gratis sleutel in bij Instellingen & privacy.'
+    })
+  ]);
+  container.appendChild(quotaInfo);
+
+  // Camera & bestand kiezen
+  const fileActions = el('div', { className: 'action-row' });
+
+  const cameraInput = el('input', {
+    type: 'file',
+    accept: 'image/*',
+    capture: 'environment',
+    className: 'sr-only',
+    id: 'input-camera'
+  });
+  cameraInput.addEventListener('change', (e) => {
+    if (e.target.files?.[0]) handleReceiptFile(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  const fileInput = el('input', {
+    type: 'file',
+    accept: 'image/*,application/pdf',
+    className: 'sr-only',
+    id: 'input-file'
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files?.[0]) handleReceiptFile(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  fileActions.appendChild(
+    el('label', { for: 'input-camera', className: 'btn btn-primary', text: `📷 ${t(lang, 'takePhoto')}` })
+  );
+  fileActions.appendChild(
+    el('label', { for: 'input-file', className: 'btn btn-secondary', text: `📄 ${t(lang, 'chooseFile')}` })
+  );
+  fileActions.appendChild(cameraInput);
+  fileActions.appendChild(fileInput);
+
+  if (currentPhotoObjectUrl) {
+    fileActions.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-danger-outline',
+        text: `🗑 ${t(lang, 'clearPhoto')}`,
+        onClick: () => {
+          URL.revokeObjectURL(currentPhotoObjectUrl);
+          currentPhotoObjectUrl = null;
+          render();
+          announce(t(lang, 'photoCleared'));
+        }
+      })
+    );
+  }
+  container.appendChild(fileActions);
+
+  if (currentPhotoObjectUrl) {
+    container.appendChild(
+      el('div', { className: 'photo-preview' }, [
+        el('img', { src: currentPhotoObjectUrl, alt: 'Bonvoorbeeld (alleen in geheugen)' })
+      ])
+    );
+  }
+
+  // Groot plakvak voor iPhone Live Text / Tekst van camera
+  const pasteDetails = el('details', { className: 'card mt' });
+  pasteDetails.appendChild(el('summary', { text: '📋 Plak bontekst (iPhone Live Text / Tekst van camera)' }));
+  const pasteArea = el('textarea', {
+    id: 'live-text-paste',
+    rows: '5',
+    className: 'paste-textarea',
+    placeholder: 'Plak hier tekst uit iPhone Foto\'s (Live Text) of gebruik "Tekst van camera". Artikel en bedrag mogen op losse regels staan.'
+  });
+  const pasteBtn = el('button', {
+    type: 'button',
+    className: 'btn btn-secondary btn-sm mt',
+    text: 'Verwerk geplakte tekst',
+    onClick: () => {
+      const txt = pasteArea.value.trim();
+      if (!txt) return;
+      const parsed = parsePlainTextReceipt(txt);
+      mutate(() => {
+        session.items = parsed.items;
+        session.unparsedLines = parsed.unparsedLines;
+        // Punt B5 (v10): het plakvak gaf de twijfelkandidaten niet door aan de sessie,
+        // waardoor de keuze-UI alleen bij scanroutes verscheen.
+        session.ambiguousCandidates = parsed.ambiguousCandidates || [];
+        session.rawText = txt;
+        session.receiptTotalCents = parsed.receiptTotalCents;
+        session.receiptTotalSource = parsed.receiptTotalCents !== null ? 'live_text' : null;
+        // Punt N1 (v11): fooi en erbovenop-getelde btw van de bon bewaren voor de afronding
+        session.receiptTipCents = parsed.tipCents || 0;
+        session.receiptVatAddedCents = parsed.taxMode === 'vat_added' ? parsed.vatCents || 0 : 0;
+      }, 'Geplakte tekst verwerkt. Controleer de regels en het totaal.');
+    }
+  });
+  pasteDetails.appendChild(pasteArea);
+  pasteDetails.appendChild(pasteBtn);
+  container.appendChild(pasteDetails);
+
+  container.appendChild(el('div', { id: 'scan-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' }));
+
+  // Vertaalknop naar het Nederlands (kerneis, bewuste actie, alleen tekstregels)
+  if (session.items.length > 0) {
+    const transBox = el('div', { className: 'action-row' });
+    const transFeedback = el('div', { id: 'translate-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' });
+    transBox.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary btn-sm',
+        disabled: !geminiApiKey,
+        text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
+        onClick: async () => {
+          if (!confirmGeminiConsent('translate')) return;
+          transFeedback.hidden = false;
+          transFeedback.className = 'status-box info';
+          transFeedback.textContent = 'Regels worden naar het Nederlands vertaald…';
+          try {
+            const map = await translateItemsWithGemini(session.items, geminiApiKey, {
+              model: settings.geminiModel || DEFAULT_GEMINI_MODEL
+            });
+            mutate(() => {
+              session.items.forEach((it) => {
+                if (map[it.id]) {
+                  if (!it.originalDescription) it.originalDescription = it.description;
+                  it.geminiTranslation = map[it.id];
+                }
+              });
+            }, 'Nederlandse machinevertalingen toegevoegd. Controleer en pas aan waar nodig.');
+          } catch (err) {
+            transFeedback.className = 'status-box error';
+            transFeedback.textContent = err?.message || 'Vertalen is mislukt.';
+          }
+        }
+      })
+    );
+    container.appendChild(transBox);
+    container.appendChild(transFeedback);
+  }
+
+  // Bij dubbele geldige som-combinaties: laat de gebruiker kiezen (nooit stil zelf kiezen)
+  if (session.ambiguousCandidates && session.ambiguousCandidates.length > 1) {
+    const ambCard = el('div', { className: 'status-box warn', role: 'alert' });
+    ambCard.appendChild(
+      el('p', {
+        text: 'Meerdere combinaties kloppen met het bontotaal. Kies welke interpretatie bij deze bon hoort:'
+      })
+    );
+    const btnRow = el('div', { className: 'action-row' });
+    session.ambiguousCandidates.forEach((cand) => {
+      btnRow.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-secondary',
+          text: cand.label,
+          onClick: () =>
+            mutate(() => {
+              session.items.forEach((it) => {
+                if (cand.excludedSubtotalItemId && it.id === cand.excludedSubtotalItemId) {
+                  it.excluded = true;
+                  it.lineType = 'ignored';
+                  it.probableSubtotal = true;
+                }
+                it.lowConfidence = false;
+              });
+              session.ambiguousCandidates = [];
+            })
+        })
+      );
+    });
+    ambCard.appendChild(btnRow);
+    container.appendChild(ambCard);
+  }
+
+  // Regels lijst
+  const listWrap = el('div', { className: 'items-list' });
+  session.items.forEach((item, idx) => {
+    const active = isLineActive(item);
+    const lineCheck = validateLineItem(item);
+    const trans = translateOffline(item.originalDescription || item.description, customDict);
+    const needsReview =
+      item.lowConfidence ||
+      item.needsPriceConfirmation ||
+      item.needsVatDecision ||
+      item.needsDiscountConfirmation ||
+      (active && lineCheck.mismatch);
+
+    const cardClasses = ['item-card'];
+    if (needsReview) cardClasses.push('needs-review');
+    if (!active) cardClasses.push('is-vat');
+
+    const card = el('div', { className: cardClasses.join(' ') });
+
+    // Badges
+    const badges = el('div', { className: 'badge-row' });
+    if (item.pageNumber && item.pageNumber > 1) {
+      badges.appendChild(el('span', { className: 'badge badge-muted', text: `Pagina ${item.pageNumber}` }));
+    }
+    if (item.sourceEngine === 'ppu-paddle-ocr') {
+      badges.appendChild(el('span', { className: 'badge badge-muted', text: 'Lokaal gelezen (PP-OCRv6_tiny)' }));
+    }
+    if (item.restoredDecimal) {
+      badges.appendChild(el('span', { className: 'badge badge-warn', text: 'Herstelde komma — controleer bedrag' }));
+    }
+    if (item.probableSubtotal) {
+      badges.appendChild(el('span', { className: 'badge badge-muted', text: 'Waarschijnlijk subtotaal (uit gerechtenlijst gehaald)' }));
+    }
+    if (item.lowConfidence) {
+      badges.appendChild(el('span', { className: 'badge badge-warn', text: `⚠ ${t(lang, 'flagLowConf')}` }));
+    }
+    if (active && lineCheck.mismatch && !item.needsPriceConfirmation) {
+      badges.appendChild(el('span', { className: 'badge badge-error', text: `⚠ ${t(lang, 'flagMismatch')}` }));
+    }
+    if (item.lineType === 'vat_summary' || item.isVatSummary) {
+      badges.appendChild(el('span', { className: 'badge badge-muted', text: t(lang, 'flagVatSummary') }));
+    } else if (item.lineType === 'ignored' || item.excluded) {
+      badges.appendChild(el('span', { className: 'badge badge-muted', text: 'Genegeerd (telt niet mee)' }));
+    } else if (item.lineType === 'discount') {
+      badges.appendChild(el('span', { className: 'badge badge-info', text: 'Korting (negatief)' }));
+    } else if (item.lineType === 'surcharge') {
+      badges.appendChild(el('span', { className: 'badge badge-info', text: 'Extra heffing (telt mee)' }));
+    }
+    if (item.needsVatDecision) {
+      badges.appendChild(el('span', { className: 'badge badge-warn', text: `❓ ${t(lang, 'flagVatUncertain')}` }));
+    }
+    if (!item.geminiTranslation && trans.translated && trans.text.toLowerCase() !== item.description.toLowerCase()) {
+      badges.appendChild(el('span', { className: 'badge badge-info', text: `NL (woordenboek): ${trans.text}` }));
+    }
+    if (badges.childNodes.length > 0) card.appendChild(badges);
+
+    // Origineel en Nederlandse machinevertaling naast elkaar (aanpasbaar, origineel blijft leidend)
+    const grid = el('div', { className: 'item-edit-grid' });
+
+    const descInput = el('input', {
+      type: 'text',
+      value: item.description,
+      placeholder: t(lang, 'colDesc'),
+      'aria-label': `Originele omschrijving ${idx + 1}`,
+      className: 'field-desc'
+    });
+    descInput.addEventListener('change', (e) => {
+      mutate(() => {
+        item.description = e.target.value.trim();
+        if (!item.originalDescription) item.originalDescription = item.description;
+        item.lowConfidence = false;
+      });
+    });
+
+    grid.appendChild(
+      el('label', { className: 'field-wrap desc-wrap' }, [
+        el('span', { text: 'Origineel op de bon' }),
+        descInput
+      ])
+    );
+
+    if (item.geminiTranslation) {
+      const nlInput = el('input', {
+        type: 'text',
+        value: item.geminiTranslation,
+        'aria-label': `Nederlandse machinevertaling ${idx + 1}`
+      });
+      nlInput.addEventListener('change', (e) => {
+        mutate(() => {
+          item.geminiTranslation = e.target.value.trim();
+        });
+      });
+      grid.appendChild(
+        el('label', { className: 'field-wrap desc-wrap' }, [
+          el('span', { text: 'Nederlands (machinevertaling — aanpasbaar)' }),
+          nlInput
+        ])
+      );
+    }
+
+    const qtyInput = el('input', {
+      type: 'number',
+      min: '1',
+      step: '1',
+      value: String(item.qty),
+      'aria-label': `${t(lang, 'colQty')} ${idx + 1}`,
+      className: 'field-qty'
+    });
+    qtyInput.addEventListener('change', (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (Number.isInteger(val) && val > 0) {
+        mutate(() => {
+          item.qty = val;
+          item.assignedQuantities = {};
+        });
+      }
+    });
+
+    const unitInput = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      value: Number.isInteger(item.unitPriceCents) ? (item.unitPriceCents / 100).toFixed(2).replace('.', ',') : '',
+      'aria-label': `${t(lang, 'colUnit')} ${idx + 1}`,
+      className: 'field-price'
+    });
+    unitInput.addEventListener('change', (e) => {
+      const c = parseEuroToCents(e.target.value);
+      if (c !== null) {
+        mutate(() => {
+          item.unitPriceCents = item.lineType === 'discount' ? -Math.abs(c) : c;
+          if (item.qty === 1) item.lineTotalCents = item.unitPriceCents;
+          item.lowConfidence = false;
+          item.needsPriceConfirmation = false;
+        });
+      }
+    });
+
+    const totalInput = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      value: Number.isInteger(item.lineTotalCents) ? (item.lineTotalCents / 100).toFixed(2).replace('.', ',') : '',
+      'aria-label': `${t(lang, 'colTotal')} ${idx + 1}`,
+      className: 'field-price'
+    });
+    totalInput.addEventListener('change', (e) => {
+      const c = parseEuroToCents(e.target.value);
+      if (c !== null) {
+        mutate(() => {
+          item.lineTotalCents = item.lineType === 'discount' ? -Math.abs(c) : c;
+          if (item.qty === 1) item.unitPriceCents = item.lineTotalCents;
+          item.lowConfidence = false;
+          item.needsPriceConfirmation = false;
+        });
+      }
+    });
+
+    const typeSelect = el('select', { 'aria-label': `Regeltype ${idx + 1}` }, [
+      el('option', { value: 'item', selected: (item.lineType || 'item') === 'item', text: 'Consumptie (telt mee)' }),
+      el('option', { value: 'discount', selected: item.lineType === 'discount', text: 'Korting (negatief, telt mee)' }),
+      el('option', { value: 'surcharge', selected: item.lineType === 'surcharge', text: 'Extra heffing (telt mee)' }),
+      el('option', { value: 'vat_summary', selected: item.lineType === 'vat_summary' || item.isVatSummary, text: 'Inbegrepen btw-info (telt niet mee)' }),
+      el('option', { value: 'ignored', selected: item.lineType === 'ignored' || item.excluded, text: 'Genegeerde info (telt niet mee)' })
+    ]);
+    typeSelect.addEventListener('change', (e) => {
+      mutate(() => applyLineType(item, e.target.value));
+    });
+
+    grid.appendChild(el('label', { className: 'field-wrap' }, [el('span', { text: t(lang, 'colQty') }), qtyInput]));
+    grid.appendChild(el('label', { className: 'field-wrap' }, [el('span', { text: t(lang, 'colUnit') }), unitInput]));
+    grid.appendChild(el('label', { className: 'field-wrap' }, [el('span', { text: t(lang, 'colTotal') }), totalInput]));
+    grid.appendChild(el('label', { className: 'field-wrap desc-wrap' }, [el('span', { text: 'Regeltype' }), typeSelect]));
+    card.appendChild(grid);
+
+    const rowBtns = el('div', { className: 'item-row-actions' });
+    if (item.lowConfidence && !item.needsPriceConfirmation) {
+      rowBtns.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-primary',
+          text: '✓ Gecontroleerd',
+          onClick: () =>
+            mutate(() => {
+              item.lowConfidence = false;
+            })
+        })
+      );
+    }
+    // Eén-tik-correctie (paragraaf 2): uit gerechtenlijst halen of weer terugzetten
+    rowBtns.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        text: item.excluded ? '↩ Terugzetten als gerecht' : '⊘ Niet meetellen (geen gerecht)',
+        onClick: () =>
+          mutate(() => {
+            item.excluded = !item.excluded;
+            item.lineType = item.excluded ? 'ignored' : 'item';
+            if (!item.excluded) item.probableSubtotal = false;
+          })
+      })
+    );
+
+    rowBtns.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-danger-outline',
+        text: `✕ ${t(lang, 'deleteLine')}`,
+        onClick: () =>
+          mutate(() => {
+            session.items.splice(idx, 1);
+          })
+      })
+    );
+
+    card.appendChild(rowBtns);
+    listWrap.appendChild(card);
+  });
+  container.appendChild(listWrap);
+
+  if (session.unparsedLines && session.unparsedLines.length > 0) {
+    const details = el('details', { className: 'card' });
+    details.appendChild(
+      el('summary', {
+        text: `Nog niet ingedeelde tekstregels (${session.unparsedLines.length}) — bekijk of voeg toe`
+      })
+    );
+    session.unparsedLines.forEach((rawLine, rIdx) => {
+      const row = el('div', { className: 'participant-row' }, [
+        el('span', { text: `${rawLine.pageNumber > 1 ? `[p.${rawLine.pageNumber}] ` : ''}${rawLine.text}` }),
+        el('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-secondary',
+          text: '+ Als regel',
+          onClick: () =>
+            mutate(() => {
+              const newItem = createNewItem(false);
+              newItem.description = rawLine.text;
+              newItem.originalDescription = rawLine.text;
+              session.items.push(newItem);
+              session.unparsedLines.splice(rIdx, 1);
+            })
+        })
+      ]);
+      details.appendChild(row);
+    });
+    container.appendChild(details);
+  }
+
+  // Knoppen regel / korting toevoegen
+  container.appendChild(
+    el('div', { className: 'action-row' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary',
+        text: `+ ${t(lang, 'addLine')}`,
+        onClick: () =>
+          mutate(() => {
+            session.items.push(createNewItem(false));
+          })
+      }),
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary',
+        text: `− ${t(lang, 'addDiscount')}`,
+        onClick: () =>
+          mutate(() => {
+            session.items.push(createNewItem(true));
+          })
+      })
+    ])
+  );
+
+  // Totaalcontrole
+  const totalCheck = validateReceiptTotal(session.items, session.receiptTotalCents, receiptExtrasFromSession());
+  const totalBox = el('div', { className: 'total-check-card' });
+
+  const totalInput = el('input', {
+    type: 'text',
+    inputmode: 'decimal',
+    id: 'receipt-total-input',
+    placeholder: t(lang, 'receiptTotalPlaceholder'),
+    value:
+      Number.isInteger(session.receiptTotalCents)
+        ? (session.receiptTotalCents / 100).toFixed(2).replace('.', ',')
+        : ''
+  });
+  totalInput.addEventListener('change', (e) => {
+    const raw = e.target.value.trim();
+    mutate(() => {
+      if (raw === '') {
+        session.receiptTotalCents = null;
+        session.receiptTotalSource = null;
+      } else {
+        session.receiptTotalCents = parseEuroToCents(raw);
+        session.receiptTotalSource = 'manual';
+      }
+    });
+  });
+
+  const sourceHint =
+    session.receiptTotalSource === 'manual'
+      ? ' (handmatig ingevoerd)'
+      : session.receiptTotalSource === 'gemini'
+        ? ' (uit bon gelezen door Gemini — controleer zelf)'
+        : session.receiptTotalSource === 'pdf_text'
+          ? ' (uit PDF-tekst gelezen)'
+          : '';
+
+  totalBox.appendChild(
+    el('label', { for: 'receipt-total-input', className: 'field-wrap' }, [
+      el('span', { text: `${t(lang, 'receiptTotalLabel')}${sourceHint}` }),
+      totalInput
+    ])
+  );
+
+  totalBox.appendChild(
+    el('div', { className: 'summary-kv' }, [
+      el('div', {}, [el('span', { text: t(lang, 'sumOfLines') }), el('strong', { text: formatCentsNL(totalCheck.itemsSumCents) })]),
+      el('div', {}, [
+        el('span', { text: t(lang, 'receiptTotal') }),
+        el('strong', {
+          text: totalCheck.receiptTotalCents !== null ? formatCentsNL(totalCheck.receiptTotalCents) : 'Ontbreekt'
+        })
+      ]),
+      el('div', {}, [el('span', { text: t(lang, 'difference') }), el('strong', { text: formatCentsNL(totalCheck.diffCents) })])
+    ])
+  );
+
+  if (totalCheck.missingReceiptTotal) {
+    totalBox.appendChild(
+      el('div', {
+        className: 'status-box error',
+        role: 'alert',
+        text: 'Vul eerst het gecontroleerde totaalbedrag van de bon in. Zonder bontotaal kun je niet verder of afronden.'
+      })
+    );
+  } else if (!totalCheck.matches) {
+    totalBox.appendChild(
+      el('div', {
+        className: 'status-box error',
+        role: 'alert',
+        text: t(lang, 'totalMismatchWarning', { diff: formatCentsNL(totalCheck.diffCents) })
+      })
+    );
+  } else if (session.items.length > 0) {
+    totalBox.appendChild(el('div', { className: 'status-box success', text: `✓ ${t(lang, 'totalMatches')}` }));
+  }
+
+  if (totalCheck.mismatchItemIds.length > 0) {
+    totalBox.appendChild(el('div', { className: 'status-box error', role: 'alert', text: t(lang, 'itemMismatchWarning') }));
+  }
+  if (totalCheck.uncertainVatItemIds.length > 0) {
+    totalBox.appendChild(el('div', { className: 'status-box warn', role: 'alert', text: t(lang, 'vatUncertainWarning') }));
+  }
+  if (totalCheck.lowConfidenceItemIds.length > 0 || totalCheck.priceConfirmItemIds.length > 0) {
+    totalBox.appendChild(
+      el('div', {
+        className: 'status-box warn',
+        role: 'alert',
+        text: 'Controleer en bevestig eerst alle gemarkeerde onzekere regels voordat je doorgaat.'
+      })
+    );
+  }
+
+  container.appendChild(totalBox);
+
+  container.appendChild(
+    el('div', { className: 'nav-row' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-primary btn-next',
+        text: `${t(lang, 'next')} →`,
+        disabled: !totalCheck.canProceed,
+        onClick: () =>
+          mutate(() => {
+            session.step = 2;
+          })
+      })
+    ])
+  );
+}
+
+// ============================================================
+// STAP 2: DEELNEMERS
+// ============================================================
+function addParticipantByName(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return;
+  if (session.participants.some((p) => p.name.toLowerCase() === clean.toLowerCase())) return;
+  mutate(() => {
+    const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    session.participants.push({ id, name: clean, paidCashCents: null, settled: false });
+    if (!session.activeParticipantId) session.activeParticipantId = id;
+    savedNames = saveNameToHistory(clean);
+  });
+}
+
+function renderStep2(container) {
+  const lang = settings.lang;
+  container.appendChild(el('h2', { text: t(lang, 'step2Title') }));
+  container.appendChild(el('p', { className: 'help-text', text: t(lang, 'step2Help') }));
+
+  const form = el('form', { className: 'inline-form' });
+  const input = el('input', {
+    type: 'text',
+    placeholder: t(lang, 'participantPlaceholder'),
+    'aria-label': t(lang, 'participantPlaceholder')
+  });
+  form.appendChild(input);
+  form.appendChild(el('button', { type: 'submit', className: 'btn btn-primary', text: t(lang, 'addParticipant') }));
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
-    return undo();
+    addParticipantByName(input.value);
+    input.value = '';
+    input.focus();
+  });
+  container.appendChild(form);
+
+  const chipList = el('div', { className: 'participant-list' });
+  if (session.participants.length === 0) {
+    chipList.appendChild(el('p', { className: 'muted', text: t(lang, 'noParticipants') }));
+  } else {
+    session.participants.forEach((p, idx) => {
+      chipList.appendChild(
+        el('div', { className: 'participant-row' }, [
+          el('strong', { text: p.name }),
+          el('button', {
+            type: 'button',
+            className: 'btn btn-sm btn-danger-outline',
+            'aria-label': `${t(lang, 'removeParticipant')} ${p.name}`,
+            text: '✕',
+            onClick: () =>
+              mutate(() => {
+                session.participants.splice(idx, 1);
+                session.items.forEach((it) => {
+                  it.assignedTo = (it.assignedTo || []).filter((id) => id !== p.id);
+                  if (it.assignedQuantities && p.id in it.assignedQuantities) {
+                    delete it.assignedQuantities[p.id];
+                  }
+                });
+                if (session.activeParticipantId === p.id) {
+                  session.activeParticipantId = session.participants[0]?.id || null;
+                }
+              })
+          })
+        ])
+      );
+    });
   }
-  if (e.key === 'Escape' && ui.settings) {
-    ui.settings = false;
+  container.appendChild(chipList);
+
+  const unusedSaved = savedNames.filter(
+    (n) => !session.participants.some((p) => p.name.toLowerCase() === n.toLowerCase())
+  );
+  if (unusedSaved.length > 0) {
+    container.appendChild(el('h3', { text: t(lang, 'savedNamesTitle') }));
+    const savedWrap = el('div', { className: 'chip-wrap' });
+    unusedSaved.forEach((n) => {
+      savedWrap.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'chip-btn',
+          text: `+ ${n}`,
+          onClick: () => addParticipantByName(n)
+        })
+      );
+    });
+    container.appendChild(savedWrap);
+  }
+
+  container.appendChild(
+    el('div', { className: 'nav-row' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary',
+        text: `← ${t(lang, 'back')}`,
+        onClick: () => mutate(() => { session.step = 1; })
+      }),
+      el('button', {
+        type: 'button',
+        className: 'btn btn-primary btn-next',
+        text: `${t(lang, 'next')} →`,
+        disabled: session.participants.length === 0,
+        onClick: () => mutate(() => { session.step = 3; })
+      })
+    ])
+  );
+}
+
+// ============================================================
+// STAP 3: VERDELEN
+// ============================================================
+function renderStep3(container) {
+  const lang = settings.lang;
+  container.appendChild(el('h2', { text: t(lang, 'step3Title') }));
+  container.appendChild(el('p', { className: 'help-text', text: t(lang, 'step3Help') }));
+
+  if (session.participants.length === 0) {
+    container.appendChild(el('div', { className: 'status-box warn', text: t(lang, 'noParticipants') }));
+    return;
+  }
+
+  if (!session.activeParticipantId || !session.participants.some((p) => p.id === session.activeParticipantId)) {
+    session.activeParticipantId = session.participants[0].id;
+  }
+
+  container.appendChild(el('p', { className: 'section-label', text: t(lang, 'selectPersonPrompt') }));
+  const personTabs = el('div', { className: 'chip-wrap', role: 'tablist' });
+  session.participants.forEach((p) => {
+    const active = p.id === session.activeParticipantId;
+    personTabs.appendChild(
+      el('button', {
+        type: 'button',
+        role: 'tab',
+        'aria-selected': String(active),
+        className: `chip-btn person-tab ${active ? 'active' : ''}`,
+        text: p.name,
+        onClick: () => {
+          session.activeParticipantId = p.id;
+          saveSession(session);
+          render();
+        }
+      })
+    );
+  });
+  container.appendChild(personTabs);
+
+  const settlement = calculateSettlement(session);
+  if (settlement.unassignedItems.length > 0) {
+    container.appendChild(
+      el('div', {
+        className: 'status-box warn',
+        role: 'alert',
+        text: t(lang, 'unassignedWarning', { count: settlement.unassignedItems.length })
+      })
+    );
+  }
+  if (settlement.quantityMismatchItems.length > 0) {
+    container.appendChild(
+      el('div', {
+        className: 'status-box warn',
+        role: 'alert',
+        text: `Let op: bij ${settlement.quantityMismatchItems.length} regel(s) klopt het totaal aantal toegewezen stuks nog niet met het aantal op de bon.`
+      })
+    );
+  }
+
+  const activeItems = session.items.filter(isLineActive);
+  const activePersonId = session.activeParticipantId;
+  const activePerson = session.participants.find((p) => p.id === activePersonId);
+  const allIds = session.participants.map((p) => p.id);
+
+  const list = el('div', { className: 'split-list' });
+  activeItems.forEach((item) => {
+    const assigned = item.assignedTo || [];
+    const qtyMap = item.assignedQuantities || {};
+    const assignedQtySum = Object.values(qtyMap).reduce((s, q) => s + (Number.isInteger(q) ? q : 0), 0);
+    const usingQtyMode = assignedQtySum > 0;
+
+    const hasActive = usingQtyMode ? (qtyMap[activePersonId] || 0) > 0 : assigned.includes(activePersonId);
+    const isAll = !usingQtyMode && allIds.length > 0 && allIds.every((id) => assigned.includes(id));
+
+    const labelText = item.geminiTranslation
+      ? `${item.geminiTranslation} (${item.description})`
+      : item.description;
+
+    let assignedLabel;
+    if (usingQtyMode) {
+      const parts = session.participants
+        .filter((p) => (qtyMap[p.id] || 0) > 0)
+        .map((p) => `${p.name} (${qtyMap[p.id]}×)`);
+      const rem = item.qty - assignedQtySum;
+      assignedLabel = `${t(lang, 'assignedTo')} ${parts.join(', ')} — ${
+        rem === 0 ? 'compleet' : rem > 0 ? `nog ${rem} van ${item.qty} open` : `${Math.abs(rem)} te veel!`
+      }`;
+    } else {
+      const assignedNames = assigned
+        .map((id) => session.participants.find((p) => p.id === id)?.name)
+        .filter(Boolean);
+      assignedLabel = assignedNames.length > 0 ? `${t(lang, 'assignedTo')} ${assignedNames.join(', ')}` : t(lang, 'nobodyYet');
+    }
+
+    const isUnassigned = !usingQtyMode && assigned.length === 0;
+    const isQtyMismatch = usingQtyMode && assignedQtySum !== item.qty;
+
+    const card = el('div', {
+      className: `split-card ${hasActive ? 'selected' : ''} ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`
+    });
+
+    const mainBtn = el(
+      'button',
+      {
+        type: 'button',
+        className: 'split-toggle-btn',
+        'aria-pressed': String(hasActive),
+        onClick: () =>
+          mutate(() => {
+            item.assignedQuantities = {};
+            const cur = item.assignedTo || [];
+            if (cur.includes(activePersonId)) {
+              item.assignedTo = cur.filter((id) => id !== activePersonId);
+            } else {
+              item.assignedTo = [...cur, activePersonId];
+            }
+          })
+      },
+      [
+        el('div', { className: 'split-card-top' }, [
+          el('span', { className: 'split-check', text: hasActive ? '☑' : '☐' }),
+          el('span', { className: 'split-desc', text: `${item.qty > 1 ? `${item.qty}× ` : ''}${labelText || '—'}` }),
+          el('strong', { className: 'split-price', text: formatCentsNL(item.lineTotalCents) })
+        ]),
+        el('div', { className: 'split-assigned-names', text: assignedLabel })
+      ]
+    );
+
+    const actionsRow = el('div', { className: 'item-row-actions' });
+    if (item.qty > 1) {
+      const myQty = qtyMap[activePersonId] || 0;
+      const remaining = item.qty - assignedQtySum;
+      actionsRow.appendChild(el('span', { className: 'qty-label', text: `Stuks voor ${activePerson?.name}:` }));
+      actionsRow.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-secondary',
+          disabled: myQty <= 0,
+          'aria-label': `1 stuk minder voor ${activePerson?.name}`,
+          text: '−',
+          onClick: () =>
+            mutate(() => {
+              item.assignedTo = [];
+              if (!item.assignedQuantities) item.assignedQuantities = {};
+              const next = Math.max(0, (item.assignedQuantities[activePersonId] || 0) - 1);
+              if (next === 0) delete item.assignedQuantities[activePersonId];
+              else item.assignedQuantities[activePersonId] = next;
+            })
+        })
+      );
+      actionsRow.appendChild(el('strong', { className: 'qty-val', text: String(myQty) }));
+      actionsRow.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-secondary',
+          disabled: remaining <= 0,
+          'aria-label': `1 stuk meer voor ${activePerson?.name}`,
+          text: '+',
+          onClick: () =>
+            mutate(() => {
+              item.assignedTo = [];
+              if (!item.assignedQuantities) item.assignedQuantities = {};
+              item.assignedQuantities[activePersonId] = (item.assignedQuantities[activePersonId] || 0) + 1;
+            })
+        })
+      );
+    }
+
+    actionsRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: `btn btn-sm ${isAll ? 'btn-primary' : 'btn-secondary'}`,
+        'aria-pressed': String(isAll),
+        text: t(lang, 'wholeTable'),
+        onClick: () =>
+          mutate(() => {
+            item.assignedQuantities = {};
+            item.assignedTo = isAll ? [] : [...allIds];
+          })
+      })
+    );
+
+    card.appendChild(mainBtn);
+    card.appendChild(actionsRow);
+    list.appendChild(card);
+  });
+  container.appendChild(list);
+
+  container.appendChild(
+    el('div', { className: 'nav-row' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary',
+        text: `← ${t(lang, 'back')}`,
+        onClick: () => mutate(() => { session.step = 2; })
+      }),
+      el('button', {
+        type: 'button',
+        className: 'btn btn-primary btn-next',
+        text: `${t(lang, 'next')} →`,
+        onClick: () => mutate(() => { session.step = 4; })
+      })
+    ])
+  );
+}
+
+// ============================================================
+// STAP 4: OVERZICHT, FOOI, CONTANT & DELEN
+// ============================================================
+function buildShareMessage(personRow) {
+  const lang = settings.lang;
+  const tipPart =
+    personRow.tipCents > 0
+      ? t(lang, 'shareTipPart', { tip: formatCentsNL(personRow.tipCents) })
+      : '';
+  const receiptExtraPart =
+    personRow.receiptExtraCents > 0
+      ? t(lang, 'shareReceiptExtraPart', { extra: formatCentsNL(personRow.receiptExtraCents) })
+      : '';
+  return t(lang, 'shareMessageTemplate', {
+    name: personRow.name,
+    total: formatCentsNL(personRow.totalCents),
+    subtotal: formatCentsNL(personRow.subtotalCents),
+    tipPart: tipPart + receiptExtraPart
+  });
+}
+
+function renderStep4(container) {
+  const lang = settings.lang;
+  const result = calculateSettlement(session);
+
+  container.appendChild(el('h2', { text: t(lang, 'step4Title') }));
+
+  if (!result.canFinalize) {
+    container.appendChild(
+      el('div', { className: 'status-box error', role: 'alert', text: t(lang, 'cannotFinalizeBanner') })
+    );
+  }
+  if (result.unassignedItems.length > 0) {
+    container.appendChild(
+      el('div', {
+        className: 'status-box warn',
+        role: 'alert',
+        text: t(lang, 'unassignedWarning', { count: result.unassignedItems.length })
+      })
+    );
+  }
+  if (result.quantityMismatchItems.length > 0) {
+    container.appendChild(
+      el('div', {
+        className: 'status-box warn',
+        role: 'alert',
+        text: `Bij ${result.quantityMismatchItems.length} regel(s) zijn nog niet alle aantallen exact toegewezen.`
+      })
+    );
+  }
+
+  const tipCard = el('section', { className: 'card' });
+  tipCard.appendChild(el('h3', { text: t(lang, 'tipSectionTitle') }));
+
+  const modeGroup = el('div', { className: 'radio-row', role: 'radiogroup', 'aria-label': t(lang, 'tipSectionTitle') });
+  [
+    ['none', t(lang, 'tipNone')],
+    ['per_person', t(lang, 'tipPerPerson')],
+    ['target_total', t(lang, 'tipTargetTotal')]
+  ].forEach(([mode, label]) => {
+    const active = session.tipMode === mode;
+    modeGroup.appendChild(
+      el('button', {
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(active),
+        className: `chip-btn ${active ? 'active' : ''}`,
+        text: label,
+        onClick: () => mutate(() => { session.tipMode = mode; })
+      })
+    );
+  });
+  tipCard.appendChild(modeGroup);
+
+  if (session.tipMode === 'target_total') {
+    const targetInput = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      id: 'target-total-input',
+      placeholder: t(lang, 'targetTotalPlaceholder'),
+      value:
+        Number.isInteger(session.targetTotalCents)
+          ? (session.targetTotalCents / 100).toFixed(2).replace('.', ',')
+          : ''
+    });
+    targetInput.addEventListener('change', (e) => {
+      const raw = e.target.value.trim();
+      mutate(() => {
+        session.targetTotalCents = raw === '' ? null : parseEuroToCents(raw);
+      });
+    });
+    tipCard.appendChild(
+      el('label', { for: 'target-total-input', className: 'field-wrap' }, [
+        el('span', { text: t(lang, 'targetTotalLabel') }),
+        targetInput
+      ])
+    );
+
+    const zeroCheckbox = el('input', {
+      type: 'checkbox',
+      id: 'tip-include-zero',
+      checked: Boolean(session.includeZeroConsumersInSharedTip)
+    });
+    zeroCheckbox.addEventListener('change', (e) => {
+      mutate(() => { session.includeZeroConsumersInSharedTip = e.target.checked; });
+    });
+    tipCard.appendChild(
+      el('label', { for: 'tip-include-zero', className: 'checkbox-row' }, [
+        zeroCheckbox,
+        el('span', { text: t(lang, 'tipIncludeZeroLabel') })
+      ])
+    );
+
+    if (result.tipError === 'target_below_bill') {
+      tipCard.appendChild(
+        el('div', {
+          className: 'status-box error',
+          role: 'alert',
+          text: t(lang, 'targetBelowBillError', {
+            target: formatCentsNL(session.targetTotalCents),
+            bill: formatCentsNL(result.billTotalCents)
+          })
+        })
+      );
+    } else if (result.totalTipCents > 0) {
+      const tippedCount = result.perPerson.filter((p) => p.tipCents > 0).length;
+      tipCard.appendChild(
+        el('p', {
+          className: 'tip-note',
+          text: t(lang, 'tipSummaryTarget', {
+            tip: formatCentsNL(result.totalTipCents),
+            count: tippedCount
+          })
+        })
+      );
+    }
+  } else if (session.tipMode === 'per_person') {
+    tipCard.appendChild(
+      el('p', {
+        className: 'tip-note',
+        text: t(lang, 'tipSummaryPerPerson', { tip: formatCentsNL(result.totalTipCents) })
+      })
+    );
+  }
+  container.appendChild(tipCard);
+
+  container.appendChild(
+    el('div', { className: 'summary-kv total-check-card' }, [
+      el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
+      el('div', {}, [el('span', { text: t(lang, 'totalTipLabel') }), el('strong', { text: formatCentsNL(result.totalTipCents) })]),
+      el('div', { className: 'grand-row' }, [
+        el('span', { text: t(lang, 'grandTotalLabel') }),
+        el('strong', { text: formatCentsNL(result.grandTotalCents) })
+      ])
+    ])
+  );
+
+  // Deelknoppen (punt 6, v8): de uitslag als korte tekst via het deelmenu van het toestel,
+  // en een aparte knop voor de bonfoto. Geen waarschuwingen, geen contactenkoppeling.
+  const settlementText = buildSettlementShareText(result, t(lang, 'totalWord'));
+  const resultShareRow = el('div', { className: 'share-row' });
+  const resultShareFeedback = el('span', { className: 'muted', 'aria-live': 'polite' });
+  resultShareRow.appendChild(
+    el('button', {
+      type: 'button',
+      className: 'btn btn-sm btn-secondary',
+      disabled: !result.canFinalize || !settlementText,
+      text: `\ud83d\udce4 ${t(lang, 'shareResult')}`,
+      onClick: async () => {
+        if (navigator.share) {
+          try { await navigator.share({ title: t(lang, 'emailSubject'), text: settlementText }); } catch {}
+        } else {
+          const copied = await copyTextReliable(settlementText);
+          // Punt 7 (v9): bij mislukken ALTIJD een zichtbare melding, nooit stil falen
+          resultShareFeedback.textContent = copied ? t(lang, 'shareResultCopied') : t(lang, 'clipboardFailed');
+          announce(resultShareFeedback.textContent);
+        }
+      }
+    })
+  );
+  if (
+    lastReceiptFile &&
+    typeof lastReceiptFile.type === 'string' &&
+    lastReceiptFile.type.startsWith('image/') &&
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [lastReceiptFile] })
+  ) {
+    resultShareRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        text: `\ud83d\udcf7 ${t(lang, 'shareReceiptPhoto')}`,
+        onClick: async () => {
+          try { await navigator.share({ files: [lastReceiptFile] }); } catch {}
+        }
+      })
+    );
+  }
+  container.appendChild(resultShareRow);
+  container.appendChild(resultShareFeedback);
+
+  result.perPerson.forEach((row) => {
+    const participantObj = session.participants.find((p) => p.id === row.id);
+    const card = el('article', { className: `person-summary-card ${row.settled ? 'is-settled' : ''}` });
+
+    card.appendChild(
+      el('div', { className: 'person-head' }, [
+        el('h3', { text: row.name }),
+        el('strong', { className: 'person-total', text: formatCentsNL(row.totalCents) })
+      ])
+    );
+
+    card.appendChild(
+      el('div', { className: 'person-breakdown' }, [
+        el('span', { text: `${t(lang, 'subtotalLabel')}: ${formatCentsNL(row.subtotalCents)}` }),
+        el('span', { text: `${t(lang, 'tipLabel')}: ${formatCentsNL(row.tipCents)}` }),
+        ...(row.receiptExtraCents > 0
+          ? [el('span', { text: `${t(lang, 'receiptExtraLabel')}: ${formatCentsNL(row.receiptExtraCents)}` })]
+          : [])
+      ])
+    );
+
+    if (session.tipMode === 'per_person') {
+      const tipInput = el('input', {
+        type: 'text',
+        inputmode: 'decimal',
+        placeholder: '0,00',
+        value:
+          Number.isInteger(session.tipPerPersonCents[row.id])
+            ? (session.tipPerPersonCents[row.id] / 100).toFixed(2).replace('.', ',')
+            : ''
+      });
+      tipInput.addEventListener('change', (e) => {
+        const raw = e.target.value.trim();
+        const c = raw === '' ? 0 : parseEuroToCents(raw);
+        if (c !== null && c >= 0) {
+          mutate(() => { session.tipPerPersonCents[row.id] = c; });
+        }
+      });
+      card.appendChild(
+        el('label', { className: 'field-wrap inline-field' }, [
+          el('span', { text: `${t(lang, 'tipLabel')} (€)` }),
+          tipInput
+        ])
+      );
+    }
+
+    const cashInput = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      placeholder: t(lang, 'cashPaidPlaceholder'),
+      value:
+        Number.isInteger(participantObj.paidCashCents)
+          ? (participantObj.paidCashCents / 100).toFixed(2).replace('.', ',')
+          : ''
+    });
+    cashInput.addEventListener('change', (e) => {
+      const raw = e.target.value.trim();
+      mutate(() => {
+        participantObj.paidCashCents = raw === '' ? null : parseEuroToCents(raw);
+      });
+    });
+    card.appendChild(
+      el('label', { className: 'field-wrap inline-field' }, [
+        el('span', { text: t(lang, 'cashPaidLabel') }),
+        cashInput
+      ])
+    );
+
+    if (row.changeCents !== null) {
+      let changeText, changeCls;
+      if (row.changeCents > 0) {
+        changeText = `${t(lang, 'changeReturn')} ${formatCentsNL(row.changeCents)}`;
+        changeCls = 'change-info ok';
+      } else if (row.changeCents < 0) {
+        changeText = `${t(lang, 'changeShort')} ${formatCentsNL(Math.abs(row.changeCents))}`;
+        changeCls = 'change-info short';
+      } else {
+        changeText = t(lang, 'changeExact');
+        changeCls = 'change-info ok';
+      }
+      card.appendChild(el('div', { className: changeCls, text: changeText }));
+    }
+
+    const paidBox = el('input', {
+      type: 'checkbox',
+      id: `paid-${row.id}`,
+      checked: Boolean(participantObj.settled)
+    });
+    paidBox.addEventListener('change', (e) => {
+      mutate(() => { participantObj.settled = e.target.checked; });
+    });
+    card.appendChild(
+      el('label', { for: `paid-${row.id}`, className: 'checkbox-row' }, [
+        paidBox,
+        el('span', { text: t(lang, 'paidToggle') })
+      ])
+    );
+
+    const msg = buildShareMessage(row);
+    card.appendChild(el('p', { className: 'share-preview', text: `Voorbeeldbericht: "${msg}"` }));
+
+    const shareRow = el('div', { className: 'share-row' });
+    const waLink = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    shareRow.appendChild(
+      el('a', {
+        href: result.canFinalize ? waLink : null,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        className: `btn btn-sm btn-whatsapp ${!result.canFinalize ? 'disabled-link' : ''}`,
+        'aria-disabled': !result.canFinalize ? 'true' : null,
+        text: `💬 ${t(lang, 'shareWhatsApp')}`,
+        onClick: (e) => { if (!result.canFinalize) e.preventDefault(); }
+      })
+    );
+
+    const mailLink = `mailto:?subject=${encodeURIComponent(t(lang, 'emailSubject'))}&body=${encodeURIComponent(msg)}`;
+    shareRow.appendChild(
+      el('a', {
+        href: result.canFinalize ? mailLink : null,
+        className: `btn btn-sm btn-secondary ${!result.canFinalize ? 'disabled-link' : ''}`,
+        'aria-disabled': !result.canFinalize ? 'true' : null,
+        text: `✉ ${t(lang, 'shareEmail')}`,
+        onClick: (e) => { if (!result.canFinalize) e.preventDefault(); }
+      })
+    );
+
+    const shareFeedback = el('span', { className: 'muted', 'aria-live': 'polite' });
+    shareRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        disabled: !result.canFinalize,
+        text: `📤 ${t(lang, 'shareOther')}`,
+        onClick: async () => {
+          if (navigator.share) {
+            try { await navigator.share({ title: t(lang, 'emailSubject'), text: msg }); } catch {}
+          } else {
+            const copied = await copyTextReliable(msg);
+            // Punt 7 (v9): zichtbare melding, ook als kopieren mislukt
+            shareFeedback.textContent = copied
+              ? 'Systeemdelen niet ondersteund in deze browser; tekst is gekopieerd.'
+              : `Systeemdelen niet ondersteund in deze browser. ${t(lang, 'clipboardFailed')}`;
+            announce(shareFeedback.textContent);
+          }
+        }
+      })
+    );
+
+    shareRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        disabled: !result.canFinalize,
+        text: `📋 ${t(lang, 'copyMessage')}`,
+        onClick: async () => {
+          const ok = await copyTextReliable(msg);
+          shareFeedback.textContent = ok ? t(lang, 'copied') : t(lang, 'clipboardFailed');
+          announce(shareFeedback.textContent);
+        }
+      })
+    );
+
+    card.appendChild(shareRow);
+    card.appendChild(shareFeedback);
+    container.appendChild(card);
+  });
+
+  container.appendChild(
+    el('div', { className: 'nav-row' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-secondary',
+        text: `← ${t(lang, 'back')}`,
+        onClick: () => mutate(() => { session.step = 3; })
+      }),
+      el('button', {
+        type: 'button',
+        className: 'btn btn-danger-outline',
+        text: t(lang, 'newReceiptBtn'),
+        onClick: () => {
+          if (window.confirm(t(lang, 'newReceiptConfirm'))) {
+            if (currentPhotoObjectUrl) {
+              URL.revokeObjectURL(currentPhotoObjectUrl);
+              currentPhotoObjectUrl = null;
+            }
+            mutate(() => { session = createEmptySession(); });
+          }
+        }
+      })
+    ])
+  );
+}
+
+// ============================================================
+// INSTELLINGEN & PRIVACY MODAL
+// ============================================================
+function openSettingsModal() {
+  const dialog = $('#settings-dialog');
+  const body = $('#settings-body');
+  const lang = settings.lang;
+  body.innerHTML = '';
+
+  $('#settings-title').textContent = t(lang, 'settingsTitle');
+  $('#btn-close-settings').textContent = t(lang, 'close');
+
+  // Eigen gratis Gemini API-sleutel + instelbaar model + dagteller
+  body.appendChild(el('h3', { text: 'Eigen gratis Gemini API-sleutel' }));
+  body.appendChild(
+    el('p', {
+      className: 'help-text',
+      text: 'Maak een gratis sleutel aan in Google AI Studio (aistudio.google.com). Een nieuwe sleutel werkt daar standaard alleen voor de Gemini API. Koppel nooit een betaalaccount aan dat project. Je kunt optioneel een websitebeperking (HTTP-referrer) op je GitHub Pages-domein instellen als remmer tegen kopiëren (let op: dat is geen waterdichte koppeling).'
+    })
+  );
+  const keyForm = el('form', { className: 'inline-form' });
+  const keyInput = el('input', {
+    type: 'password',
+    value: geminiApiKey,
+    placeholder: 'Plak hier je eigen Gemini API-sleutel',
+    'aria-label': 'Gemini API-sleutel'
+  });
+  keyForm.appendChild(keyInput);
+  keyForm.appendChild(el('button', { type: 'submit', className: 'btn btn-sm btn-primary', text: 'Opslaan' }));
+  if (geminiApiKey) {
+    keyForm.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-danger-outline',
+        text: 'Verwijder',
+        onClick: () => {
+          geminiApiKey = saveGeminiApiKey('');
+          render();
+          openSettingsModal();
+        }
+      })
+    );
+  }
+  keyForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    geminiApiKey = saveGeminiApiKey(keyInput.value);
     render();
+    openSettingsModal();
+  });
+  body.appendChild(keyForm);
+
+  const quota = getDailyGeminiCallCount();
+  body.appendChild(
+    el('p', {
+      className: 'muted',
+      text: `Aanroepen vandaag op dit toestel: ${quota.count} (${quota.date}). Gratis daglimieten verschillen per project en model en zijn zichtbaar in Google AI Studio.`
+    })
+  );
+
+  // Instelbare modelnaam
+  const modelInput = el('input', {
+    type: 'text',
+    id: 'setting-gemini-model',
+    value: settings.geminiModel || DEFAULT_GEMINI_MODEL,
+    placeholder: DEFAULT_GEMINI_MODEL
+  });
+  modelInput.addEventListener('change', (e) => {
+    settings.geminiModel = e.target.value.trim() || DEFAULT_GEMINI_MODEL;
+    saveSettings(settings);
+    render();
+  });
+  body.appendChild(
+    el('label', { for: 'setting-gemini-model', className: 'field-wrap mt' }, [
+      el('span', { text: 'Gemini modelnaam (standaard: gemini-2.5-flash)' }),
+      modelInput
+    ])
+  );
+
+  // Taal & thema & grote tekst
+  body.appendChild(el('h3', { text: t(lang, 'languageLabel') }));
+  const langRow = el('div', { className: 'chip-wrap' });
+  [['nl', 'Nederlands'], ['en', 'English']].forEach(([code, label]) => {
+    langRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: `chip-btn ${settings.lang === code ? 'active' : ''}`,
+        text: label,
+        onClick: () => {
+          settings.lang = code;
+          saveSettings(settings);
+          applyThemeAndPrefs();
+          render();
+          openSettingsModal();
+        }
+      })
+    );
+  });
+  body.appendChild(langRow);
+
+  body.appendChild(el('h3', { text: t(lang, 'themeLabel') }));
+  const themeRow = el('div', { className: 'chip-wrap' });
+  [
+    ['system', t(lang, 'themeSystem')],
+    ['light', t(lang, 'themeLight')],
+    ['dark', t(lang, 'themeDark')]
+  ].forEach(([mode, label]) => {
+    themeRow.appendChild(
+      el('button', {
+        type: 'button',
+        className: `chip-btn ${settings.theme === mode ? 'active' : ''}`,
+        text: label,
+        onClick: () => {
+          settings.theme = mode;
+          saveSettings(settings);
+          applyThemeAndPrefs();
+          openSettingsModal();
+        }
+      })
+    );
+  });
+  body.appendChild(themeRow);
+
+  const bigTextCb = el('input', {
+    type: 'checkbox',
+    id: 'setting-large-text',
+    checked: Boolean(settings.largeText)
+  });
+  bigTextCb.addEventListener('change', (e) => {
+    settings.largeText = e.target.checked;
+    saveSettings(settings);
+    applyThemeAndPrefs();
+  });
+  body.appendChild(
+    el('label', { for: 'setting-large-text', className: 'checkbox-row mt' }, [
+      bigTextCb,
+      el('span', { text: t(lang, 'largeTextLabel') })
+    ])
+  );
+
+  // Privacytekst (actueel voor v7: Gemini, vertalen, PDF.js en zelf-gehoste lokale backup)
+  body.appendChild(el('h3', { text: t(lang, 'privacyTitle') }));
+  for (const para of STRINGS[lang].privacyBody) {
+    body.appendChild(el('p', { className: 'help-text', text: para }));
   }
-});
+  body.appendChild(
+    el('a', {
+      href: GEMINI_TERMS_URL,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      text: 'Bekijk Google Gemini API-voorwaarden'
+    })
+  );
 
-// ---------- plakken en slepen (bv. vanuit Voorvertoning op de Mac) ----------
-const receiptFileFrom = (list) =>
-  [...(list || [])].find((f) => f && (/^image\//.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')));
+  body.appendChild(
+    el('div', { className: 'mt' }, [
+      el('button', {
+        type: 'button',
+        className: 'btn btn-danger',
+        text: `🗑 ${t(lang, 'wipeAllBtn')}`,
+        onClick: () => {
+          if (window.confirm(t(lang, 'wipeConfirm'))) {
+            wipeAllLocalData();
+            if (currentPhotoObjectUrl) {
+              URL.revokeObjectURL(currentPhotoObjectUrl);
+              currentPhotoObjectUrl = null;
+            }
+            undoManager.clear();
+            session = createEmptySession();
+            savedNames = [];
+            customDict = {};
+            geminiApiKey = '';
+            settings = loadSettings();
+            applyThemeAndPrefs();
+            dialog.close();
+            render();
+            announce(t(settings.lang, 'wipedDone'));
+          }
+        }
+      })
+    ])
+  );
 
-function acceptFile(file) {
-  if (!file) return;
-  importFile(file, bill() || newBill());
+  if (!dialog.open) dialog.showModal();
 }
 
-document.addEventListener('paste', (e) => {
-  const file = receiptFileFrom([...(e.clipboardData?.items || [])].filter((i) => i.kind === 'file').map((i) => i.getAsFile()));
-  if (!file) return;
-  e.preventDefault();
-  acceptFile(file);
-});
+// ============================================================
+// HOOFD RENDER
+// ============================================================
+function render() {
+  applyThemeAndPrefs();
+  renderHeader();
+  renderConnectionBanner();
 
-let dragDepth = 0;
-const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-document.addEventListener('dragenter', (e) => {
-  if (!hasFiles(e)) return;
-  dragDepth++;
-  document.body.dataset.drop = t('dropHere');
-  document.body.classList.add('dragging');
-});
-document.addEventListener('dragover', (e) => {
-  if (hasFiles(e)) e.preventDefault();
-});
-document.addEventListener('dragleave', () => {
-  if (--dragDepth <= 0) {
-    dragDepth = 0;
-    document.body.classList.remove('dragging');
+  const main = $('#main-content');
+  main.innerHTML = '';
+
+  if (session.step === 1) renderStep1(main);
+  else if (session.step === 2) renderStep2(main);
+  else if (session.step === 3) renderStep3(main);
+  else renderStep4(main);
+}
+
+$('#btn-undo').addEventListener('click', () => {
+  const prev = undoManager.pop();
+  if (prev) {
+    session = prev;
+    saveSession(session);
+    render();
+    announce(t(settings.lang, 'undoDone'));
   }
 });
-document.addEventListener('drop', (e) => {
-  if (!hasFiles(e)) return;
-  e.preventDefault();
-  dragDepth = 0;
-  document.body.classList.remove('dragging');
-  acceptFile(receiptFileFrom(e.dataTransfer.files));
-});
 
-history.replaceState({ billId: state.currentId, tab: ui.tab }, '');
+$('#btn-settings').addEventListener('click', openSettingsModal);
+$('#btn-close-settings').addEventListener('click', () => $('#settings-dialog').close());
+
 render();
-
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
+initServiceWorker();
