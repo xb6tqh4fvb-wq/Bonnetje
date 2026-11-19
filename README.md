@@ -1,4 +1,4 @@
-# Bonnetje — Samen eerlijk afrekenen (v14)
+# Bonnetje — Samen eerlijk afrekenen (v15)
 
 Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account.
 
@@ -6,6 +6,13 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). Altijd met toestemming en een eerlijke melding vooraf.
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, geweigerde toestemming, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v15 (verzoek Henk: dubbele "Foto maken"-knop weg)
+
+Regressietests: 84/84 groen in Node (`node tests/calculator.test.js`).
+
+- **Eén knop voor foto/pdf:** de losse knop "Foto maken" is verwijderd uit stap 1. iOS en Android bieden "Foto maken" al aan in de kiezer van de knop "Foto of pdf kiezen", dus de camera was via twee knoppen bereikbaar (dubbel). Over: de ene knop "Foto of pdf kiezen" (nu de primaire knop), die camera, fotobibliotheek, pdf en bestanden dekt. Verwijderd: `input-camera` en de i18n-sleutel `takePhoto`. De hulptekst in stap 1 legt uit dat de camera in dezelfde kiezer zit.
+- Cache `bonnetje-v15` in `sw.js` en `js/assets-manifest.js`.
 
 ## Wijzigingen in v14 (verzoek Henk: eigen-sleutel-optie eruit, kosten via app-eigenaar met spend cap)
 

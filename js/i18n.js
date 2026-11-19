@@ -14,7 +14,6 @@ export const STRINGS = {
     back: 'Vorige stap',
     // Stap 1: Bon
     step1Title: 'Stap 1: De bon',
-    takePhoto: 'Foto maken',
     chooseFile: 'Foto of pdf kiezen',
     clearPhoto: 'Foto wissen',
     photoCleared: 'Foto gewist uit het geheugen.',
@@ -160,7 +159,6 @@ export const STRINGS = {
     next: 'Next step',
     back: 'Previous step',
     step1Title: 'Step 1: The receipt',
-    takePhoto: 'Take photo',
     chooseFile: 'Choose photo or PDF',
     clearPhoto: 'Clear photo',
     photoCleared: 'Photo removed from memory.',

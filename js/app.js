@@ -548,7 +548,7 @@ function renderStep1(container) {
   container.appendChild(
     el('p', {
       className: 'help-text',
-      text: 'Maak een foto van de bon, kies een foto of PDF, plak tekst via iPhone Live Text, of typ de regels handmatig in. Controleer herkende bedragen altijd zelf.'
+      text: 'Maak een foto van de bon of kies een foto of PDF met de knop hieronder (de camera zit in dezelfde kiezer), plak tekst via iPhone Live Text, of typ de regels handmatig in. Controleer herkende bedragen altijd zelf.'
     })
   );
 
@@ -563,20 +563,9 @@ function renderStep1(container) {
   ]);
   container.appendChild(quotaInfo);
 
-  // Camera & bestand kiezen
+  // Foto of bestand kiezen. v15: de losse "Foto maken"-knop is weg; iOS/Android bieden
+  // de camera al aan in de kiezer van deze knop, dus die knop was dubbel (verzoek Henk).
   const fileActions = el('div', { className: 'action-row' });
-
-  const cameraInput = el('input', {
-    type: 'file',
-    accept: 'image/*',
-    capture: 'environment',
-    className: 'sr-only',
-    id: 'input-camera'
-  });
-  cameraInput.addEventListener('change', (e) => {
-    if (e.target.files?.[0]) handleReceiptFile(e.target.files[0]);
-    e.target.value = '';
-  });
 
   const fileInput = el('input', {
     type: 'file',
@@ -590,12 +579,8 @@ function renderStep1(container) {
   });
 
   fileActions.appendChild(
-    el('label', { for: 'input-camera', className: 'btn btn-primary', text: `📷 ${t(lang, 'takePhoto')}` })
+    el('label', { for: 'input-file', className: 'btn btn-primary', text: `📷 ${t(lang, 'chooseFile')}` })
   );
-  fileActions.appendChild(
-    el('label', { for: 'input-file', className: 'btn btn-secondary', text: `📄 ${t(lang, 'chooseFile')}` })
-  );
-  fileActions.appendChild(cameraInput);
   fileActions.appendChild(fileInput);
 
   if (currentPhotoObjectUrl) {
