@@ -65,10 +65,10 @@ import {
   estimateReceiptImageTokens,
   getLastGeminiCallInfo
 } from '../js/gemini.js';
-import { mapFirebaseAiError } from '../js/firebase-ai.js';
+import { mapFirebaseAiError, isOnlineAiUsable } from '../js/firebase-ai.js';
 import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
-import { getDailyGeminiCallCount } from '../js/storage.js';
+import { getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS } from '../js/storage.js';
 import { extractPdfTextAllPages } from '../js/parser.js';
 import {
   pdfReaderLoadFailedMessage,
@@ -1299,6 +1299,28 @@ PIN 43,00`);
     assertTrue(!toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Twijfelregel kan dicht');
     assertTrue(!isItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'Blijft dicht');
     assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
+  });
+
+  test('V17.7 schakelaar Online AI-scan: standaard aan en per toestel onthouden', () => {
+    assertTrue(DEFAULT_SETTINGS.onlineAiEnabled === true, 'Standaard AAN');
+    localStorage.removeItem('bonnetje_settings_v1');
+    assertTrue(loadSettings().onlineAiEnabled === true, 'Zonder opgeslagen instelling: aan');
+    const s = loadSettings();
+    s.onlineAiEnabled = false;
+    saveSettings(s);
+    assertTrue(loadSettings().onlineAiEnabled === false, 'Uit wordt onthouden');
+    const s2 = loadSettings();
+    s2.onlineAiEnabled = true;
+    saveSettings(s2);
+    assertTrue(loadSettings().onlineAiEnabled === true, 'Aan wordt onthouden');
+    localStorage.removeItem('bonnetje_settings_v1');
+  });
+
+  test('V17.8 schakelaar uit = geen online aanroep (poort isOnlineAiUsable)', () => {
+    assertTrue(isOnlineAiUsable({ onlineAiEnabled: true }), 'Aan -> online route mag');
+    assertTrue(isOnlineAiUsable({}), 'Ontbrekende instelling -> aan (standaard)');
+    assertTrue(isOnlineAiUsable(undefined), 'Geen instellingen -> aan (standaard)');
+    assertTrue(!isOnlineAiUsable({ onlineAiEnabled: false }), 'Uit -> GEEN online aanroep');
   });
 
   test('V17.6 kruisje + ongedaan maken: niets definitief kwijt, inhoud gelijk', () => {

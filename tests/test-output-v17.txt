@@ -65,6 +65,8 @@ PASS: V17.2 computedUnitPriceCents: afronding en null zonder totaal
 PASS: V17.3 kruisje: deleteItemAt muteert niet en restoreDeletedItem zet terug op plek
 PASS: V17.4 uitklappen: twijfelregels standaard open, normale regels dicht
 PASS: V17.5 uitklappen: tik wisselt de toestand, ook voor twijfelregels
+PASS: V17.7 schakelaar Online AI-scan: standaard aan en per toestel onthouden
+PASS: V17.8 schakelaar uit = geen online aanroep (poort isOnlineAiUsable)
 PASS: V17.6 kruisje + ongedaan maken: niets definitief kwijt, inhoud gelijk
 PASS: V7.7 Netwerkvrije proef lokale backup: geen enkel extern verzoek, werkt met echte ppu-paddle-ocr interface
 PASS: V9.5b Lokale backup: offline met nog-gecachete modellen geeft eerlijke NL-melding, echte 404 blijft "ontbreken op server"
@@ -89,4 +91,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 90/90 geslaagd.
+Resultaat: 92/92 geslaagd.

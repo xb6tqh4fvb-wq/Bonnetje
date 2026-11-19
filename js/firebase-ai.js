@@ -30,6 +30,15 @@ export function isAiConfigured() {
   return isFirebaseConfigured();
 }
 
+/**
+ * v17: mag de app een online AI-aanroep doen? Alleen als de config klopt én de
+ * gebruiker de schakelaar 'Online AI-scan (Google)' niet heeft uitgezet (standaard aan).
+ * Bij false doet de app GEEN online aanroep: alleen lokaal lezen.
+ */
+export function isOnlineAiUsable(settings) {
+  return isFirebaseConfigured() && settings?.onlineAiEnabled !== false;
+}
+
 /** Korte NL-statusregel over de online AI-route, voor status- en instellingenteksten. */
 export function aiStatusText() {
   if (!isFirebaseConfigured()) {

@@ -13,7 +13,8 @@ export const DEFAULT_SETTINGS = {
   lang: 'nl',
   theme: 'system', // 'system' | 'light' | 'dark'
   largeText: false,
-  onlineTranslateEnabled: false
+  onlineTranslateEnabled: false,
+  onlineAiEnabled: true // v17: schakelaar 'Online AI-scan (Google)', standaard aan, per toestel
 };
 
 export function createEmptySession() {

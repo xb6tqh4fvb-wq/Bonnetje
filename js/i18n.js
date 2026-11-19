@@ -45,6 +45,9 @@ export const STRINGS = {
     undoBarLineRemoved: 'Regel verwijderd.',
     undoBarAction: 'Ongedaan maken',
     lineRestored: 'Regel teruggezet.',
+    onlineAiToggle: 'Online AI-scan (Google)',
+    onlineAiHint: 'Aan: je bonfoto of pdf gaat naar Google (Firebase AI Logic, verwerking in de EU-multiregio) om de regels en bedragen te lezen; vertalen kan dan ook online. De kosten lopen via de app-eigenaar met een vast maandmaximum. Uit: er gaat niets naar buiten — de app leest alleen lokaal op je toestel. Lokaal lezen werkt minder goed en vertaalt niet.',
+    aiOffStatus: 'Online AI-scan staat uit op dit toestel; alles blijft lokaal.',
     // Stap 2: Deelnemers
     step2Title: 'Stap 2: Wie deden er mee?',
     step2Help: 'Voer de namen in. Eerdere namen worden op je toestel onthouden zodat je ze snel weer kiest.',
@@ -116,7 +119,7 @@ export const STRINGS = {
     privacyTitle: 'Privacy & datastromen',
     privacyBody: [
       'Wat blijft op je toestel: namen van deelnemers, je lopende verdeling en je instellingen worden alleen lokaal in je browser opgeslagen (localStorage). Er is geen eigen server en geen account. De app bevat geen persoonlijke API-sleutel: jij hoeft geen sleutel in te stellen en er is ook geen sleutel van de maker in de app verwerkt.',
-      'AI-scanroute (standaard): je bonfoto of gescande PDF gaat via Firebase AI Logic naar de Agent Platform Gemini API van Google (verwerking in de EU-multiregio) om de regels en bedragen uit te lezen. Bij online vertalen gaan alleen de losse tekstregels van de bon (geen foto, geen bedragen, geen namen) via dezelfde route. De aanroepen zijn beveiligd met Firebase App Check (reCAPTCHA Enterprise) zodat alleen deze app ze kan doen. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap); wordt dat bereikt of lukt de aanroep niet, dan valt de app terug op de lokale backup. Liever niets versturen? Gebruik het plakvak of voer de regels handmatig in; de foto gaat anders altijd eerst naar Google.',
+      'AI-scanroute (standaard): je bonfoto of gescande PDF gaat via Firebase AI Logic naar de Agent Platform Gemini API van Google (verwerking in de EU-multiregio) om de regels en bedragen uit te lezen. Bij online vertalen gaan alleen de losse tekstregels van de bon (geen foto, geen bedragen, geen namen) via dezelfde route. De aanroepen zijn beveiligd met Firebase App Check (reCAPTCHA Enterprise) zodat alleen deze app ze kan doen. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap); wordt dat bereikt of lukt de aanroep niet, dan valt de app terug op de lokale backup. Liever niets versturen? Zet de schakelaar \"Online AI-scan (Google)\" hierboven uit, of gebruik het plakvak of handmatig invoeren; met de schakelaar aan gaat de foto altijd eerst naar Google.',
       'PDF-tekstlaag: voor het uitlezen van een pdf gebruikt de app PDF.js. Dat programmabestand wordt al bij je eerste bezoek eenmalig op de achtergrond van de jsDelivr-CDN opgehaald en gecachet (prefetch), zodat het daarna ook offline werkt; er gaat geen boninhoud mee, het is alleen het programmabestand.',
       'Lokale backup (als de online AI-scan niet kan): draait volledig op je toestel. De modelbestanden (~6 MB), de browsermodule en de rekenmotor (onnxruntime-WASM, ~24 MB) worden eenmalig van deze zelfde server opgehaald en gecachet; de herkenning zelf stuurt niets naar buiten. Dit is getest met alle extern verkeer geblokkeerd.',
       'Externe partijen die de app kan benaderen: Google (Firebase AI Logic / Agent Platform Gemini API en App Check, voor de online scan en vertaling; de Firebase-programmabestanden komen van Googles CDN gstatic.com), jsDelivr (eenmalig bij je eerste bezoek, voor het PDF.js-programmabestand) en de server waarop deze app zelf draait.',
@@ -195,6 +198,9 @@ export const STRINGS = {
     undoBarLineRemoved: 'Line removed.',
     undoBarAction: 'Undo',
     lineRestored: 'Line restored.',
+    onlineAiToggle: 'Online AI scan (Google)',
+    onlineAiHint: 'On: your receipt photo or PDF goes to Google (Firebase AI Logic, processed in the EU multi-region) to read the lines and amounts; online translation is also possible. Costs run through the app owner with a fixed monthly cap. Off: nothing leaves your device — the app only reads locally. Local reading works less well and does not translate.',
+    aiOffStatus: 'Online AI scan is off on this device; everything stays local.',
     step2Title: 'Step 2: Who joined?',
     step2Help: 'Enter names. Previous names are remembered locally on your device for quick selection.',
     participantPlaceholder: 'Enter name (e.g. Jolanda)',
@@ -262,7 +268,7 @@ export const STRINGS = {
     privacyTitle: 'Privacy & data flows',
     privacyBody: [
       'What stays on your device: participant names, your current split, and settings are stored locally in your browser (localStorage) only. There is no custom server and no account. The app contains no personal API key: you do not need to set up a key, and no key of the maker is embedded in the app.',
-      'AI scan route (default): your receipt photo or scanned PDF is sent via Firebase AI Logic to Google\'s Agent Platform Gemini API (processed in the EU multi-region) to read the lines and amounts. Online translation sends only the receipt text lines (no photo, no amounts, no names) via the same route. Calls are protected with Firebase App Check (reCAPTCHA Enterprise) so only this app can make them. Costs run through the app owner with a fixed monthly cap (spend cap); when it is reached or a call fails, the app falls back to the local backup. Prefer not to send anything? Use the paste box or enter the lines manually; a photo otherwise always goes to Google first.',
+      'AI scan route (default): your receipt photo or scanned PDF is sent via Firebase AI Logic to Google\'s Agent Platform Gemini API (processed in the EU multi-region) to read the lines and amounts. Online translation sends only the receipt text lines (no photo, no amounts, no names) via the same route. Calls are protected with Firebase App Check (reCAPTCHA Enterprise) so only this app can make them. Costs run through the app owner with a fixed monthly cap (spend cap); when it is reached or a call fails, the app falls back to the local backup. Prefer not to send anything? Turn the \"Online AI scan (Google)\" switch above off, or use the paste box or manual entry; with the switch on, a photo always goes to Google first.',
       'PDF text layer: to read PDFs the app uses PDF.js. That program file is fetched once from the jsDelivr CDN in the background on your first visit (prefetch) and cached, so it also works offline afterwards; no receipt content is sent with it, it is only the program file.',
       'Local backup (when the online AI scan is unavailable): runs entirely on your device. The model files (~6 MB), the browser module and the compute engine (onnxruntime WASM, ~24 MB) are fetched once from this same server and cached; recognition itself sends nothing externally. This was tested with all external traffic blocked.',
       'External parties the app may contact: Google (Firebase AI Logic / Agent Platform Gemini API and App Check, for the online scan and translation; the Firebase program files come from Google\'s CDN gstatic.com), jsDelivr (once on your first visit, for the PDF.js program file) and the server hosting this app itself.',

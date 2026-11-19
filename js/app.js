@@ -29,6 +29,7 @@ import {
 import {
   callFirebaseAiModel,
   isAiConfigured,
+  isOnlineAiUsable,
   aiStatusText
 } from './firebase-ai.js';
 import {
@@ -480,8 +481,12 @@ async function handleReceiptFile(file) {
     statusBox.hidden = false;
 
     let fallbackReason = null;
-    if (!isAiConfigured()) {
-      fallbackReason = aiStatusText();
+    if (!isOnlineAiUsable(settings)) {
+      // v17: schakelaar uit (of config ontbreekt) -> GEEN online aanroep, direct lokaal
+      fallbackReason =
+        settings.onlineAiEnabled === false
+          ? 'online AI-scan staat uit op dit toestel (Instellingen & privacy)'
+          : aiStatusText();
     } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       fallbackReason = 'geen internetverbinding';
     }
@@ -635,7 +640,7 @@ function renderStep1(container) {
       el('button', {
         type: 'button',
         className: 'btn btn-secondary btn-sm',
-        disabled: !isAiConfigured(),
+        disabled: !isOnlineAiUsable(settings),
         text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
         onClick: async () => {
           transFeedback.hidden = false;
@@ -2092,6 +2097,28 @@ function openSettingsModal() {
 
   // Online AI-route (v14): via Firebase AI Logic, zonder eigen sleutel
   body.appendChild(el('h3', { text: 'Online AI-scan (Gemini)' }));
+
+  // v17: schakelaar 'Online AI-scan (Google)', standaard aan, per toestel onthouden.
+  // Uit = GEEN online aanroep: alleen lokaal lezen, ook geen online vertaling.
+  const onlineAiCb = el('input', {
+    type: 'checkbox',
+    id: 'setting-online-ai',
+    checked: settings.onlineAiEnabled !== false
+  });
+  onlineAiCb.addEventListener('change', (e) => {
+    settings.onlineAiEnabled = e.target.checked;
+    saveSettings(settings);
+    render();
+    openSettingsModal();
+  });
+  body.appendChild(
+    el('label', { for: 'setting-online-ai', className: 'checkbox-row' }, [
+      onlineAiCb,
+      el('span', { text: t(lang, 'onlineAiToggle') })
+    ])
+  );
+  body.appendChild(el('p', { className: 'help-text', text: t(lang, 'onlineAiHint') }));
+
   body.appendChild(
     el('p', {
       className: 'help-text',
@@ -2101,7 +2128,7 @@ function openSettingsModal() {
   body.appendChild(
     el('p', {
       className: 'muted',
-      text: aiStatusText()
+      text: settings.onlineAiEnabled === false ? t(lang, 'aiOffStatus') : aiStatusText()
     })
   );
 
