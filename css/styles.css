@@ -758,4 +758,21 @@ select {
 .hosted-info p {
   margin: 0.15rem 0;
 }
-
+/* v20: klein kruisje op een bewaarde-naam-chip (verzoek Henk) */
+.saved-chip {
+  display: inline-flex;
+  align-items: center;
+}
+.saved-chip .chip-remove {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  min-width: 44px; /* duimvriendelijk aanraakvlak... */
+  min-height: 44px;
+  margin-left: -0.9rem; /* ...maar visueel klein en strak tegen de chip */
+  padding: 0;
+}

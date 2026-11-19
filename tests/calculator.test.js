@@ -71,7 +71,7 @@ import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
 import {
   getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS,
-  loadSavedNames, saveNameToHistory, createEmptySession, saveSession,
+  loadSavedNames, saveNameToHistory, removeSavedName, createEmptySession, saveSession,
   normalizeSavedName
 } from '../js/storage.js';
 import { extractPdfTextAllPages } from '../js/parser.js';
@@ -1338,6 +1338,17 @@ PIN 43,00`);
     clearSavedNames();
     localStorage.setItem('bonnetje_saved_names_v1', JSON.stringify(['Piet', { name: 'Klaas', uses: 9, lastUsed: 1 }, 'piet']));
     assertEqual(loadSavedNames().join('|'), 'Piet|Klaas', 'gemigreerd en ontdubbeld');
+    clearSavedNames();
+  });
+
+  test('V20.4 bewaarde naam verwijderen (hoofdletterongevoelig, rest blijft)', () => {
+    clearSavedNames();
+    saveNameToHistory('Anna');
+    saveNameToHistory('Bram');
+    removeSavedName('ANNA');
+    assertEqual(loadSavedNames().join('|'), 'Bram', 'alleen Anna weg, Bram blijft');
+    removeSavedName('onbekend');
+    assertEqual(loadSavedNames().join('|'), 'Bram', 'onbekende naam verwijderen is onschadelijk');
     clearSavedNames();
   });
 

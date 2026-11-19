@@ -52,6 +52,7 @@ import {
   loadSavedNames,
   saveNameToHistory,
   normalizeSavedName,
+  removeSavedName,
   loadSettings,
   saveSettings,
   cleanupLegacyStorage,
@@ -1291,12 +1292,26 @@ function renderStep2(container) {
     const savedWrap = el('div', { className: 'chip-wrap' });
     unusedSaved.forEach((n) => {
       savedWrap.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'chip-btn',
-          text: `+ ${n}`,
-          onClick: () => addParticipantByName(n)
-        })
+        el('span', { className: 'saved-chip' }, [
+          el('button', {
+            type: 'button',
+            className: 'chip-btn',
+            text: `+ ${n}`,
+            onClick: () => addParticipantByName(n)
+          }),
+          // klein kruisje: naam alleen uit de bewaarlijst halen (verzoek Henk),
+          // zonder bevestiging; deelnemers van deze bon blijven staan
+          el('button', {
+            type: 'button',
+            className: 'chip-remove',
+            text: '×',
+            'aria-label': `${t(lang, 'namesRemoveLabel')}: ${n}`,
+            onClick: () => {
+              savedNames = removeSavedName(n);
+              render();
+            }
+          })
+        ])
       );
     });
     container.appendChild(savedWrap);

@@ -13,9 +13,10 @@ Regressietests: 100/100 groen in Node (`node tests/calculator.test.js`).
 
 - **Namen automatisch bewaren op het toestel** (localStorage, eigen sleutel `bonnetje_saved_names_v1`): wie je eenmaal invoert, blijft bewaard en overleeft "Nieuwe bon". Niets gaat naar buiten of naar Google. Weg alleen via "Alles wissen" in de instellingen.
 - **Eén tik in stap 2:** bewaarde namen die nog niet op deze bon staan verschijnen als chips onder het invoerveld; één tik voegt de naam toe en de chip verdwijnt. Dat is alles — geen beheermodus, geen vinkjes, geen aparte knoppen (feedback Henk: simpeler).
+- **Naam vergeten:** elke chip heeft een klein × ernaast; één tik haalt de naam uit de bewaarlijst, zonder bevestiging en zonder deelnemers van de huidige bon aan te passen (verzoek Henk).
 - Namen worden genormaliseerd (spaties, tab, niet-brekende spatie) en hoofdletterongevoelig ontdubbeld — óók bij het zelf toevoegen van een deelnemer, zodat "Cees   de  Vries" en "Cees de Vries" dezelfde persoon zijn (review-bevinding). Meest recente naam vooraan. Oude lijsten (strings of met gebruiks-tellingen) migreren vanzelf.
 - **Bekende beperking (eerlijkheid):** in Safari kan iOS localStorage van een site wissen na ±7 dagen zonder bezoek als de app niet als app op het beginscherm staat; bewaarde namen kunnen dan verdwenen zijn. Op het beginscherm geïnstalleerd blijft alles bewaard.
-- Techniek: simpele string-lijst in `js/storage.js` (`normalizeSavedName`/`loadSavedNames`/`saveNameToHistory`). Tests V20.1-20.3 + V20.5. Cache `bonnetje-v20`.
+- Techniek: simpele string-lijst in `js/storage.js` (`normalizeSavedName`/`loadSavedNames`/`saveNameToHistory`/`removeSavedName`). Tests V20.1-20.5. Cache `bonnetje-v20`.
 
 ## Wijzigingen in v19 (verzoek Henk: "Ik krijg nog steeds de oude versie")
 

@@ -87,6 +87,16 @@ export function loadSavedNames() {
 }
 
 /** Bewaar een naam: genormaliseerd, ontdubbeld, vooraan gezet. */
+/** Verwijder één bewaarde naam (hoofdletterongevoelig); raakt de huidige bon niet. */
+export function removeSavedName(name) {
+  const clean = normalizeSavedName(name);
+  const names = loadSavedNames().filter((n) => n.toLowerCase() !== clean.toLowerCase());
+  try {
+    localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+  } catch {}
+  return names;
+}
+
 export function saveNameToHistory(name) {
   const clean = normalizeSavedName(name);
   if (!clean) return loadSavedNames();
