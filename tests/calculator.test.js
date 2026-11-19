@@ -1318,6 +1318,67 @@ PIN 43,00`);
     assertTrue(app.indexOf('function renderStep4') < app.indexOf("unassignedWarning', {"), 'die ene plek is stap 4');
   });
 
+  test('V22.1 stap 3: namen per regel aantikken, geen persoonstabblad meer', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+    assertTrue(!app.includes('personTabs'), 'geen persoonstabblad meer in stap 3');
+    assertTrue(!i18n.includes('selectPersonPrompt'), 'hulptekst "kies eerst een persoon" is weg');
+    assertTrue(app.includes('assign-quick'), 'snelrij met Hele tafel / Niemand aanwezig');
+    assertTrue(app.includes("className: `chip-btn chip-assign ${on ? 'active' : ''}`"), 'aan/uit-chips per regel');
+    assertTrue(app.includes('assign-qty-row'), 'stappenrij − n + bij aantallen-regels');
+    assertTrue(i18n.includes("nobody: 'Niemand'") && i18n.includes("nobody: 'Nobody'"), 'i18n "Niemand" in nl en en');
+  });
+
+  test('V22.2 stap 3 tik-gedrag: tik wijst toe, Hele tafel gelijk, Niemand leeg', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    assertTrue(app.includes('item.assignedTo = isAll ? [] : [...allIds];'), 'Hele tafel verdeelt gelijk over iedereen');
+    assertTrue(app.includes('item.assignedQuantities[p.id] = 1;'), 'tik op aantallen-regel telt als 1 stuk');
+    assertTrue(app.includes("delete item.assignedQuantities[p.id];"), 'tik op toegewezen naam haalt die weer weg');
+    assertTrue(app.includes('disabled: remaining <= 0'), 'plus-knop stopt bij het aantal op de bon (geen oververdeling)');
+  });
+
+  test('V22.3 korte chip-namen: altijd eenduidig, zo kort mogelijk', async () => {
+    const { shortDisplayNames } = await import('../js/names.js');
+    const mk = (names) => shortDisplayNames(names.map((n, i) => ({ id: 'p' + i, name: n })));
+    const labels = (m) => [...m.values()];
+
+    const m1 = mk(['Jolanda', 'Henk', 'Richard', 'Rebecca', 'John']);
+    assertEqual(labels(m1).join('|'), 'Jolanda|Henk|Richard|Rebecca|John', 'losse voornamen blijven heel');
+
+    const m2 = mk(['Jan de Vries', 'Jan Smit', 'Jana', 'Johan', 'John']);
+    const l2 = labels(m2);
+    assertEqual(l2[0], 'Jan V', 'gelijke voornaam: eerste letter van de achternaam erbij');
+    assertEqual(l2[1], 'Jan S', 'idem met eigen hoofdletter');
+    assertEqual(l2[2], 'Jana', 'Jana was al uniek');
+    assertEqual(new Set(l2.map((x) => x.toLowerCase())).size, 5, 'alles eenduidig');
+
+    const m3 = mk(['Alexandra', 'Alexander']);
+    const l3 = labels(m3);
+    assertEqual(new Set(l3.map((x) => x.toLowerCase())).size, 2, 'afgekapte lange voornamen worden toch onderscheiden');
+
+    const m4 = mk(['Jan de Vries', 'Jan de Vries']);
+    assertEqual(new Set(labels(m4)).size, 2, 'zelfs identieke volledige namen krijgen een eigen label');
+
+    const pool = ['Jan', 'Jana', 'Johan', 'John', 'Jan de Vries', 'Jan Smit', 'Jan Dijk', 'Alexandra', 'Alexander', 'Bram', 'Cees de Vries'];
+    for (let r = 0; r < 50; r++) {
+      const pick = Array.from({ length: 2 + (r % 19) }, (_, i) => pool[(r * 7 + i * 3) % pool.length]);
+      const labs = labels(mk(pick)).map((x) => x.toLowerCase());
+      assertEqual(new Set(labs).size, pick.length, `fuzz ${r}: labels altijd uniek`);
+    }
+  });
+
+  test('V22.4 chips tonen kort label, bewaren volledige naam in aria-label', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+    assertTrue(app.includes('shortDisplayNames(session.participants)'), 'stap 3 rekent korte labels uit');
+    assertTrue(app.includes("'aria-label': p.name"), 'volledige naam blijft als aria-label op de chip');
+    assertTrue(/\.chip-assign[^}]*font-size:\s*0\.82rem/.test(css), 'chip-letters kleiner (~13 px)');
+    assertTrue(/\.chip-assign[^}]*min-height:\s*var\(--tap-min\)/.test(css), 'tikhoogte blijft 44 px');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
@@ -1381,7 +1442,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v21', 'manifest-cache is actueel (v21)');
+    assertEqual(CACHE_NAME, 'bonnetje-v22', 'manifest-cache is actueel (v22)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1393,7 +1454,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '21', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '22', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

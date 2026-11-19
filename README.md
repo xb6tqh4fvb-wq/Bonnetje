@@ -1,4 +1,4 @@
-# Bonnetje — Samen eerlijk afrekenen (v17)
+# Bonnetje — Samen eerlijk afrekenen (v22)
 
 Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account.
 
@@ -6,6 +6,18 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 1. **Gemini via Firebase AI Logic (eerste en standaardroute, v14):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. De aanroep loopt via Firebase AI Logic naar de **Agent Platform Gemini API** (voorheen Vertex AI Gemini API) met **App Check (reCAPTCHA Enterprise)** als misbruikbeveiliging. Er is **geen persoonlijke API-sleutel** meer: jij stelt geen sleutel in en de app bevat ook geen sleutel van de maker. De kosten lopen via de app-eigenaar met een vast maandmaximum (spend cap). De aanroep gebeurt direct bij het scannen of vertalen (v16: geen apart toestemmingsvenster meer); onder Instellingen & privacy staat precies wat er wordt verstuurd.
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v22 (verzoek Henk: per regel namen aantikken i.p.v. per persoon de lijst doorlopen)
+
+Regressietests: 105/105 groen in Node (`node tests/calculator.test.js`), jsdom-smoke 60+ checks groen.
+
+- **Stap 3 andersom:** je loopt niet meer per persoon de hele lijst langs, maar tikt per bonregel de namen aan van wie het had. De kaart van elke regel toont direct alle namen als chips; een tik zet een naam aan (✓) of uit. Geen "actieve persoon" en geen tabbladbalk meer.
+- **Aantallen (3× Cappuccino):** een tik telt als 1 stuk; wie meerdere stuks had krijgt een − n + stappenrij. De plus-knop gaat uit zodra alle stuks verdeeld zijn — oververdelen kan niet.
+- **"Hele tafel"** verdeelt een regel met één tik gelijk over iedereen (actieve stand zichtbaar), **"Niemand"** maakt een regel leeg.
+- **Compacte chips met korte namen (verzoek Henk):** chips tonen de voornaam; bij gelijke voornamen komt de eerste letter van de achternaam erbij ("Jan V", "Jan S"), zo lang als nodig is — eenduidigheid is gegarandeerd door tests, zelfs bij twee identieke volledige namen. Lange voornamen kappen af met … . Letters ~13 px (schaalt mee met "Extra grote tekst"), tikhoogte blijft 44 px. Volledige naam blijft in aria-label, "Toegewezen aan:" en het overzicht.
+- **Gemeten** (echte app, headless Chrome 390 px, vaste bon van 10 regels met 15 naam-toewijzingen, volledig verdeeld, 20 namen met opzettelijke dubbelen Jan de Vries/Jan Smit/Jana/Johan/John): **19 tikken bij 4, 8 én 20 deelnemers** — het aantal tikken hangt niet meer af van het aantal mensen. Bij de oude opbouw waren dat 23–24 tikken plus per persoon opnieuw door de hele lijst scrollen (bij 20 personen ~5× 2.657 px ≈ 13.000 px scrollwerk). Nieuw: één keer door de lijst. Schermhoogte met compacte chips: **2.844 px bij 4 personen (3,4 schermen), 3.412 bij 8 (4,0), 4.963 bij 20 (5,9)** — tegenover 3.522/4.176/6.456 px met volledige namen (23–30% korter) en chipsrijen per regel 5 i.p.v. 8 bij 20 personen. Eerlijke keerzijde: het scherm groeit nog steeds met het aantal deelnemers, maar je passeert elke regel maar één keer.
+- **Afrekening blijft exact:** datamodel ongewijzigd (`assignedTo` = gelijk verdelen, `assignedQuantities` = stuks); `canFinalize` blokkeert delen/afronden tot alles in hele centen klopt (bewaakt door de Node-tests en smoke-check op de cent-invariant).
+- Techniek: cache `bonnetje-v22`. Tests V22.1–V22.2 bewaken de nieuwe opbouw; V21.1 (waarschuwing alleen op stap 4) blijft staan.
 
 ## Wijzigingen in v21 (verzoek Henk: rustiger stap 3 + rechterrand-afsnijding iPhone)
 

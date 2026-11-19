@@ -552,31 +552,14 @@ input[type="number"] {
   flex-direction: column;
   gap: 0.5rem;
 }
-.split-card.selected {
-  border-color: var(--primary);
-  background: var(--ok-bg);
-}
 .split-card.unassigned {
   border-left: 5px solid var(--warn-border);
-}
-.split-toggle-btn {
-  width: 100%;
-  min-height: var(--tap-min);
-  text-align: left;
-  background: transparent;
-  border: none;
-  color: inherit;
-  padding: 0.2rem 0;
-  cursor: pointer;
 }
 .split-card-top {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   font-size: 1.02rem;
-}
-.split-check {
-  font-size: 1.3rem;
 }
 .split-desc {
   flex: 1;
@@ -585,6 +568,38 @@ input[type="number"] {
   font-size: 0.88rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
+}
+/* v22: per regel namen aantikken */
+.assign-quick {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+/* v22: compacte naam-chips (verzoek Henk): kleinere letters (~13 px),
+   smaller opgevuld, tikhoogte blijft 44 px; schaalt mee met Extra grote tekst */
+.chip-assign {
+  min-height: var(--tap-min);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.split-card .chip-wrap {
+  gap: 0.35rem;
+  margin: 0.25rem 0 0;
+}
+.assign-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+.qty-label {
+  color: var(--text-muted);
+}
+.qty-val {
+  min-width: 1.2em;
+  text-align: center;
 }
 
 /* Stap 4 overzicht */

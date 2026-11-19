@@ -12,6 +12,7 @@ import {
   buildSettlementShareText
 } from './calculator.js';
 import { t, STRINGS } from './i18n.js';
+import { shortDisplayNames } from './names.js';
 import { translateOffline } from './dictionary.js';
 import { extractPdfTextAllPages, parsePlainTextReceipt } from './parser.js';
 import {
@@ -1349,40 +1350,11 @@ function renderStep3(container) {
     return;
   }
 
-  if (!session.activeParticipantId || !session.participants.some((p) => p.id === session.activeParticipantId)) {
-    session.activeParticipantId = session.participants[0].id;
-  }
-
-  container.appendChild(el('p', { className: 'section-label', text: t(lang, 'selectPersonPrompt') }));
-  const personTabs = el('div', { className: 'chip-wrap', role: 'tablist' });
-  session.participants.forEach((p) => {
-    const active = p.id === session.activeParticipantId;
-    personTabs.appendChild(
-      el('button', {
-        type: 'button',
-        role: 'tab',
-        'aria-selected': String(active),
-        className: `chip-btn person-tab ${active ? 'active' : ''}`,
-        text: p.name,
-        onClick: () => {
-          session.activeParticipantId = p.id;
-          saveSession(session);
-          render();
-        }
-      })
-    );
-  });
-  container.appendChild(personTabs);
-
-  // v21 (verzoek Henk): geen waarschuwingsbalken meer tijdens het verdelen —
-  // ze staan bovenaan stap 4 zodra je doorgaat, en delen is geblokkeerd zolang
-  // niet alles exact is toegewezen (canFinalize). De oranje kaartrand en het
-  // "nog X open"-regeltje blijven wel als rustige indicatie tijdens het invullen.
-
   const activeItems = session.items.filter(isLineActive);
-  const activePersonId = session.activeParticipantId;
-  const activePerson = session.participants.find((p) => p.id === activePersonId);
   const allIds = session.participants.map((p) => p.id);
+  // v22 (verzoek Henk): korte, altijd eenduidige labels op de chips; volledige
+  // naam blijft in aria-label, "Toegewezen aan:" en het overzicht
+  const korteNamen = shortDisplayNames(session.participants);
 
   const list = el('div', { className: 'split-list' });
   activeItems.forEach((item) => {
@@ -1390,9 +1362,6 @@ function renderStep3(container) {
     const qtyMap = item.assignedQuantities || {};
     const assignedQtySum = Object.values(qtyMap).reduce((s, q) => s + (Number.isInteger(q) ? q : 0), 0);
     const usingQtyMode = assignedQtySum > 0;
-
-    const hasActive = usingQtyMode ? (qtyMap[activePersonId] || 0) > 0 : assigned.includes(activePersonId);
-    const isAll = !usingQtyMode && allIds.length > 0 && allIds.every((id) => assigned.includes(id));
 
     const labelText = item.geminiTranslation
       ? `${item.geminiTranslation} (${item.description})`
@@ -1416,79 +1385,26 @@ function renderStep3(container) {
 
     const isUnassigned = !usingQtyMode && assigned.length === 0;
     const isQtyMismatch = usingQtyMode && assignedQtySum !== item.qty;
+    const isAll = !usingQtyMode && allIds.length > 0 && allIds.every((id) => assigned.includes(id));
 
+    // v22 (verzoek Henk): per regel namen aantikken i.p.v. per persoon de hele
+    // lijst doorlopen. Tik op een naam = aan/uit; bij een aantallen-regel (3×)
+    // telt een tik als 1 stuk en verdeel je met − n + verder. "Hele tafel"
+    // verdeelt de regel gelijk over iedereen. Geen actieve persoon meer.
     const card = el('div', {
-      className: `split-card ${hasActive ? 'selected' : ''} ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`
+      className: `split-card ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`
     });
 
-    const mainBtn = el(
-      'button',
-      {
-        type: 'button',
-        className: 'split-toggle-btn',
-        'aria-pressed': String(hasActive),
-        onClick: () =>
-          mutate(() => {
-            item.assignedQuantities = {};
-            const cur = item.assignedTo || [];
-            if (cur.includes(activePersonId)) {
-              item.assignedTo = cur.filter((id) => id !== activePersonId);
-            } else {
-              item.assignedTo = [...cur, activePersonId];
-            }
-          })
-      },
-      [
-        el('div', { className: 'split-card-top' }, [
-          el('span', { className: 'split-check', text: hasActive ? '☑' : '☐' }),
-          el('span', { className: 'split-desc', text: `${item.qty > 1 ? `${item.qty}× ` : ''}${labelText || '—'}` }),
-          el('strong', { className: 'split-price', text: formatCentsNL(item.lineTotalCents) })
-        ]),
-        el('div', { className: 'split-assigned-names', text: assignedLabel })
-      ]
+    card.appendChild(
+      el('div', { className: 'split-card-top' }, [
+        el('span', { className: 'split-desc', text: `${item.qty > 1 ? `${item.qty}× ` : ''}${labelText || '—'}` }),
+        el('strong', { className: 'split-price', text: formatCentsNL(item.lineTotalCents) })
+      ])
     );
+    card.appendChild(el('div', { className: 'split-assigned-names', text: assignedLabel }));
 
-    const actionsRow = el('div', { className: 'item-row-actions' });
-    if (item.qty > 1) {
-      const myQty = qtyMap[activePersonId] || 0;
-      const remaining = item.qty - assignedQtySum;
-      actionsRow.appendChild(el('span', { className: 'qty-label', text: `Stuks voor ${activePerson?.name}:` }));
-      actionsRow.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn btn-sm btn-secondary',
-          disabled: myQty <= 0,
-          'aria-label': `1 stuk minder voor ${activePerson?.name}`,
-          text: '−',
-          onClick: () =>
-            mutate(() => {
-              item.assignedTo = [];
-              if (!item.assignedQuantities) item.assignedQuantities = {};
-              const next = Math.max(0, (item.assignedQuantities[activePersonId] || 0) - 1);
-              if (next === 0) delete item.assignedQuantities[activePersonId];
-              else item.assignedQuantities[activePersonId] = next;
-            })
-        })
-      );
-      actionsRow.appendChild(el('strong', { className: 'qty-val', text: String(myQty) }));
-      actionsRow.appendChild(
-        el('button', {
-          type: 'button',
-          className: 'btn btn-sm btn-secondary',
-          disabled: remaining <= 0,
-          'aria-label': `1 stuk meer voor ${activePerson?.name}`,
-          text: '+',
-          onClick: () =>
-            mutate(() => {
-              item.assignedTo = [];
-              if (!item.assignedQuantities) item.assignedQuantities = {};
-              item.assignedQuantities[activePersonId] = (item.assignedQuantities[activePersonId] || 0) + 1;
-            })
-        })
-      );
-    }
-
-    actionsRow.appendChild(
+    const quick = el('div', { className: 'assign-quick' });
+    quick.appendChild(
       el('button', {
         type: 'button',
         className: `btn btn-sm ${isAll ? 'btn-primary' : 'btn-secondary'}`,
@@ -1501,9 +1417,95 @@ function renderStep3(container) {
           })
       })
     );
+    quick.appendChild(
+      el('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-secondary',
+        text: t(lang, 'nobody'),
+        disabled: !usingQtyMode && assigned.length === 0,
+        onClick: () =>
+          mutate(() => {
+            item.assignedQuantities = {};
+            item.assignedTo = [];
+          })
+      })
+    );
+    card.appendChild(quick);
 
-    card.appendChild(mainBtn);
-    card.appendChild(actionsRow);
+    const chips = el('div', { className: 'chip-wrap' });
+    session.participants.forEach((p) => {
+      const on = item.qty > 1 ? (qtyMap[p.id] || 0) > 0 : assigned.includes(p.id);
+      chips.appendChild(
+        el('button', {
+          type: 'button',
+          className: `chip-btn chip-assign ${on ? 'active' : ''}`,
+          'aria-pressed': String(on),
+          'aria-label': p.name,
+          title: p.name,
+          text: `${on ? '✓ ' : ''}${korteNamen.get(p.id) || p.name}`,
+          onClick: () =>
+            mutate(() => {
+              if (item.qty > 1) {
+                if (!item.assignedQuantities) item.assignedQuantities = {};
+                if ((item.assignedQuantities[p.id] || 0) > 0) {
+                  delete item.assignedQuantities[p.id];
+                } else {
+                  // van gelijk-verdeeld ("Hele tafel") naar stuksmodus: begin bij deze persoon
+                  if (assigned.length > 0) item.assignedTo = [];
+                  item.assignedQuantities[p.id] = 1;
+                }
+              } else {
+                item.assignedQuantities = {};
+                item.assignedTo = assigned.includes(p.id)
+                  ? assigned.filter((x) => x !== p.id)
+                  : [...assigned, p.id];
+              }
+            })
+        })
+      );
+    });
+    card.appendChild(chips);
+
+    if (item.qty > 1 && usingQtyMode) {
+      const remaining = item.qty - assignedQtySum;
+      const qtyRow = el('div', { className: 'assign-qty-row' });
+      session.participants
+        .filter((p) => (qtyMap[p.id] || 0) > 0)
+        .forEach((p) => {
+          const myQty = qtyMap[p.id];
+          qtyRow.appendChild(el('span', { className: 'qty-label', text: `${p.name}:` }));
+          qtyRow.appendChild(
+            el('button', {
+              type: 'button',
+              className: 'btn btn-sm btn-secondary',
+              'aria-label': `1 stuk minder voor ${p.name}`,
+              text: '−',
+              onClick: () =>
+                mutate(() => {
+                  const next = Math.max(0, (item.assignedQuantities[p.id] || 0) - 1);
+                  if (next === 0) delete item.assignedQuantities[p.id];
+                  else item.assignedQuantities[p.id] = next;
+                })
+            })
+          );
+          qtyRow.appendChild(el('strong', { className: 'qty-val', text: String(myQty) }));
+          qtyRow.appendChild(
+            el('button', {
+              type: 'button',
+              className: 'btn btn-sm btn-secondary',
+              disabled: remaining <= 0,
+              'aria-label': `1 stuk meer voor ${p.name}`,
+              text: '+',
+              onClick: () =>
+                mutate(() => {
+                  item.assignedQuantities[p.id] = (item.assignedQuantities[p.id] || 0) + 1;
+                })
+            })
+          );
+        });
+      card.appendChild(qtyRow);
+    }
+
     list.appendChild(card);
   });
   container.appendChild(list);

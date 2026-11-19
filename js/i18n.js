@@ -62,8 +62,8 @@ export const STRINGS = {
     // Stap 3: Verdelen
     step3Title: 'Stap 3: Wie had wat?',
     step3Help:
-      'Kies hieronder een persoon en tik de regels aan die hij of zij had. Gedeelde items tik je bij meerdere mensen aan. Met "Hele tafel" verdeel je een regel met één tik over iedereen.',
-    selectPersonPrompt: 'Kies eerst een persoon:',
+      'Tik per regel de namen aan van wie dit had. Bij een aantal (3×) telt een tik als 1 stuk; verdeel verder met − en +. Met "Hele tafel" verdeel je een regel gelijk over iedereen.',
+    nobody: 'Niemand',
     wholeTable: 'Hele tafel',
     assignedTo: 'Toegewezen aan:',
     nobodyYet: 'Nog aan niemand toegewezen',
@@ -216,8 +216,8 @@ export const STRINGS = {
     removeParticipant: 'Remove person',
     step3Title: 'Step 3: Who had what?',
     step3Help:
-      'Select a person below and tap the items they had. For shared items, tap them for each person. Use "Whole table" to split an item across everyone in one tap.',
-    selectPersonPrompt: 'First choose a person:',
+      'Tap the names of who had what, per line. For quantities (3×) a tap counts as 1 piece; adjust with − and +. Use "Whole table" to split a line equally across everyone.',
+    nobody: 'Nobody',
     wholeTable: 'Whole table',
     assignedTo: 'Assigned to:',
     nobodyYet: 'Not assigned to anyone yet',
