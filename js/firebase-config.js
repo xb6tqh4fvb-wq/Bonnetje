@@ -46,7 +46,7 @@ export const FIREBASE_CONFIG = {
 // (Firebase console > Security > App Check > Apps > Bonnetje web).
 // De site key is publiek-by-design en mag in de clientcode staan; de SECRET key
 // hoort hier NOOIT te staan.
-export const RECAPTCHA_ENTERPRISE_SITE_KEY = 'VUL_IN_RECAPTCHA_SITE_KEY';
+export const RECAPTCHA_ENTERPRISE_SITE_KEY = '6LdVLSguAAAAAKCmbGQKnbVTpa0T8xHhceNY4_HG';
 
 function isPlaceholder(value) {
   return !value || String(value).startsWith(PLACEHOLDER_PREFIX);
