@@ -1,4 +1,4 @@
-# Bonnetje — Samen eerlijk afrekenen (v12)
+# Bonnetje — Samen eerlijk afrekenen (v13)
 
 Gratis, statische webapp voor GitHub Pages zonder eigen server, zonder account en zonder betaalde diensten.
 
@@ -6,6 +6,16 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server, zonder account e
 1. **Gemini (eerste en standaardroute):** Leest bonfoto's en gescande PDF's (alle pagina's) rechtstreeks vanuit je browser met vaste JSON-velden (`items`, `subtotal`, `vat`, `tip`, `discount`, `total`, `currency`, `language`) en vertaalt buitenlandse bonregels naar het Nederlands. Altijd met toestemming en een eerlijke melding vooraf.
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start alleen als Gemini niet kan (geen internet, HTTP 429, HTTP 503, geen sleutel of geweigerde toestemming). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
+
+## Wijzigingen in v13 (verzoek Henk: deelnemer die niet hoeft te betalen)
+
+Regressietests: 80/80 groen in Node (69 bestaand + 11 nieuw, v13a t/m v13k).
+
+- **Deelnemer betaalt niet mee (te gast, jarig, andere reden):** per deelnemer een schakelaar in stap 2. Het hele deel van zo'n gast (eigen verbruik + fooi + bon-extra's) wordt overgenomen door de andere deelnemers. De fooi volgt daarbij het bedrag dat iemand uiteindelijk betaalt: het fooiaandeel van de gast wordt mee overgenomen.
+- **Wie neemt over, en welk aandeel:** in stap 4 kies je per gast de overnemer(s) — standaard alle anderen — en het aandeel per overnemer: gelijk verdeeld, een percentage, of een vast bedrag. Meerdere gasten kunnen tegelijk, elk met een eigen keuze.
+- **Nooit bedragen verzinnen:** bij een vast bedrag moet de som exact gelijk zijn aan het over te nemen deel; klopt het niet, dan blokkeert de afronding met een melding en verandert er niets. Percentages moeten samen 100% zijn.
+- **Restcenten zichtbaar:** restcenten gaan naar de overnemer met het grootste aandeel (bij gelijk aandeel: het grootste eigen totaal, daarna de volgorde van de lijst) en worden in het overzicht getoond ("waarvan € 0,01 restcenten"). Het totaal blijft altijd exact kloppen.
+- **Overal zichtbaar:** de gast ziet wie het deel overneemt, overnemers zien een eigen regel per overgenomen deel, de deelberichten (WhatsApp/e-mail/kopiëren) noemen het overgenomen bedrag, en de gast krijgt een eigen bericht ("je was te gast, je hoeft niets te betalen"). De schakelaar, contant-terugkrijgen en de deelknoppen blijven werken zoals ze waren.
 
 ## Wijzigingen in v12 (per bevinding, onafhankelijke v11-review)
 
@@ -34,6 +44,11 @@ Regressietests: 69/69 groen in Node én echte headless Chrome (68 bestaand + 1 n
 Conclusies:
 - **Geen terugval:** alle scores zijn identiek aan v11, op beide routes, op alle sets.
 - De V1-reparatie zit in de afrekenlaag (stap 4); de parser- en OCR-cijfers veranderen daardoor niet, en de app-route-browsertests bewijzen dat de US-tax- en NL-fooi-bonnen nu ook in de echte bediening sluiten.
+
+## Tests v13
+- `node tests/calculator.test.js`: **80/80 groen** (69 bestaand + 11 nieuw v13), volledige output in `tests/test-output-v13.txt`.
+- `tests/run-tests.html` in echte headless Chrome: **79/80 groen**; enige FAIL is V10.6 (PDF.js-laadfout-melding), die op ongewijzigde v12-main in deze omgeving identiek faalt (68/69) en dus geen terugval van v13 is.
+- UI-rooktest in echte headless Chrome (v13): schakelaar in stap 2, gastkaart in stap 4, gelijk verdeeld én percentage 75/25 met zichtbare restcent, deelknoppen, contant-wisselgeld en gast- en dragerberichten kloppen; screenshots meegeleverd in het bouwrapport.
 
 ## Tests v12
 - `node tests/calculator.test.js`: **69/69 groen**, volledige output in `tests/test-output-v12.txt`.

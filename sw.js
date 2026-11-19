@@ -1,5 +1,5 @@
-// Bonnetje - Service Worker (v12: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
-const CACHE_NAME = 'bonnetje-v12';
+// Bonnetje - Service Worker (v13: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
+const CACHE_NAME = 'bonnetje-v13';
 
 const APP_SHELL = [
   './',

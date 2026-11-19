@@ -4,7 +4,7 @@
 // - ppu-paddle-ocr / PP-OCRv6_tiny (Apache 2.0)
 // - PDF.js 4.8.69 (Apache 2.0)
 
-export const CACHE_NAME = 'bonnetje-v12';
+export const CACHE_NAME = 'bonnetje-v13';
 
 export const APP_SHELL_URLS = [
   './',

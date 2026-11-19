@@ -646,3 +646,24 @@ select {
 .app-footer .support-link:focus-visible {
   text-decoration: underline;
 }
+
+/* v13: deelnemer betaalt niet mee */
+.participant-row {
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.hosted-toggle {
+  flex: 1;
+  justify-content: flex-end;
+  font-size: 0.85rem;
+}
+.hosted-card h3 {
+  margin-top: 0;
+}
+.hosted-info {
+  margin: 0.4rem 0;
+  font-size: 0.92rem;
+}
+.hosted-info p {
+  margin: 0.15rem 0;
+}

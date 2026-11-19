@@ -927,6 +927,198 @@ PIN 43,00`);
       'Offline-modellen-melding is niet misleidend');
   });
 
+  // === v13: DEELNEMER BETAALT NIET MEE (te gast, jarig, andere reden) ===
+  const mkHostedState = (overrides = {}) => ({
+    items: [
+      { id: '1', description: 'Pizza', qty: 1, unitPriceCents: 2000, lineTotalCents: 2000, assignedTo: ['a'] },
+      { id: '2', description: 'Pasta', qty: 1, unitPriceCents: 1500, lineTotalCents: 1500, assignedTo: ['b'] },
+      { id: '3', description: 'Verjaardagstaart', qty: 1, unitPriceCents: 1001, lineTotalCents: 1001, assignedTo: ['c'] }
+    ],
+    receiptTotalCents: 4501,
+    participants: [
+      { id: 'a', name: 'Anna' },
+      { id: 'b', name: 'Bram' },
+      { id: 'c', name: 'Cees' }
+    ],
+    tipMode: 'none',
+    hosted: { c: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} } },
+    ...overrides
+  });
+
+  test('v13a) Gast (standaard: alle anderen gelijk) - restcent naar grootste eigen aandeel', () => {
+    const res = calculateSettlement(mkHostedState());
+    const a = res.perPerson.find((p) => p.id === 'a');
+    const b = res.perPerson.find((p) => p.id === 'b');
+    const c = res.perPerson.find((p) => p.id === 'c');
+    // Cees' € 10,01 over Anna en Bram: 500+501; Anna heeft het grootste eigen aandeel -> zij krijgt de restcent
+    assertEqual(a.totalCents, 2000 + 501);
+    assertEqual(b.totalCents, 1500 + 500);
+    assertEqual(c.totalCents, 0);
+    assertEqual(c.hosted, true);
+    assertEqual(c.hostedAmountCents, 1001);
+    assertEqual(a.carries.length, 1);
+    assertEqual(a.carries[0].guestId, 'c');
+    assertEqual(a.carries[0].cents, 501);
+    assertEqual(a.carries[0].remainderCents, 1, 'restcent zichtbaar bij Anna');
+    assertEqual(b.carries[0].remainderCents, 0);
+    assertEqual(res.grandTotalCents, 4501);
+    assertEqual(res.hostedErrors.length, 0);
+    assertTrue(res.invariantExact);
+    assertTrue(res.canFinalize);
+    const summary = res.hostedSummaries.find((h) => h.guestId === 'c');
+    assertEqual(summary.amountCents, 1001);
+    assertEqual(summary.shares.reduce((sum, sh) => sum + sh.cents, 0), 1001, 'som van overname exact');
+  });
+
+  test('v13b) Eén gekozen drager neemt alles over', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: ['b'], mode: 'equal', percent: {}, fixedCents: {} } }
+    }));
+    assertEqual(res.perPerson.find((p) => p.id === 'a').totalCents, 2000);
+    assertEqual(res.perPerson.find((p) => p.id === 'b').totalCents, 1500 + 1001);
+    assertEqual(res.perPerson.find((p) => p.id === 'c').totalCents, 0);
+    assertEqual(res.grandTotalCents, 4501);
+    assertTrue(res.canFinalize);
+  });
+
+  test('v13c) Twee gasten, één drager draagt beide delen', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: {
+        a: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} },
+        c: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} }
+      }
+    }));
+    assertEqual(res.perPerson.find((p) => p.id === 'a').totalCents, 0);
+    assertEqual(res.perPerson.find((p) => p.id === 'c').totalCents, 0);
+    assertEqual(res.perPerson.find((p) => p.id === 'b').totalCents, 1500 + 2000 + 1001);
+    assertEqual(res.perPerson.find((p) => p.id === 'b').carries.length, 2);
+    assertEqual(res.grandTotalCents, 4501);
+    assertTrue(res.canFinalize);
+  });
+
+  test('v13d) Percentage 75/25 met restcent naar het grootste aandeel', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 75, b: 25 }, fixedCents: {} } }
+    }));
+    // 75% van 1001 = 750 (floor), 25% = 250, restcent 1 naar grootste aandeel (Anna)
+    assertEqual(res.perPerson.find((p) => p.id === 'a').carries[0].cents, 751);
+    assertEqual(res.perPerson.find((p) => p.id === 'b').carries[0].cents, 250);
+    assertEqual(res.perPerson.find((p) => p.id === 'a').carries[0].remainderCents, 1);
+    assertEqual(res.grandTotalCents, 4501);
+    assertTrue(res.canFinalize);
+  });
+
+  test('v13e) Percentage dat geen 100% is blokkeert de afronding', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'percent', percent: { a: 33, b: 33 }, fixedCents: {} } }
+    }));
+    assertEqual(res.hostedErrors.length, 1);
+    assertEqual(res.hostedErrors[0].code, 'percent_sum');
+    assertEqual(res.canFinalize, false);
+    // niets stilletjes aangepast: Cees houdt zijn deel, totaal blijft kloppen
+    assertEqual(res.perPerson.find((p) => p.id === 'c').totalCents, 1001);
+    assertEqual(res.grandTotalCents, 4501);
+  });
+
+  test('v13f) Vast bedrag exact verdeeld werkt; som die niet klopt blokkeert zonder aanpassen', () => {
+    const ok = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'fixed', percent: {}, fixedCents: { a: 1000, b: 1 } } }
+    }));
+    assertEqual(ok.perPerson.find((p) => p.id === 'a').totalCents, 3000);
+    assertEqual(ok.perPerson.find((p) => p.id === 'b').totalCents, 1501);
+    assertEqual(ok.perPerson.find((p) => p.id === 'c').totalCents, 0);
+    assertTrue(ok.canFinalize);
+
+    const fout = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'fixed', percent: {}, fixedCents: { a: 600, b: 600 } } }
+    }));
+    assertEqual(fout.hostedErrors[0].code, 'fixed_sum');
+    assertEqual(fout.hostedErrors[0].expectedCents, 1001);
+    assertEqual(fout.hostedErrors[0].actualCents, 1200);
+    assertEqual(fout.canFinalize, false);
+    assertEqual(fout.perPerson.find((p) => p.id === 'a').totalCents, 2000, 'geen stille aanpassing');
+    assertEqual(fout.perPerson.find((p) => p.id === 'c').totalCents, 1001);
+
+    const ongeldig = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: null, mode: 'fixed', percent: {}, fixedCents: { a: 1000 } } }
+    }));
+    assertEqual(ongeldig.hostedErrors[0].code, 'fixed_invalid');
+    assertEqual(ongeldig.canFinalize, false);
+  });
+
+  test('v13g) Geen geldige dragers (alleen niet-betalers of onbekenden gekozen) blokkeert', () => {
+    const res = calculateSettlement(mkHostedState({
+      hosted: { c: { enabled: true, carrierIds: ['x', 'c'], mode: 'equal', percent: {}, fixedCents: {} } }
+    }));
+    assertEqual(res.hostedErrors[0].code, 'no_carriers');
+    assertEqual(res.canFinalize, false);
+
+    const allen = calculateSettlement(mkHostedState({
+      hosted: {
+        a: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} },
+        b: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} },
+        c: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} }
+      }
+    }));
+    assertEqual(allen.hostedErrors.length, 3);
+    assertEqual(allen.canFinalize, false);
+  });
+
+  test('v13h) Fooi volgt het overgenomen bedrag (doelbedrag-modus)', () => {
+    const res = calculateSettlement(mkHostedState({
+      tipMode: 'target_total',
+      targetTotalCents: 4901
+    }));
+    // fooi 400 over a,b,c: 134+133+133; Cees draagt 1001+133=1134 over aan Anna en Bram (567+567)
+    const a = res.perPerson.find((p) => p.id === 'a');
+    const b = res.perPerson.find((p) => p.id === 'b');
+    const c = res.perPerson.find((p) => p.id === 'c');
+    assertEqual(c.hostedAmountCents, 1134);
+    assertEqual(c.totalCents, 0);
+    assertEqual(a.totalCents, 2134 + 567);
+    assertEqual(b.totalCents, 1633 + 567);
+    assertEqual(res.grandTotalCents, 4901);
+    assertTrue(res.invariantExact);
+    assertTrue(res.canFinalize);
+  });
+
+  test('v13i) Gast met deel van € 0,00 hoeft niets over te nemen', () => {
+    const res = calculateSettlement({
+      items: [{ id: '1', description: 'Koffie', qty: 1, unitPriceCents: 500, lineTotalCents: 500, assignedTo: ['a'] }],
+      receiptTotalCents: 500,
+      participants: [{ id: 'a', name: 'Anna' }, { id: 'b', name: 'Bram' }],
+      tipMode: 'none',
+      hosted: { b: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} } }
+    });
+    assertEqual(res.perPerson.find((p) => p.id === 'b').totalCents, 0);
+    assertEqual(res.hostedErrors.length, 0);
+    const summary = res.hostedSummaries.find((h) => h.guestId === 'b');
+    assertEqual(summary.amountCents, 0);
+    assertTrue(res.canFinalize);
+  });
+
+  test('v13j) Deeltekst blijft kloppen: gast op € 0,00 en totaal ongewijzigd', () => {
+    const res = calculateSettlement(mkHostedState());
+    const text = buildSettlementShareText(res, 'totaal');
+    assertTrue(text.includes('Cees € 0,00'), 'gast staat op nul in de deeltekst');
+    assertTrue(text.includes('totaal € 45,01'), 'totaal ongewijzigd');
+    const som = res.perPerson.reduce((sum, p) => sum + p.totalCents, 0);
+    assertEqual(som, res.grandTotalCents);
+  });
+
+  test('v13k) Zonder hosted-regel verandert er niets (achterwaarts compatibel)', () => {
+    const res = calculateSettlement(mkHostedState({ hosted: {} }));
+    assertEqual(res.perPerson.find((p) => p.id === 'a').totalCents, 2000);
+    assertEqual(res.perPerson.find((p) => p.id === 'c').totalCents, 1001);
+    assertEqual(res.hostedErrors.length, 0);
+    assertEqual(res.hostedSummaries.length, 0);
+    assertTrue(res.canFinalize);
+    for (const row of res.perPerson) {
+      assertEqual(row.hosted, false);
+      assertEqual(row.carries.length, 0);
+    }
+  });
+
   return results;
 }
 
@@ -1359,6 +1551,7 @@ export async function runAsyncTests() {
     assertEqual(estimateReceiptImageTokens(300, 300), 258, 'Klein plaatje = 258 tokens');
     assertEqual(estimateReceiptImageTokens(0, 0), null, 'Ongeldige afmeting = null');
   });
+
 
   return results;
 }

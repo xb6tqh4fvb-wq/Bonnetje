@@ -33,7 +33,10 @@ export function createEmptySession() {
     tipMode: 'none', // 'none' | 'per_person' | 'target_total'
     tipPerPersonCents: {},
     targetTotalCents: null,
-    includeZeroConsumersInSharedTip: false
+    includeZeroConsumersInSharedTip: false,
+    // v13: per deelnemer-id een regel voor "betaalt niet mee" (te gast, jarig, ...)
+    // { enabled, carrierIds: null | [id], mode: 'equal' | 'percent' | 'fixed', percent: {id: %}, fixedCents: {id: centen} }
+    hosted: {}
   };
 }
 

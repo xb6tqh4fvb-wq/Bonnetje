@@ -1111,6 +1111,43 @@ function renderStep1(container) {
 // ============================================================
 // STAP 2: DEELNEMERS
 // ============================================================
+// v13: regel voor "betaalt niet mee" (te gast, jarig, andere reden)
+function getHostedRule(pid) {
+  if (!session.hosted) session.hosted = {};
+  if (!session.hosted[pid]) {
+    session.hosted[pid] = { enabled: false, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} };
+  }
+  return session.hosted[pid];
+}
+
+// Welke deelnemers mogen het deel overnemen: iedereen behalve de gast zelf en andere gasten.
+function eligibleCarrierIds(guestId) {
+  return session.participants
+    .filter((q) => q.id !== guestId && !(session.hosted && session.hosted[q.id] && session.hosted[q.id].enabled))
+    .map((q) => q.id);
+}
+
+// Gekozen dragers, of standaard "alle anderen" als er nog niets gekozen is.
+function effectiveCarrierIds(rule, guestId) {
+  const eligible = eligibleCarrierIds(guestId);
+  if (Array.isArray(rule.carrierIds) && rule.carrierIds.length > 0) {
+    return rule.carrierIds.filter((id) => eligible.includes(id));
+  }
+  return eligible;
+}
+
+// Ruim een verwijderde deelnemer ook op in de hosted-regels.
+function cleanupHostedForRemoved(removedId) {
+  if (!session.hosted) return;
+  delete session.hosted[removedId];
+  for (const key of Object.keys(session.hosted)) {
+    const r = session.hosted[key];
+    if (Array.isArray(r.carrierIds)) r.carrierIds = r.carrierIds.filter((id) => id !== removedId);
+    if (r.percent) delete r.percent[removedId];
+    if (r.fixedCents) delete r.fixedCents[removedId];
+  }
+}
+
 function addParticipantByName(name) {
   const clean = String(name || '').trim();
   if (!clean) return;
@@ -1149,9 +1186,21 @@ function renderStep2(container) {
     chipList.appendChild(el('p', { className: 'muted', text: t(lang, 'noParticipants') }));
   } else {
     session.participants.forEach((p, idx) => {
+      const hostedBox = el('input', {
+        type: 'checkbox',
+        id: `hosted-${p.id}`,
+        checked: Boolean(getHostedRule(p.id).enabled)
+      });
+      hostedBox.addEventListener('change', (e) => {
+        mutate(() => { getHostedRule(p.id).enabled = e.target.checked; });
+      });
       chipList.appendChild(
         el('div', { className: 'participant-row' }, [
           el('strong', { text: p.name }),
+          el('label', { for: `hosted-${p.id}`, className: 'checkbox-row hosted-toggle' }, [
+            hostedBox,
+            el('span', { text: t(lang, 'hostedToggleLabel') })
+          ]),
           el('button', {
             type: 'button',
             className: 'btn btn-sm btn-danger-outline',
@@ -1166,6 +1215,7 @@ function renderStep2(container) {
                     delete it.assignedQuantities[p.id];
                   }
                 });
+                cleanupHostedForRemoved(p.id);
                 if (session.activeParticipantId === p.id) {
                   session.activeParticipantId = session.participants[0]?.id || null;
                 }
@@ -1425,6 +1475,13 @@ function renderStep3(container) {
 // ============================================================
 function buildShareMessage(personRow) {
   const lang = settings.lang;
+  // v13: gast krijgt een eigen bericht (niets te betalen, deel is overgenomen)
+  if (personRow.hosted) {
+    return t(lang, 'shareMessageHostedGuest', {
+      name: personRow.name,
+      amount: formatCentsNL(personRow.hostedAmountCents)
+    });
+  }
   const tipPart =
     personRow.tipCents > 0
       ? t(lang, 'shareTipPart', { tip: formatCentsNL(personRow.tipCents) })
@@ -1433,12 +1490,155 @@ function buildShareMessage(personRow) {
     personRow.receiptExtraCents > 0
       ? t(lang, 'shareReceiptExtraPart', { extra: formatCentsNL(personRow.receiptExtraCents) })
       : '';
+  // v13: wie voor een gast bijbetaalt, ziet dat in zijn eigen bericht
+  let carriedPart = '';
+  if (Array.isArray(personRow.carries) && personRow.carries.length > 0) {
+    const carriedSum = personRow.carries.reduce((sum, c) => sum + c.cents, 0);
+    const names = personRow.carries.map((c) => c.guestName).join(' & ');
+    carriedPart = t(lang, 'shareCarriedPart', { amount: formatCentsNL(carriedSum), names });
+  }
   return t(lang, 'shareMessageTemplate', {
     name: personRow.name,
     total: formatCentsNL(personRow.totalCents),
     subtotal: formatCentsNL(personRow.subtotalCents),
-    tipPart: tipPart + receiptExtraPart
+    tipPart: tipPart + receiptExtraPart + carriedPart
   });
+}
+
+// v13: instelkaart per gast in stap 4 (dragers + aandeel per drager)
+function renderHostedCard(container, guest, result) {
+  const lang = settings.lang;
+  const rule = getHostedRule(guest.id);
+  const summary = (result.hostedSummaries || []).find((h) => h.guestId === guest.id);
+  const amountCents = summary ? summary.amountCents : 0;
+  const carriers = effectiveCarrierIds(rule, guest.id);
+
+  const card = el('section', { className: 'card hosted-card' });
+  card.appendChild(el('h3', { text: t(lang, 'hostedCardTitle', { name: guest.name }) }));
+  card.appendChild(
+    el('p', { className: 'help-text', text: t(lang, 'hostedShareOf', { name: guest.name, amount: formatCentsNL(amountCents) }) })
+  );
+
+  card.appendChild(el('p', { className: 'section-label', text: t(lang, 'hostedCarriersLabel') }));
+  const carrierWrap = el('div', { className: 'chip-wrap' });
+  for (const q of session.participants) {
+    if (q.id === guest.id) continue;
+    const alsoHosted = Boolean(session.hosted && session.hosted[q.id] && session.hosted[q.id].enabled);
+    const active = carriers.includes(q.id);
+    carrierWrap.appendChild(
+      el('button', {
+        type: 'button',
+        className: `chip-btn ${active ? 'active' : ''}`,
+        disabled: alsoHosted,
+        text: q.name,
+        onClick: () =>
+          mutate(() => {
+            const r = getHostedRule(guest.id);
+            const current = effectiveCarrierIds(r, guest.id);
+            r.carrierIds = current.includes(q.id)
+              ? current.filter((id) => id !== q.id)
+              : [...current, q.id];
+          })
+      })
+    );
+  }
+  card.appendChild(carrierWrap);
+
+  const modeWrap = el('div', { className: 'chip-wrap', role: 'radiogroup' });
+  [
+    ['equal', t(lang, 'hostedModeEqual')],
+    ['percent', t(lang, 'hostedModePercent')],
+    ['fixed', t(lang, 'hostedModeFixed')]
+  ].forEach(([mode, label]) => {
+    const active = (rule.mode || 'equal') === mode;
+    modeWrap.appendChild(
+      el('button', {
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(active),
+        className: `chip-btn ${active ? 'active' : ''}`,
+        text: label,
+        onClick: () => mutate(() => { getHostedRule(guest.id).mode = mode; })
+      })
+    );
+  });
+  card.appendChild(modeWrap);
+
+  if ((rule.mode || 'equal') === 'percent') {
+    for (const cid of carriers) {
+      const person = session.participants.find((q) => q.id === cid);
+      if (!person) continue;
+      const pctInput = el('input', {
+        type: 'text',
+        inputmode: 'decimal',
+        placeholder: 'bijv. 50',
+        value: Number.isFinite(Number(rule.percent[cid])) && rule.percent[cid] !== undefined && rule.percent[cid] !== null
+          ? String(rule.percent[cid]).replace('.', ',')
+          : ''
+      });
+      pctInput.addEventListener('change', (e) => {
+        const raw = e.target.value.trim();
+        const v = raw === '' ? NaN : Number(raw.replace(',', '.'));
+        mutate(() => {
+          const r = getHostedRule(guest.id);
+          if (Number.isFinite(v) && v >= 0) r.percent[cid] = v;
+          else delete r.percent[cid];
+        });
+      });
+      card.appendChild(
+        el('label', { className: 'field-wrap inline-field' }, [
+          el('span', { text: `${person.name}: ${t(lang, 'hostedPercentLabel')}` }),
+          pctInput
+        ])
+      );
+    }
+  } else if ((rule.mode || 'equal') === 'fixed') {
+    for (const cid of carriers) {
+      const person = session.participants.find((q) => q.id === cid);
+      if (!person) continue;
+      const fixedInput = el('input', {
+        type: 'text',
+        inputmode: 'decimal',
+        placeholder: '0,00',
+        value: Number.isInteger(rule.fixedCents[cid])
+          ? (rule.fixedCents[cid] / 100).toFixed(2).replace('.', ',')
+          : ''
+      });
+      fixedInput.addEventListener('change', (e) => {
+        const raw = e.target.value.trim();
+        const c = raw === '' ? null : parseEuroToCents(raw);
+        mutate(() => {
+          const r = getHostedRule(guest.id);
+          if (Number.isInteger(c) && c >= 0) r.fixedCents[cid] = c;
+          else delete r.fixedCents[cid];
+        });
+      });
+      card.appendChild(
+        el('label', { className: 'field-wrap inline-field' }, [
+          el('span', { text: `${person.name}: ${t(lang, 'hostedFixedLabel')}` }),
+          fixedInput
+        ])
+      );
+    }
+  }
+
+  for (const err of (result.hostedErrors || []).filter((e) => e.guestId === guest.id)) {
+    let msg;
+    if (err.code === 'no_carriers') msg = t(lang, 'hostedErrorNoCarriers', { name: err.guestName });
+    else if (err.code === 'percent_invalid') msg = t(lang, 'hostedErrorPercentInvalid');
+    else if (err.code === 'percent_sum') msg = t(lang, 'hostedErrorPercentSum', { name: err.guestName, sum: String(err.percentSum).replace('.', ',') });
+    else if (err.code === 'fixed_invalid') msg = t(lang, 'hostedErrorFixedInvalid');
+    else if (err.code === 'fixed_sum') {
+      msg = t(lang, 'hostedErrorFixedSum', {
+        name: err.guestName,
+        expected: formatCentsNL(err.expectedCents),
+        actual: formatCentsNL(err.actualCents)
+      });
+    }
+    if (msg) card.appendChild(el('div', { className: 'status-box error', role: 'alert', text: msg }));
+  }
+
+  container.appendChild(card);
 }
 
 function renderStep4(container) {
@@ -1566,6 +1766,11 @@ function renderStep4(container) {
   }
   container.appendChild(tipCard);
 
+  // v13: per gast een instelkaart (wie neemt over, welk aandeel)
+  session.participants
+    .filter((p) => session.hosted && session.hosted[p.id] && session.hosted[p.id].enabled)
+    .forEach((guest) => renderHostedCard(container, guest, result));
+
   container.appendChild(
     el('div', { className: 'summary-kv total-check-card' }, [
       el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
@@ -1641,6 +1846,47 @@ function renderStep4(container) {
           : [])
       ])
     );
+
+    // v13: gast ziet wie zijn/haar deel overneemt (incl. zichtbare restcenten)
+    if (row.hosted) {
+      const summary = (result.hostedSummaries || []).find((h) => h.guestId === row.id);
+      const covered = el('div', { className: 'hosted-info' });
+      covered.appendChild(
+        el('p', { text: t(lang, 'hostedGuestLine', { amount: formatCentsNL(row.hostedAmountCents) }) })
+      );
+      if (summary && summary.shares.length > 0) {
+        covered.appendChild(
+          el('p', {
+            className: 'muted',
+            text: summary.shares
+              .map(
+                (sh) =>
+                  `${sh.name} ${formatCentsNL(sh.cents)}` +
+                  (sh.remainderCents > 0
+                    ? t(lang, 'hostedRemainderPart', { cents: formatCentsNL(sh.remainderCents) })
+                    : '')
+              )
+              .join(' \u00b7 ')
+          })
+        );
+      }
+      card.appendChild(covered);
+    }
+
+    // v13: drager ziet wat hij/zij voor gasten heeft overgenomen (incl. restcenten)
+    if (Array.isArray(row.carries) && row.carries.length > 0) {
+      const carried = el('div', { className: 'hosted-info' });
+      for (const c of row.carries) {
+        carried.appendChild(
+          el('p', {
+            text:
+              t(lang, 'hostedCarrierLine', { name: c.guestName, amount: formatCentsNL(c.cents) }) +
+              (c.remainderCents > 0 ? t(lang, 'hostedRemainderPart', { cents: formatCentsNL(c.remainderCents) }) : '')
+          })
+        );
+      }
+      card.appendChild(carried);
+    }
 
     if (session.tipMode === 'per_person') {
       const tipInput = el('input', {

@@ -123,7 +123,31 @@ export const STRINGS = {
     wipeConfirm: 'Weet je zeker dat je alle namen, de lopende bon en instellingen op dit toestel wilt wissen?',
     wipedDone: 'Alle lokale gegevens zijn gewist.',
     newReceiptBtn: 'Nieuwe bon beginnen',
-    newReceiptConfirm: 'De huidige bon en verdeling wissen en met een nieuwe bon starten?'
+    newReceiptConfirm: 'De huidige bon en verdeling wissen en met een nieuwe bon starten?',
+    // v13: deelnemer betaalt niet mee (te gast, jarig, ...)
+    hostedToggleLabel: 'Betaalt niet mee (te gast, jarig, ...)',
+    hostedCardTitle: '{name} betaalt niet mee',
+    hostedShareOf: 'Het deel van {name}: {amount}',
+    hostedCarriersLabel: 'Wie nemen dit over?',
+    hostedModeEqual: 'Gelijk verdeeld',
+    hostedModePercent: 'Percentage',
+    hostedModeFixed: 'Vast bedrag',
+    hostedPercentLabel: '% van het deel',
+    hostedFixedLabel: 'Bedrag (\u20ac)',
+    hostedErrorNoCarriers:
+      '{name} betaalt niet mee, maar er is niemand die het deel kan overnemen. Kies minstens \u00e9\u00e9n andere deelnemer.',
+    hostedErrorPercentInvalid: 'Vul bij elke overnemer een percentage in van 0 of meer.',
+    hostedErrorPercentSum: 'De percentages voor {name} zijn samen {sum}%, dat moet precies 100% zijn.',
+    hostedErrorFixedInvalid: 'Vul bij elke overnemer een geldig bedrag in (0 of meer).',
+    hostedErrorFixedSum:
+      'De vaste bedragen voor {name} zijn samen {actual}, maar het over te nemen deel is {expected}. Pas de bedragen aan zodat ze precies kloppen; Bonnetje verzint nooit zelf een bedrag.',
+    hostedGuestLine: 'Betaalt niet mee. Deel van {amount} overgenomen door:',
+    hostedCarrierLine: 'Overgenomen van {name}: {amount}',
+    hostedRemainderPart: ', waarvan {cents} restcenten',
+    hostedAllOthers: 'Alle anderen (standaard)',
+    shareMessageHostedGuest:
+      'Hoi {name}, je was te gast bij het etentje, je hoeft niets te betalen. Je deel van {amount} is voor je overgenomen.',
+    shareCarriedPart: ', incl. {amount} overgenomen van {names}'
   },
   en: {
     appName: 'Bonnetje',
@@ -241,7 +265,31 @@ export const STRINGS = {
     wipeConfirm: 'Are you sure you want to delete all names, the current receipt, and settings on this device?',
     wipedDone: 'All local data has been wiped.',
     newReceiptBtn: 'Start new receipt',
-    newReceiptConfirm: 'Clear the current receipt and split to start a new one?'
+    newReceiptConfirm: 'Clear the current receipt and split to start a new one?',
+    // v13: participant does not pay (guest, birthday, ...)
+    hostedToggleLabel: 'Does not pay (guest, birthday, ...)',
+    hostedCardTitle: '{name} does not pay',
+    hostedShareOf: "{name}'s share: {amount}",
+    hostedCarriersLabel: 'Who covers this?',
+    hostedModeEqual: 'Split equally',
+    hostedModePercent: 'Percentage',
+    hostedModeFixed: 'Fixed amount',
+    hostedPercentLabel: '% of the share',
+    hostedFixedLabel: 'Amount (\u20ac)',
+    hostedErrorNoCarriers:
+      '{name} does not pay, but there is nobody to cover the share. Choose at least one other participant.',
+    hostedErrorPercentInvalid: 'Enter a percentage of 0 or more for each person covering.',
+    hostedErrorPercentSum: 'The percentages for {name} add up to {sum}%, they must be exactly 100%.',
+    hostedErrorFixedSum:
+      'The fixed amounts for {name} add up to {actual}, but the share to cover is {expected}. Adjust the amounts so they match exactly; Bonnetje never invents an amount.',
+    hostedErrorFixedInvalid: 'Enter a valid amount (0 or more) for each person covering.',
+    hostedGuestLine: 'Does not pay. Share of {amount} covered by:',
+    hostedCarrierLine: 'Covered for {name}: {amount}',
+    hostedRemainderPart: ', of which {cents} remainder cents',
+    hostedAllOthers: 'Everyone else (default)',
+    shareMessageHostedGuest:
+      'Hi {name}, you were our guest, you do not have to pay anything. Your share of {amount} has been covered.',
+    shareCarriedPart: ', incl. {amount} covered for {names}'
   }
 };
 

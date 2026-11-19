@@ -491,9 +491,141 @@ export function calculateSettlement(state) {
       totalCents,
       paidCashCents,
       changeCents,
-      settled: Boolean(p.settled)
+      settled: Boolean(p.settled),
+      hosted: false,
+      hostedAmountCents: 0,
+      carries: []
     };
   });
+
+  // 4. Deelnemer betaalt niet mee (v13: te gast, jarig, andere reden).
+  // Het hele deel van zo'n deelnemer (eigen verbruik + fooi + bon-extra's) wordt
+  // overgenomen door de gekozen drager(s). Bedragen worden nooit stilletjes
+  // aangepast om het kloppend te maken: bij 'vast bedrag' moet de som exact
+  // overeenkomen met het over te nemen deel, en restcenten gaan zichtbaar naar
+  // de drager met het grootste aandeel (bij gelijk aandeel: het grootste eigen
+  // totaal, daarna de volgorde van de deelnemerslijst).
+  const hostedRules = state.hosted && typeof state.hosted === 'object' ? state.hosted : {};
+  const hostedIds = participantIds.filter((id) => hostedRules[id] && hostedRules[id].enabled);
+  const hostedSet = new Set(hostedIds);
+  const hostedErrors = [];
+  const hostedSummaries = [];
+  const rowById = {};
+  const originalTotals = {};
+  for (const row of perPerson) {
+    rowById[row.id] = row;
+    originalTotals[row.id] = row.totalCents;
+  }
+
+  for (const guestId of hostedIds) {
+    const rule = hostedRules[guestId] || {};
+    const guestRow = rowById[guestId];
+    const guestName = guestRow ? guestRow.name : guestId;
+    guestRow.hosted = true;
+    const amountCents = guestRow.totalCents;
+
+    const rawCarriers = Array.isArray(rule.carrierIds) && rule.carrierIds.length > 0
+      ? rule.carrierIds
+      : participantIds.filter((id) => !hostedSet.has(id));
+    const carriers = [];
+    for (const cid of rawCarriers) {
+      if (!participantSet.has(cid) || cid === guestId || hostedSet.has(cid)) continue;
+      if (!carriers.includes(cid)) carriers.push(cid);
+    }
+    if (carriers.length === 0) {
+      hostedErrors.push({ guestId, guestName, code: 'no_carriers' });
+      continue;
+    }
+    if (amountCents <= 0) {
+      hostedSummaries.push({ guestId, guestName, amountCents: 0, shares: [] });
+      continue;
+    }
+
+    const mode = rule.mode === 'percent' || rule.mode === 'fixed' ? rule.mode : 'equal';
+    let shares = null;
+    if (mode === 'fixed') {
+      shares = {};
+      let sum = 0;
+      let invalid = false;
+      for (const cid of carriers) {
+        const v = rule.fixedCents ? rule.fixedCents[cid] : null;
+        if (!Number.isInteger(v) || v < 0) {
+          invalid = true;
+        } else {
+          shares[cid] = v;
+          sum += v;
+        }
+      }
+      if (invalid) {
+        hostedErrors.push({ guestId, guestName, code: 'fixed_invalid' });
+        shares = null;
+      } else if (sum !== amountCents) {
+        hostedErrors.push({ guestId, guestName, code: 'fixed_sum', expectedCents: amountCents, actualCents: sum });
+        shares = null;
+      }
+    } else if (mode === 'percent') {
+      shares = {};
+      const pcts = {};
+      let pctSum = 0;
+      let invalid = false;
+      for (const cid of carriers) {
+        const v = rule.percent ? Number(rule.percent[cid]) : NaN;
+        if (!Number.isFinite(v) || v < 0) {
+          invalid = true;
+        } else {
+          pcts[cid] = v;
+          pctSum += v;
+        }
+      }
+      if (invalid) {
+        hostedErrors.push({ guestId, guestName, code: 'percent_invalid' });
+        shares = null;
+      } else if (Math.abs(pctSum - 100) > 0.011) {
+        hostedErrors.push({ guestId, guestName, code: 'percent_sum', percentSum: Math.round(pctSum * 100) / 100 });
+        shares = null;
+      } else {
+        for (const cid of carriers) {
+          shares[cid] = Math.floor((amountCents * pcts[cid]) / 100);
+        }
+      }
+    } else {
+      shares = {};
+      const base = Math.floor(amountCents / carriers.length);
+      for (const cid of carriers) shares[cid] = base;
+    }
+
+    if (!shares) continue;
+
+    // Restcenten 1 voor 1 naar het grootste aandeel; bij gelijk aandeel naar het
+    // grootste eigen totaal (vóór overname), daarna de volgorde van de lijst.
+    const remainderCents = {};
+    for (const cid of carriers) remainderCents[cid] = 0;
+    let rem = amountCents - Object.values(shares).reduce((a, b) => a + b, 0);
+    while (rem > 0) {
+      let best = carriers[0];
+      for (const cid of carriers) {
+        if (shares[cid] > shares[best]) best = cid;
+        else if (shares[cid] === shares[best] && originalTotals[cid] > originalTotals[best]) best = cid;
+      }
+      shares[best] += 1;
+      remainderCents[best] += 1;
+      rem -= 1;
+    }
+
+    const shareList = [];
+    for (const cid of carriers) {
+      const cents = shares[cid] || 0;
+      if (cents <= 0) continue;
+      rowById[cid].totalCents += cents;
+      rowById[cid].carries.push({ guestId, guestName, cents, remainderCents: remainderCents[cid] || 0 });
+      shareList.push({ id: cid, name: rowById[cid].name, cents, remainderCents: remainderCents[cid] || 0 });
+    }
+    guestRow.hostedAmountCents = amountCents;
+    guestRow.totalCents = 0;
+    // Contant-veld van de gast blijft werken: betaalde hij/zij toch iets, dan is dat terug te krijgen.
+    guestRow.changeCents = Number.isInteger(guestRow.paidCashCents) ? guestRow.paidCashCents : null;
+    hostedSummaries.push({ guestId, guestName, amountCents, shares: shareList });
+  }
 
   const grandTotalCents = perPerson.reduce((sum, p) => sum + p.totalCents, 0);
   const expectedGrandTotalCents = assignedSumCents + totalTipCents + extrasToSplit;
@@ -501,6 +633,7 @@ export function calculateSettlement(state) {
     unassignedItems.length === 0 &&
     quantityMismatchItems.length === 0 &&
     !tipError &&
+    hostedErrors.length === 0 &&
     totalCheck.matches &&
     grandTotalCents === billTotalCents + totalTipCents + extrasToSplit;
 
@@ -515,6 +648,8 @@ export function calculateSettlement(state) {
     tipMode,
     tipError,
     tipDistributionNote,
+    hostedErrors,
+    hostedSummaries,
     unassignedItems,
     quantityMismatchItems,
     totalCheck,
@@ -526,6 +661,7 @@ export function calculateSettlement(state) {
       unassignedItems.length === 0 &&
       quantityMismatchItems.length === 0 &&
       !tipError &&
+      hostedErrors.length === 0 &&
       participants.length > 0 &&
       invariantExact
   };
