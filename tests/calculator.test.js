@@ -1352,6 +1352,14 @@ PIN 43,00`);
     clearSavedNames();
   });
 
+  test('V20.6 stappenbalk wrapt (geen horizontale scroll bij grote tekst)', async () => {
+    const fs = await import('node:fs');
+    const css = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+    const stepper = css.match(/\.stepper\s*\{[^}]*\}/)[0];
+    assertTrue(stepper.includes('flex-wrap: wrap'), 'stepper mag wrappen');
+    assertTrue(!/grid-template-columns:\s*repeat\(4/.test(stepper), 'geen star 4-koloms grid meer');
+  });
+
   test('V20.5 normalisatie dekt tab en niet-brekende spatie (review-bevinding)', () => {
     assertEqual(normalizeSavedName('Cees   de  Vries'), 'Cees de Vries', 'meerdere spaties');
     assertEqual(normalizeSavedName('Cees\tde\u00A0Vries'), 'Cees de Vries', 'tab en nbsp');

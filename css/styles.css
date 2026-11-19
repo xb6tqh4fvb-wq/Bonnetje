@@ -162,12 +162,17 @@ h1 {
 .stepper {
   max-width: 760px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex; /* wrap i.p.v. star grid: bij "Extra grote tekst" (125%) liep de */
+  flex-wrap: wrap; /* balk op 390 px een paar px over de rechterrand (horizontale scroll) */
   gap: 0.35rem;
 }
 
 .step-pill {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-height: var(--tap-min);
   padding: 0.4rem 0.35rem;
   border-radius: 10px;
