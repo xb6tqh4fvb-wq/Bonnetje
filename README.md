@@ -7,6 +7,16 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v20 (verzoek Henk: eerder ingevoerde deelnemers bewaren en aantikken)
+
+Regressietests: 100/100 groen in Node (`node tests/calculator.test.js`).
+
+- **Bewaarde deelnemersnamen op het toestel** (localStorage, aparte sleutel `bonnetje_saved_names_v1`): een naam die je eenmaal invoert wordt bewaard en overleeft "Nieuwe bon"; hij gaat alleen weg als je hem zelf verwijdert (of bij "Alles wissen" in de instellingen, dat bewust álles wist). Niets gaat naar buiten of naar Google.
+- **Tik-chips in stap 2:** alle bewaarde namen als compacte chips. Tik op "+ naam" voegt hem toe aan deze bon; al toegevoegde namen blijven zichtbaar met vinkje (✓) en doen niets bij tikken (nooit dubbel). Zelf een nieuwe naam typen werkt zoals altijd en wordt automatisch bewaard.
+- **Rustig beheer:** knop "Beheer" naast de lijst zet per naam een klein kruisje (uit de bewaarde lijst, niet van de bon) en biedt "Alles vergeten" met bevestiging. Onder Instellingen & privacy staat één regel: bewaarde namen blijven alleen op dit toestel.
+- **Volgorde en limiet:** vaakst gebruikt eerst, daarna meest recent; maximaal 30 bewaard. Namen worden genormaliseerd (spaties) en hoofdletterongevoelig ontdubbeld; de nieuwste schrijfwijze wordt bewaard. Oude string-lijsten migreren vanzelf.
+- Techniek: opslag als `{ name, uses, lastUsed }` met `removeSavedName`/`clearSavedNames` in `js/storage.js`. Tests V20.1-20.4 (normaliseren, ontdubbelen, overleeft bon-reset, vaakst-eerst + max 30, verwijderen/vergeten). Cache `bonnetje-v20`.
+
 ## Wijzigingen in v19 (verzoek Henk: "Ik krijg nog steeds de oude versie")
 
 Regressietests: 96/96 groen in Node (`node tests/calculator.test.js`).

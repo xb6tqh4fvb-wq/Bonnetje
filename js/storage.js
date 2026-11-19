@@ -55,28 +55,103 @@ export function saveSession(session) {
   } catch {}
 }
 
-export function loadSavedNames() {
+// v20: bewaarde deelnemersnamen (verzoek Henk). Aparte localStorage-sleutel, blijft
+// alleen op dit toestel, gaat nergens naar buiten. Bewaard als { name, uses, lastUsed };
+// gesorteerd op vaakst gebruikt, daarna meest recent. Oude string-lijsten worden bij
+// het laden gemigreerd. Maximaal MAX_SAVED_NAMES.
+const MAX_SAVED_NAMES = 30;
+
+/** Maak een naam netjes: spaties aan de uiteinden weg, dubbele spaties enkelvoudig. */
+export function normalizeSavedName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+function normalizeSavedNameEntry(entry) {
+  if (typeof entry === 'string') {
+    const name = normalizeSavedName(entry);
+    return name ? { name, uses: 1, lastUsed: 0 } : null;
+  }
+  if (entry && typeof entry === 'object') {
+    const name = normalizeSavedName(entry.name);
+    if (!name) return null;
+    return {
+      name,
+      uses: Number.isFinite(entry.uses) && entry.uses > 0 ? Math.floor(entry.uses) : 1,
+      lastUsed: Number.isFinite(entry.lastUsed) ? entry.lastUsed : 0
+    };
+  }
+  return null;
+}
+
+export function loadSavedNameEntries() {
   try {
     const raw = localStorage.getItem(NAMES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const e of arr) {
+      const n = normalizeSavedNameEntry(e);
+      if (!n) continue;
+      const key = n.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(n);
+    }
+    return out.slice(0, MAX_SAVED_NAMES);
   } catch {
     return [];
   }
 }
 
+function sortSavedNameEntries(entries) {
+  return entries
+    .slice()
+    .sort((a, b) => (b.uses - a.uses) || (b.lastUsed - a.lastUsed) || a.name.localeCompare(b.name, 'nl'));
+}
+
+function persistSavedNameEntries(entries) {
+  const trimmed = sortSavedNameEntries(entries).slice(0, MAX_SAVED_NAMES);
+  try {
+    localStorage.setItem(NAMES_KEY, JSON.stringify(trimmed));
+  } catch {}
+  return trimmed;
+}
+
+/** Lijst van bewaarde namen (strings), gesorteerd op vaakst/recent. */
+export function loadSavedNames() {
+  return sortSavedNameEntries(loadSavedNameEntries()).map((e) => e.name);
+}
+
+/** Bewaar een naam; bij hergebruik telt het gebruik mee en schuift hij naar voren. */
 export function saveNameToHistory(name) {
-  const clean = String(name || '').trim();
+  const clean = normalizeSavedName(name);
   if (!clean) return loadSavedNames();
-  const names = loadSavedNames();
-  if (!names.some((n) => n.toLowerCase() === clean.toLowerCase())) {
-    names.unshift(clean);
-    const trimmed = names.slice(0, 40);
-    try {
-      localStorage.setItem(NAMES_KEY, JSON.stringify(trimmed));
-    } catch {}
-    return trimmed;
+  const entries = loadSavedNameEntries();
+  const idx = entries.findIndex((e) => e.name.toLowerCase() === clean.toLowerCase());
+  if (idx >= 0) {
+    entries[idx].uses += 1;
+    entries[idx].lastUsed = Date.now();
+    entries[idx].name = clean; // nieuwste schrijfwijze (hoofdletters) bewaren
+  } else {
+    entries.push({ name: clean, uses: 1, lastUsed: Date.now() });
   }
-  return names;
+  return persistSavedNameEntries(entries).map((e) => e.name);
+}
+
+/** Verwijder één bewaarde naam (hoofdletterongevoelig). */
+export function removeSavedName(name) {
+  const clean = normalizeSavedName(name);
+  const entries = loadSavedNameEntries().filter((e) => e.name.toLowerCase() !== clean.toLowerCase());
+  return persistSavedNameEntries(entries).map((e) => e.name);
+}
+
+/** Vergeet álle bewaarde namen (alleen op verzoek van de gebruiker). */
+export function clearSavedNames() {
+  try {
+    localStorage.removeItem(NAMES_KEY);
+  } catch {}
+  return [];
 }
 
 export function loadSettings() {

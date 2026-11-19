@@ -69,7 +69,10 @@ import { mapFirebaseAiError, isOnlineAiUsable } from '../js/firebase-ai.js';
 import { downscalePlan, ONLINE_SCAN_MAX_LONG_SIDE, ONLINE_SCAN_JPEG_QUALITY } from '../js/image-downscale.js';
 import { STRINGS } from '../js/i18n.js';
 import * as dictionaryModule from '../js/dictionary.js';
-import { getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS } from '../js/storage.js';
+import {
+  getDailyGeminiCallCount, loadSettings, saveSettings, DEFAULT_SETTINGS,
+  loadSavedNames, saveNameToHistory, removeSavedName, clearSavedNames, createEmptySession, saveSession
+} from '../js/storage.js';
 import { extractPdfTextAllPages } from '../js/parser.js';
 import {
   pdfReaderLoadFailedMessage,
@@ -1302,11 +1305,54 @@ PIN 43,00`);
     assertTrue(toggleItemExpanded('onzeker', { needsReview: true, expandedIds, collapsedIds }), 'En weer open');
   });
 
+  test('V20.1 bewaarde namen: normaliseren en dubbels (hoofdletter/spaties) voorkomen', () => {
+    clearSavedNames();
+    saveNameToHistory('  Anna   de Vries ');
+    assertEqual(loadSavedNames().join('|'), 'Anna de Vries', 'spaties genormaliseerd');
+    saveNameToHistory('anna de vries');
+    assertEqual(loadSavedNames().length, 1, 'hoofdlettervariant is geen dubbel');
+    assertEqual(loadSavedNames()[0], 'anna de vries', 'nieuwste schrijfwijze bewaard');
+    saveNameToHistory('');
+    assertEqual(loadSavedNames().length, 1, 'lege naam wordt niet bewaard');
+    clearSavedNames();
+  });
+
+  test('V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)', () => {
+    clearSavedNames();
+    saveNameToHistory('Bram');
+    saveSession(createEmptySession()); // zelfde effect als "Nieuwe bon": alleen de sessie wisselt
+    assertEqual(loadSavedNames().join('|'), 'Bram', 'naam blijft bewaard na bon-reset');
+    clearSavedNames();
+  });
+
+  test('V20.3 vaakst gebruikte namen staan vooraan, max 30 bewaard', () => {
+    clearSavedNames();
+    saveNameToHistory('Zelden');
+    saveNameToHistory('Vaak');
+    saveNameToHistory('Vaak');
+    saveNameToHistory('vaak');
+    assertEqual(loadSavedNames()[0], 'vaak', 'vaakst gebruikt eerst');
+    for (let i = 1; i <= 35; i++) saveNameToHistory(`Naam ${i}`);
+    assertTrue(loadSavedNames().length <= 30, 'maximaal 30 bewaard');
+    clearSavedNames();
+  });
+
+  test('V20.4 bewaarde namen verwijderen en alles vergeten', () => {
+    clearSavedNames();
+    saveNameToHistory('Anna');
+    saveNameToHistory('Bram');
+    removeSavedName('ANNA');
+    assertEqual(loadSavedNames().join('|'), 'Bram', 'verwijderen is hoofdletterongevoelig');
+    clearSavedNames();
+    assertEqual(loadSavedNames().length, 0, 'alles vergeten leegt de lijst');
+    clearSavedNames();
+  });
+
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v19', 'manifest-cache is v19');
-    assertTrue(sw.includes("const CACHE_NAME = 'bonnetje-v19';"), 'sw-cache is v19');
+    assertEqual(CACHE_NAME, 'bonnetje-v20', 'manifest-cache is actueel (v20)');
+    assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
     assertTrue(sw.includes('w.navigate(w.url)'), 'sw navigeert oude clients geforceerd bij activate');
@@ -1317,7 +1363,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '19', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '20', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

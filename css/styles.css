@@ -758,3 +758,45 @@ select {
 .hosted-info p {
   margin: 0.15rem 0;
 }
+
+/* v20: bewaarde namen als tik-chips met beheermodus */
+.saved-names-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.saved-names-head h3 {
+  margin: 0;
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  min-height: 44px; /* duimvriendelijk, visueel rustig */
+}
+.chip-btn.chip-added {
+  opacity: 0.65;
+  border-color: var(--primary);
+  cursor: default;
+}
+.chip-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.chip-remove {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
