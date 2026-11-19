@@ -1379,6 +1379,21 @@ PIN 43,00`);
     assertTrue(/\.chip-assign[^}]*min-height:\s*var\(--tap-min\)/.test(css), 'tikhoogte blijft 44 px');
   });
 
+  test('V22.5 bonfoto blijft zichtbaar, overleeft herlaad (IndexedDB), verdwijnt bij reset', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const store = fs.readFileSync(new URL('../js/photo-store.js', import.meta.url), 'utf8');
+    assertTrue(app.includes("from './photo-store.js'"), 'foto-opslag module gekoppeld');
+    assertTrue(app.includes('saveReceiptPhoto'), 'foto wordt bewaard bij intake');
+    const clears = app.split('clearReceiptPhoto()').length - 1;
+    assertTrue(clears >= 3, `foto verdwijnt bij Nieuwe bon, Alles wissen én Foto wissen (${clears} opruimplekken)`);
+    assertTrue(store.includes('indexedDB.open'), 'opslag via IndexedDB (overleeft herlaad)');
+    assertTrue(!store.includes('localStorage'), 'foto nooit in localStorage');
+    assertTrue(store.includes("typeof indexedDB === 'undefined'"), 'fail-soft zonder IndexedDB (jsdom/privemodus)');
+    assertTrue(app.includes('photo-lightbox'), 'tik op voorbeeld opent vergrote weergave');
+    assertTrue(app.includes('loadReceiptPhoto()'), 'bij laden wordt een bewaarde foto weer getoond');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');

@@ -13,6 +13,7 @@ import {
 } from './calculator.js';
 import { t, STRINGS } from './i18n.js';
 import { shortDisplayNames } from './names.js';
+import { saveReceiptPhoto, loadReceiptPhoto, clearReceiptPhoto } from './photo-store.js';
 import { translateOffline } from './dictionary.js';
 import { extractPdfTextAllPages, parsePlainTextReceipt } from './parser.js';
 import {
@@ -74,7 +75,9 @@ let savedNames = loadSavedNames();
 let customDict = loadCustomDict();
 const undoManager = new UndoManager(50);
 
-// Foto wordt NIET in localStorage bewaard, alleen tijdelijk in het werkgeheugen
+// v22: de bonfoto wordt (verkleind) bewaard in IndexedDB, alleen op dit toestel,
+// zodat hij een herlaad overleeft (verzoek Henk: bon blijven zien in stap 1).
+// Hij verdwijnt bij Nieuwe bon, Alles wissen en Foto wissen. Nooit in localStorage.
 let currentPhotoObjectUrl = null;
 let lastReceiptFile = null;
 
@@ -490,6 +493,18 @@ async function handleReceiptFile(file) {
     } else {
       if (currentPhotoObjectUrl) URL.revokeObjectURL(currentPhotoObjectUrl);
       currentPhotoObjectUrl = URL.createObjectURL(file);
+      // v22: bewaar een (verkleinde) kopie in IndexedDB zodat de foto een herlaad
+      // overleeft. Mislukken mag de scan nooit blokkeren.
+      (async () => {
+        try {
+          let kopie = file;
+          if (isDownscalableImage(file)) {
+            const prep = await prepareImageForOnlineScan(file);
+            kopie = prep.blob;
+          }
+          await saveReceiptPhoto(kopie);
+        } catch {}
+      })();
       render();
     }
 
@@ -609,6 +624,7 @@ function renderStep1(container) {
         onClick: () => {
           URL.revokeObjectURL(currentPhotoObjectUrl);
           currentPhotoObjectUrl = null;
+          clearReceiptPhoto();
           render();
           announce(t(lang, 'photoCleared'));
         }
@@ -618,9 +634,38 @@ function renderStep1(container) {
   container.appendChild(fileActions);
 
   if (currentPhotoObjectUrl) {
+    // v22 (verzoek Henk): klein voorbeeld; tik opent de volledige foto in een
+    // dialoog zodat je regels met de bon kunt vergelijken
     container.appendChild(
-      el('div', { className: 'photo-preview' }, [
-        el('img', { src: currentPhotoObjectUrl, alt: 'Bonvoorbeeld (alleen in geheugen)' })
+      el('button', {
+        type: 'button',
+        className: 'photo-preview',
+        'aria-label': t(lang, 'photoEnlarge'),
+        title: t(lang, 'photoEnlarge'),
+        onClick: () => {
+          const dlg = el('dialog', { className: 'photo-lightbox' }, [
+            el('img', { src: currentPhotoObjectUrl, alt: t(lang, 'photoEnlarge') }),
+            el('button', {
+              type: 'button',
+              className: 'btn btn-primary',
+              text: t(lang, 'close'),
+              onClick: () => {
+                dlg.close();
+                dlg.remove();
+              }
+            })
+          ]);
+          dlg.addEventListener('click', (ev) => {
+            if (ev.target === dlg) {
+              dlg.close();
+              dlg.remove();
+            }
+          });
+          window.document.body.appendChild(dlg);
+          dlg.showModal();
+        }
+      }, [
+        el('img', { src: currentPhotoObjectUrl, alt: 'Bonvoorbeeld (blijft op dit toestel)' })
       ])
     );
   }
@@ -2113,6 +2158,7 @@ function renderStep4(container) {
               URL.revokeObjectURL(currentPhotoObjectUrl);
               currentPhotoObjectUrl = null;
             }
+            clearReceiptPhoto();
             mutate(() => { session = createEmptySession(); });
           }
         }
@@ -2266,6 +2312,7 @@ function openSettingsModal() {
               URL.revokeObjectURL(currentPhotoObjectUrl);
               currentPhotoObjectUrl = null;
             }
+            clearReceiptPhoto();
             undoManager.clear();
             session = createEmptySession();
             savedNames = [];
@@ -2373,3 +2420,11 @@ $('#btn-close-settings').addEventListener('click', () => $('#settings-dialog').c
 
 render();
 initServiceWorker();
+
+// v22: bewaarde bonfoto (IndexedDB) na een herlaad weer tonen in stap 1
+loadReceiptPhoto().then((blob) => {
+  if (blob && !currentPhotoObjectUrl) {
+    currentPhotoObjectUrl = URL.createObjectURL(blob);
+    render();
+  }
+});

@@ -70,6 +70,7 @@ PASS: V22.1 stap 3: namen per regel aantikken, geen persoonstabblad meer
 PASS: V22.2 stap 3 tik-gedrag: tik wijst toe, Hele tafel gelijk, Niemand leeg
 PASS: V22.3 korte chip-namen: altijd eenduidig, zo kort mogelijk
 PASS: V22.4 chips tonen kort label, bewaren volledige naam in aria-label
+PASS: V22.5 bonfoto blijft zichtbaar, overleeft herlaad (IndexedDB), verdwijnt bij reset
 PASS: V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan
 PASS: V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)
 PASS: V20.3 oude lijsten (strings of met tellingen) migreren vanzelf
@@ -106,4 +107,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 107/107 geslaagd.
+Resultaat: 108/108 geslaagd.

@@ -524,6 +524,13 @@ input[type="number"] {
   font-size: 1.15rem;
 }
 
+/* v22: het voorbeeld is nu een knop (tik = vergroten) */
+button.photo-preview {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+}
 .photo-preview img {
   max-width: 100%;
   max-height: 140px; /* v17: compacter, meer bonregels op een scherm (object-fit contain) */
@@ -532,6 +539,25 @@ input[type="number"] {
   border: 1px solid var(--border);
   display: block;
   margin: 0.5rem 0;
+}
+.photo-lightbox {
+  max-width: 92vw;
+  border: none;
+  border-radius: 12px;
+  padding: 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.photo-lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.62);
+}
+.photo-lightbox img {
+  max-width: 88vw;
+  max-height: 74vh;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 0.6rem;
+  border-radius: 8px;
 }
 
 /* Stap 2 deelnemers */
