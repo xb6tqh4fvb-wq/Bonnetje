@@ -1,5 +1,5 @@
 // Bonnetje - Service Worker (v14: app-shell + zelf-gehoste PP-OCRv6_tiny cache + PDF.js, geen Tesseract)
-const CACHE_NAME = 'bonnetje-v26';
+const CACHE_NAME = 'bonnetje-v27';
 
 const APP_SHELL = [
   './',
@@ -20,6 +20,8 @@ const APP_SHELL = [
   './js/errors.js',
   './js/parser.js',
   './js/storage.js',
+  './js/names.js',
+  './js/photo-store.js',
   './js/vendor/ppu-paddle-ocr.mjs',
   './manifest.webmanifest',
   './icons/icon-192.png',
