@@ -133,7 +133,7 @@ function mutate(fn, announcementText = null) {
   if (announcementText) announce(announcementText);
 }
 
-const STIJLEN = ['standaard', 'delft', 'cartoon'];
+const STIJLEN = ['standaard', 'delft', 'cartoon', 'vangogh', 'rembrandt', 'straat', 'mondriaan'];
 
 function applyThemeAndPrefs() {
   const html = document.documentElement;
@@ -2485,7 +2485,11 @@ function openSettingsModal() {
   [
     ['standaard', t(lang, 'stijlStandaard')],
     ['delft', t(lang, 'stijlDelft')],
-    ['cartoon', t(lang, 'stijlCartoon')]
+    ['cartoon', t(lang, 'stijlCartoon')],
+    ['vangogh', t(lang, 'stijlVanGogh')],
+    ['rembrandt', t(lang, 'stijlRembrandt')],
+    ['straat', t(lang, 'stijlStraat')],
+    ['mondriaan', t(lang, 'stijlMondriaan')]
   ].forEach(([stijl, label]) => {
     stijlRow.appendChild(
       el('button', {

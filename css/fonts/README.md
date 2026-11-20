@@ -10,6 +10,12 @@ de stijl die het gebruikt gekozen is.
 | libre-baskerville-700.woff | Libre Baskerville Bold | Delfts blauw, koppen | SIL Open Font License 1.1 |
 | fredoka.woff2 | Fredoka (variabel, 400–700) | Cartoon, tekst | SIL Open Font License 1.1 |
 | luckiest-guy.woff2 | Luckiest Guy | Cartoon, koppen | Apache License 2.0 |
+| caveat-brush.woff2 | Caveat Brush | Van Gogh, koppen | SIL Open Font License 1.1 |
+| alegreya-sans-500.woff2, alegreya-sans-800.woff2 | Alegreya Sans 500 en 800 | Van Gogh, tekst | SIL Open Font License 1.1 |
+| cormorant-garamond-700.woff | Cormorant Garamond Bold | Rembrandt, koppen | SIL Open Font License 1.1 |
+| eb-garamond.woff2 | EB Garamond (variabel, 400–700) | Rembrandt, tekst | SIL Open Font License 1.1 |
+| stardos-stencil-700.woff2 | Stardos Stencil Bold | Straatkunst, koppen | SIL Open Font License 1.1 |
+| archivo.woff2 | Archivo (variabel, 400–900) | Straatkunst en Mondriaan, tekst en koppen | SIL Open Font License 1.1 |
 
 Bron: fonts.google.com, opgehaald op 20-11-2026. Licentieteksten: https://openfontlicense.org en
 https://www.apache.org/licenses/LICENSE-2.0

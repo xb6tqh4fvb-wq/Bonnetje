@@ -1812,7 +1812,7 @@ PIN 43,00`);
     saveSettings(s2);
     assertEqual(loadSettings().stijl, 'standaard', 'terug naar standaard');
     for (const lang of ['nl', 'en']) {
-      for (const k of ['stijlLabel', 'stijlStandaard', 'stijlDelft', 'stijlCartoon']) {
+      for (const k of ['stijlLabel', 'stijlStandaard', 'stijlDelft', 'stijlCartoon', 'stijlVanGogh', 'stijlRembrandt', 'stijlStraat', 'stijlMondriaan']) {
         assertTrue(typeof STRINGS[lang][k] === 'string' && STRINGS[lang][k].length > 0, `tekst ${lang}.${k}`);
       }
     }
@@ -1821,14 +1821,14 @@ PIN 43,00`);
   test('V26.2 stijlen: licht én donker per stijl, letters zelf meegeleverd, offline gecachet', async () => {
     const fs = await import('node:fs');
     const css = fs.readFileSync(new URL('../css/stijlen.css', import.meta.url), 'utf8');
-    for (const stijl of ['delft', 'cartoon']) {
+    for (const stijl of ['delft', 'cartoon', 'vangogh', 'rembrandt', 'straat', 'mondriaan']) {
       assertTrue(css.includes(`html[data-stijl="${stijl}"] {`), `${stijl}: lichte kleuren`);
       assertTrue(css.includes(`html[data-stijl="${stijl}"]:not([data-theme="light"])`), `${stijl}: donker via systeem`);
       assertTrue(css.includes(`html[data-stijl="${stijl}"][data-theme="dark"]`), `${stijl}: donker via keuze`);
     }
     assertTrue(!/googleapis|gstatic/.test(css), 'geen Google Fonts-verbinding');
     const fonts = [...css.matchAll(/url\('\.\/fonts\/([^']+)'\)/g)].map((m) => m[1]);
-    assertEqual(fonts.length, 4, 'vier lettertypes');
+    assertEqual(fonts.length, 11, 'elf lettertypebestanden');
     for (const f of fonts) {
       assertTrue(fs.existsSync(new URL(`../css/fonts/${f}`, import.meta.url)), `lettertype ${f} staat in de repo`);
     }
