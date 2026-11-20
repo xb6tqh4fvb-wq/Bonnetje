@@ -1801,12 +1801,52 @@ PIN 43,00`);
     clearSavedNames();
   });
 
-  test('V20.6 stappenbalk wrapt (geen horizontale scroll bij grote tekst)', async () => {
+  test('V26.1 stijlen: standaard is de huidige stijl, keuze wordt onthouden', () => {
+    assertEqual(DEFAULT_SETTINGS.stijl, 'standaard', 'standaardstijl');
+    const s = loadSettings();
+    s.stijl = 'delft';
+    saveSettings(s);
+    assertEqual(loadSettings().stijl, 'delft', 'Delfts blauw wordt onthouden');
+    const s2 = loadSettings();
+    s2.stijl = 'standaard';
+    saveSettings(s2);
+    assertEqual(loadSettings().stijl, 'standaard', 'terug naar standaard');
+    for (const lang of ['nl', 'en']) {
+      for (const k of ['stijlLabel', 'stijlStandaard', 'stijlDelft', 'stijlCartoon', 'stijlVanGogh', 'stijlRembrandt', 'stijlStraat', 'stijlMondriaan']) {
+        assertTrue(typeof STRINGS[lang][k] === 'string' && STRINGS[lang][k].length > 0, `tekst ${lang}.${k}`);
+      }
+    }
+  });
+
+  test('V26.2 stijlen: licht én donker per stijl, letters zelf meegeleverd, offline gecachet', async () => {
+    const fs = await import('node:fs');
+    const css = fs.readFileSync(new URL('../css/stijlen.css', import.meta.url), 'utf8');
+    for (const stijl of ['delft', 'cartoon', 'vangogh', 'rembrandt', 'straat', 'mondriaan']) {
+      assertTrue(css.includes(`html[data-stijl="${stijl}"] {`), `${stijl}: lichte kleuren`);
+      assertTrue(css.includes(`html[data-stijl="${stijl}"]:not([data-theme="light"])`), `${stijl}: donker via systeem`);
+      assertTrue(css.includes(`html[data-stijl="${stijl}"][data-theme="dark"]`), `${stijl}: donker via keuze`);
+    }
+    assertTrue(!/googleapis|gstatic/.test(css), 'geen Google Fonts-verbinding');
+    const fonts = [...css.matchAll(/url\('\.\/fonts\/([^']+)'\)/g)].map((m) => m[1]);
+    assertEqual(fonts.length, 11, 'elf lettertypebestanden');
+    for (const f of fonts) {
+      assertTrue(fs.existsSync(new URL(`../css/fonts/${f}`, import.meta.url)), `lettertype ${f} staat in de repo`);
+    }
+    const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+    const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assertTrue(sw.includes("'./css/stijlen.css'"), 'sw cachet stijlen.css');
+    assertTrue(html.includes('href="./css/stijlen.css"'), 'index laadt stijlen.css');
+  });
+
+  test('V20.6/V26 stappenbalk: één regel die kan krimpen (geen horizontale scroll bij grote tekst)', async () => {
     const fs = await import('node:fs');
     const css = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
     const stepper = css.match(/\.stepper\s*\{[^}]*\}/)[0];
-    assertTrue(stepper.includes('flex-wrap: wrap'), 'stepper mag wrappen');
-    assertTrue(!/grid-template-columns:\s*repeat\(4/.test(stepper), 'geen star 4-koloms grid meer');
+    // v26: vier kolommen die tot 0 mogen krimpen (minmax(0, 1fr)); het woord kapt af met ellipsis.
+    // Een star grid (1fr zonder minmax, of nowrap-tekst die niet kan krimpen) liep in v19 over de rand.
+    assertTrue(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/.test(stepper), 'kolommen mogen krimpen');
+    const label = css.match(/\.step-label\s*\{[^}]*\}/)[0];
+    assertTrue(label.includes('text-overflow: ellipsis') && label.includes('overflow: hidden'), 'stapwoord kapt af in plaats van te verbreden');
   });
 
   test('V20.5 normalisatie dekt tab en niet-brekende spatie (review-bevinding)', () => {
@@ -1822,7 +1862,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v25', 'manifest-cache is actueel (v25)');
+    assertEqual(CACHE_NAME, 'bonnetje-v26', 'manifest-cache is actueel (v26)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1834,7 +1874,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '25', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '26', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

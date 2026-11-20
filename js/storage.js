@@ -12,6 +12,7 @@ const GEMINI_QUOTA_KEY = 'bonnetje_gemini_quota_v1';
 export const DEFAULT_SETTINGS = {
   lang: 'nl',
   theme: 'system', // 'system' | 'light' | 'dark'
+  stijl: 'standaard', // v26: 'standaard' | 'delft' | 'cartoon' | 'vangogh' | 'rembrandt' | 'straat' | 'mondriaan'
   largeText: false,
   onlineTranslateEnabled: false,
   onlineAiEnabled: true // v17: schakelaar 'Online AI-scan (Google)', standaard aan, per toestel

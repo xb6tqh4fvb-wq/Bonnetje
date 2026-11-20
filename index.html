@@ -12,19 +12,21 @@
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/stijlen.css">
 </head>
 <body>
   <a href="#main-content" class="skip-link">Direct naar de inhoud</a>
 
   <header class="app-header">
     <div class="header-top">
-      <div>
+      <div class="brand">
+        <img src="./icons/icon.svg" alt="" class="brand-icon" width="28" height="28">
         <h1 id="app-title">Bonnetje</h1>
-        <p id="app-tagline" class="tagline">Samen eerlijk afrekenen</p>
+        <p id="app-tagline" class="tagline sr-only">Samen eerlijk afrekenen</p>
       </div>
       <div class="header-actions">
-        <button type="button" id="btn-undo" class="btn btn-secondary btn-sm" disabled>↩ Stap terug</button>
-        <button type="button" id="btn-settings" class="btn btn-secondary btn-sm">⚙ Instellingen &amp; privacy</button>
+        <button type="button" id="btn-undo" class="btn btn-secondary btn-sm header-btn" disabled>Stap terug</button>
+        <button type="button" id="btn-settings" class="btn btn-secondary btn-sm header-btn icon-only">Instellingen</button>
       </div>
     </div>
 

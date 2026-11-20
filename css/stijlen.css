@@ -1,0 +1,712 @@
+/* Bonnetje - Stijlen (v26): Delfts blauw en Cartoon.
+   Een stijl is een laag bovenop styles.css: andere kleuren (dezelfde tokens), letters en
+   vormen. De schermindeling en alle berekeningen blijven gelijk. Elke stijl heeft een
+   lichte en een donkere versie en volgt dezelfde themakeuze (Automatisch/Licht/Donker).
+   Letters worden zelf meegeleverd (css/fonts/, zie README daar): geen verkeer naar Google,
+   en de browser haalt een lettertype pas op als die stijl gekozen is. */
+
+@font-face {
+  font-family: 'Bonnetje Source Sans 3';
+  src: url('./fonts/source-sans-3.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Libre Baskerville';
+  src: url('./fonts/libre-baskerville-700.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Fredoka';
+  src: url('./fonts/fredoka.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Luckiest Guy';
+  src: url('./fonts/luckiest-guy.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ============================================================
+   DELFTS BLAUW — kobalt op wit, tegelpatroon, klassieke koppen
+   ============================================================ */
+html[data-stijl="delft"] {
+  --bg: #f2f5fb;
+  --surface: #ffffff;
+  --surface-alt: #e6ecf8;
+  --text: #12245a;
+  --text-muted: #43547f;
+  --border: #9fb1da;
+  --primary: #1f3f8f;
+  --primary-hover: #162f6c;
+  --primary-text: #ffffff;
+  --focus: #c2410c;
+  --radius: 6px;
+  --tile-line: rgba(31, 63, 143, 0.12);
+  --tile-dot: rgba(31, 63, 143, 0.2);
+  --frame: #c9d5ef;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="delft"]:not([data-theme="light"]) {
+    --bg: #0c1530;
+    --surface: #14204a;
+    --surface-alt: #1b2a5c;
+    --text: #eef2fc;
+    --text-muted: #b6c3e8;
+    --border: #3d5296;
+    --primary: #93b2ff;
+    --primary-hover: #b6caff;
+    --primary-text: #0b1430;
+    --focus: #ffb37a;
+    --tile-line: rgba(147, 178, 255, 0.08);
+    --tile-dot: rgba(147, 178, 255, 0.14);
+    --frame: #24366f;
+  }
+}
+html[data-stijl="delft"][data-theme="dark"] {
+  --bg: #0c1530;
+  --surface: #14204a;
+  --surface-alt: #1b2a5c;
+  --text: #eef2fc;
+  --text-muted: #b6c3e8;
+  --border: #3d5296;
+  --primary: #93b2ff;
+  --primary-hover: #b6caff;
+  --primary-text: #0b1430;
+  --focus: #ffb37a;
+  --tile-line: rgba(147, 178, 255, 0.08);
+  --tile-dot: rgba(147, 178, 255, 0.14);
+  --frame: #24366f;
+}
+
+html[data-stijl="delft"] body {
+  font-family: 'Bonnetje Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  /* tegels van 78 px met een rondje in elke hoek */
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 0 0, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 100% 0, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 0 100%, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 100% 100%, var(--tile-dot) 0 8px, transparent 9px),
+    linear-gradient(0deg, var(--tile-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tile-line) 1px, transparent 1px);
+  background-size: 78px 78px;
+}
+html[data-stijl="delft"] h1,
+html[data-stijl="delft"] h2 {
+  font-family: 'Bonnetje Libre Baskerville', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0;
+}
+html[data-stijl="delft"] h3 { color: var(--primary); }
+html[data-stijl="delft"] .app-header {
+  border-bottom: 2px solid var(--primary);
+}
+html[data-stijl="delft"] .card,
+html[data-stijl="delft"] .item-card,
+html[data-stijl="delft"] .total-check-card,
+html[data-stijl="delft"] .person-summary-card,
+html[data-stijl="delft"] .split-card,
+html[data-stijl="delft"] .pay-progress {
+  border: 1.5px solid var(--primary);
+  /* dubbele rand zoals een tegel */
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--frame);
+}
+html[data-stijl="delft"] .btn-secondary,
+html[data-stijl="delft"] .chip-btn {
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+}
+html[data-stijl="delft"] .chip-btn.active {
+  color: var(--primary-text);
+}
+html[data-stijl="delft"] .btn-primary {
+  box-shadow: inset 0 0 0 2px var(--primary), inset 0 0 0 3px var(--primary-text);
+}
+html[data-stijl="delft"] input[type="text"],
+html[data-stijl="delft"] input[type="number"],
+html[data-stijl="delft"] textarea,
+html[data-stijl="delft"] select {
+  border-color: var(--border);
+}
+html[data-stijl="delft"] .step-dot { border-color: var(--primary); }
+html[data-stijl="delft"] .pay-progress-bar { border: 1px solid var(--primary); background: var(--surface); }
+html[data-stijl="delft"] .person-total { font-family: 'Bonnetje Libre Baskerville', Georgia, serif; }
+
+/* ============================================================
+   CARTOON — dikke inktlijnen, harde schaduw, vrolijke kleuren
+   ============================================================ */
+html[data-stijl="cartoon"] {
+  --bg: #fff3c4;
+  --surface: #ffffff;
+  --surface-alt: #fff8de;
+  --text: #111111;
+  --text-muted: #3d3a33;
+  --border: #111111;
+  --primary: #ff5d8f;
+  --primary-hover: #ff7ba3;
+  --primary-text: #111111;
+  --whatsapp: #34c26b;
+  --ok-bg: #c9f2d6;
+  --ok-border: #111111;
+  --ok-text: #0b3d20;
+  --focus: #1d6fd8;
+  --radius: 16px;
+  --ink: #111111;
+  --dots: #f2d27a;
+  --accent-2: #3ec5e0;
+  --accent-3: #ffd23f;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="cartoon"]:not([data-theme="light"]) {
+    --bg: #1d1934;
+    --surface: #2a2548;
+    --surface-alt: #332d58;
+    --text: #fff8e7;
+    --text-muted: #ddd5f5;
+    --border: #fff8e7;
+    --primary: #ff7aa6;
+    --primary-hover: #ff9cbd;
+    --primary-text: #111111;
+    --whatsapp: #4fd685;
+    --ok-bg: #1f4a33;
+    --ok-border: #fff8e7;
+    --ok-text: #c9f7d9;
+    --focus: #7cd9ff;
+    --ink: #fff8e7;
+    --dots: #2e2950;
+    --accent-2: #3ec5e0;
+    --accent-3: #ffd23f;
+  }
+}
+html[data-stijl="cartoon"][data-theme="dark"] {
+  --bg: #1d1934;
+  --surface: #2a2548;
+  --surface-alt: #332d58;
+  --text: #fff8e7;
+  --text-muted: #ddd5f5;
+  --border: #fff8e7;
+  --primary: #ff7aa6;
+  --primary-hover: #ff9cbd;
+  --primary-text: #111111;
+  --whatsapp: #4fd685;
+  --ok-bg: #1f4a33;
+  --ok-border: #fff8e7;
+  --ok-text: #c9f7d9;
+  --focus: #7cd9ff;
+  --ink: #fff8e7;
+  --dots: #2e2950;
+  --accent-2: #3ec5e0;
+  --accent-3: #ffd23f;
+}
+
+html[data-stijl="cartoon"] body {
+  font-family: 'Bonnetje Fredoka', 'Trebuchet MS', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-weight: 500;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dots) 1.6px, transparent 1.7px);
+  background-size: 14px 14px;
+}
+html[data-stijl="cartoon"] h1,
+html[data-stijl="cartoon"] h2 {
+  font-family: 'Bonnetje Luckiest Guy', 'Bonnetje Fredoka', 'Trebuchet MS', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+html[data-stijl="cartoon"] h1 {
+  color: var(--primary);
+  -webkit-text-stroke: 1px #111111;
+  text-shadow: 2px 2px 0 #111111;
+}
+html[data-stijl="cartoon"] .app-header {
+  border-bottom: 3px solid var(--ink);
+}
+html[data-stijl="cartoon"] .brand-icon {
+  transform: rotate(-6deg);
+  border: 2px solid var(--ink);
+}
+html[data-stijl="cartoon"] .card,
+html[data-stijl="cartoon"] .item-card,
+html[data-stijl="cartoon"] .total-check-card,
+html[data-stijl="cartoon"] .person-summary-card,
+html[data-stijl="cartoon"] .split-card,
+html[data-stijl="cartoon"] .pay-progress {
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .person-summary-card.is-settled { background: var(--ok-bg); }
+html[data-stijl="cartoon"] .btn,
+html[data-stijl="cartoon"] .chip-btn {
+  border: 2.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 600;
+}
+html[data-stijl="cartoon"] .btn:active:not(:disabled),
+html[data-stijl="cartoon"] .chip-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .btn-primary { font-weight: 700; }
+html[data-stijl="cartoon"] .btn-whatsapp { color: #111111; }
+html[data-stijl="cartoon"] .btn-danger { color: #ffffff; }
+html[data-stijl="cartoon"] .btn-danger-outline { color: var(--error-text); background: var(--surface); }
+html[data-stijl="cartoon"] .chip-btn.active {
+  background: var(--accent-3);
+  color: #111111;
+}
+html[data-stijl="cartoon"] .header-btn { border-radius: 999px; }
+html[data-stijl="cartoon"] input[type="text"],
+html[data-stijl="cartoon"] input[type="number"],
+html[data-stijl="cartoon"] textarea,
+html[data-stijl="cartoon"] select {
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+}
+html[data-stijl="cartoon"] .step-dot {
+  border: 2.5px solid var(--ink);
+  color: var(--text);
+}
+html[data-stijl="cartoon"] .step-pill.done .step-dot {
+  background: var(--whatsapp);
+  border-color: var(--ink);
+  color: #111111;
+}
+html[data-stijl="cartoon"] .step-pill.active .step-dot {
+  background: var(--accent-3);
+  border-color: var(--ink);
+  color: #111111;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .pay-progress-bar {
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 10px;
+  background: var(--surface);
+}
+html[data-stijl="cartoon"] .pay-progress-bar > span {
+  border-radius: 0;
+  background: repeating-linear-gradient(45deg, #34c26b 0 8px, #2aa85b 8px 16px);
+}
+html[data-stijl="cartoon"] .person-check input[type="checkbox"] { accent-color: #34c26b; }
+
+/* Stijlkeuze in Instellingen: elke knop toont een klein voorbeeld van zijn stijl */
+.stijl-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex-shrink: 0;
+}
+.stijl-swatch.standaard { background: #0f5132; }
+.stijl-swatch.delft { background: radial-gradient(circle, #ffffff 0 30%, #1f3f8f 31%); }
+.stijl-swatch.cartoon { background: conic-gradient(#ff5d8f 0 33%, #ffd23f 0 66%, #3ec5e0 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-stijl="cartoon"] .btn:active:not(:disabled),
+  html[data-stijl="cartoon"] .chip-btn:active { transform: none; }
+}
+
+/* Fijnafstelling na de schermtest */
+html[data-stijl="cartoon"] .assign-qty-row .btn {
+  /* dikkere rand + schaduw maakte de −/+ rij breder, waardoor + naar een nieuwe regel sprong */
+  border-width: 2px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+html[data-stijl="delft"] .brand-icon {
+  /* het groenblauwe app-icoon in kobalt (alleen kleurverschuiving, zelfde bestand) */
+  filter: hue-rotate(47deg) saturate(1.2);
+}
+html[data-stijl="delft"] :is(button, input, textarea, select),
+html[data-stijl="cartoon"] :is(button, input, textarea, select) {
+  /* knoppen en velden nemen standaard de systeemletter; in een stijl de letter van de stijl */
+  font-family: inherit;
+}
+
+
+/* ============================================================
+   v26b: Van Gogh, Rembrandt, Straatkunst, Mondriaan
+   ============================================================ */
+@font-face { font-family: 'Bonnetje Caveat Brush'; src: url('./fonts/caveat-brush.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje Alegreya Sans'; src: url('./fonts/alegreya-sans-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje Alegreya Sans'; src: url('./fonts/alegreya-sans-800.woff2') format('woff2'); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje Cormorant Garamond'; src: url('./fonts/cormorant-garamond-700.woff') format('woff'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje EB Garamond'; src: url('./fonts/eb-garamond.woff2') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje Stardos Stencil'; src: url('./fonts/stardos-stencil-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Bonnetje Archivo'; src: url('./fonts/archivo.woff2') format('woff2'); font-weight: 400 900; font-style: normal; font-display: swap; }
+
+html[data-stijl="vangogh"] {
+  --bg: #f4ecd3;
+  --surface: #fffaf0;
+  --surface-alt: #f3e7c4;
+  --text: #1a2557;
+  --text-muted: #474c6b;
+  --border: #c2ab6a;
+  --primary: #1f3f9a;
+  --primary-hover: #16307a;
+  --primary-text: #fff4c2;
+  --focus: #c2410c;
+  --radius: 18px;
+  --heading: #1f3f9a;
+  --accent: #f4c430;
+  --stroke: rgba(31, 63, 154, 0.06);
+  --sun: rgba(244, 196, 48, 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="vangogh"]:not([data-theme="light"]) {
+    --bg: #0f1d52;
+    --surface: #172a6b;
+    --surface-alt: #1f3580;
+    --text: #fff6dc;
+    --text-muted: #cdd6f5;
+    --border: #4a64b8;
+    --primary: #f4c430;
+    --primary-hover: #ffd75e;
+    --primary-text: #14286b;
+    --focus: #8fd3ff;
+    --heading: #f4c430;
+    --accent: #f4c430;
+    --stroke: rgba(120, 170, 230, 0.10);
+    --sun: rgba(244, 196, 48, 0.28);
+  }
+}
+html[data-stijl="vangogh"][data-theme="dark"] {
+  --bg: #0f1d52;
+  --surface: #172a6b;
+  --surface-alt: #1f3580;
+  --text: #fff6dc;
+  --text-muted: #cdd6f5;
+  --border: #4a64b8;
+  --primary: #f4c430;
+  --primary-hover: #ffd75e;
+  --primary-text: #14286b;
+  --focus: #8fd3ff;
+  --heading: #f4c430;
+  --accent: #f4c430;
+  --stroke: rgba(120, 170, 230, 0.10);
+  --sun: rgba(244, 196, 48, 0.28);
+}
+html[data-stijl="rembrandt"] {
+  --bg: #efe4cc;
+  --surface: #fbf5e6;
+  --surface-alt: #efe2c4;
+  --text: #2a1a0c;
+  --text-muted: #5a4430;
+  --border: #b8913f;
+  --primary: #6b3f12;
+  --primary-hover: #4f2e0c;
+  --primary-text: #fbf2dc;
+  --focus: #1d4ed8;
+  --radius: 4px;
+  --heading: #6b3f12;
+  --gold: #9a7428;
+  --light: rgba(255, 244, 214, 0.85);
+  --shade: rgba(60, 36, 14, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="rembrandt"]:not([data-theme="light"]) {
+    --bg: #120c07;
+    --surface: #22180e;
+    --surface-alt: #2c1f12;
+    --text: #f1e6cf;
+    --text-muted: #c8b591;
+    --border: #8a6a2c;
+    --primary: #d9b25c;
+    --primary-hover: #f0d48a;
+    --primary-text: #160e07;
+    --focus: #8fc7ff;
+    --heading: #d9b25c;
+    --gold: #d9b25c;
+    --light: rgba(122, 84, 40, 0.55);
+    --shade: rgba(0, 0, 0, 0.55);
+  }
+}
+html[data-stijl="rembrandt"][data-theme="dark"] {
+  --bg: #120c07;
+  --surface: #22180e;
+  --surface-alt: #2c1f12;
+  --text: #f1e6cf;
+  --text-muted: #c8b591;
+  --border: #8a6a2c;
+  --primary: #d9b25c;
+  --primary-hover: #f0d48a;
+  --primary-text: #160e07;
+  --focus: #8fc7ff;
+  --heading: #d9b25c;
+  --gold: #d9b25c;
+  --light: rgba(122, 84, 40, 0.55);
+  --shade: rgba(0, 0, 0, 0.55);
+}
+html[data-stijl="straat"] {
+  --bg: #bdbab2;
+  --surface: #f3f0e8;
+  --surface-alt: #e4e0d6;
+  --text: #111111;
+  --text-muted: #36332e;
+  --border: #111111;
+  --primary: #111111;
+  --primary-hover: #333333;
+  --primary-text: #f3f0e8;
+  --focus: #1d4ed8;
+  --radius: 0px;
+  --red: #c81e17;
+  --red-text: #ffffff;
+  --brick: rgba(80, 76, 68, 0.32);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="straat"]:not([data-theme="light"]) {
+    --bg: #1b1b1a;
+    --surface: #2a2927;
+    --surface-alt: #34322f;
+    --text: #f3f0e8;
+    --text-muted: #d0cbc1;
+    --border: #f3f0e8;
+    --primary: #f3f0e8;
+    --primary-hover: #ffffff;
+    --primary-text: #111111;
+    --focus: #7cc4ff;
+    --red: #ff6a5e;
+    --red-text: #111111;
+    --brick: rgba(243, 240, 232, 0.07);
+  }
+}
+html[data-stijl="straat"][data-theme="dark"] {
+  --bg: #1b1b1a;
+  --surface: #2a2927;
+  --surface-alt: #34322f;
+  --text: #f3f0e8;
+  --text-muted: #d0cbc1;
+  --border: #f3f0e8;
+  --primary: #f3f0e8;
+  --primary-hover: #ffffff;
+  --primary-text: #111111;
+  --focus: #7cc4ff;
+  --red: #ff6a5e;
+  --red-text: #111111;
+  --brick: rgba(243, 240, 232, 0.07);
+}
+html[data-stijl="mondriaan"] {
+  --bg: #f7f5ef;
+  --surface: #ffffff;
+  --surface-alt: #f7f5ef;
+  --text: #111111;
+  --text-muted: #3d3d3d;
+  --border: #111111;
+  --primary: #1d4fa3;
+  --primary-hover: #123a7d;
+  --primary-text: #ffffff;
+  --focus: #d52b1e;
+  --radius: 0px;
+  --red: #d52b1e;
+  --yellow: #f7d117;
+  --line: #111111;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="mondriaan"]:not([data-theme="light"]) {
+    --bg: #121212;
+    --surface: #1c1c1c;
+    --surface-alt: #262626;
+    --text: #f5f5f0;
+    --text-muted: #cfcfc8;
+    --border: #f5f5f0;
+    --primary: #5b8ff0;
+    --primary-hover: #82abf5;
+    --primary-text: #111111;
+    --focus: #ffd23f;
+    --red: #ff5a4d;
+    --yellow: #f7d117;
+    --line: #f5f5f0;
+  }
+}
+html[data-stijl="mondriaan"][data-theme="dark"] {
+  --bg: #121212;
+  --surface: #1c1c1c;
+  --surface-alt: #262626;
+  --text: #f5f5f0;
+  --text-muted: #cfcfc8;
+  --border: #f5f5f0;
+  --primary: #5b8ff0;
+  --primary-hover: #82abf5;
+  --primary-text: #111111;
+  --focus: #ffd23f;
+  --red: #ff5a4d;
+  --yellow: #f7d117;
+  --line: #f5f5f0;
+}
+
+/* ---------- Van Gogh: penseelstreken, kobalt en chroomgeel ---------- */
+html[data-stijl="vangogh"] body {
+  font-family: 'Bonnetje Alegreya Sans', 'Trebuchet MS', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-weight: 500;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 88% 6%, var(--sun) 0 40px, transparent 90px),
+    repeating-radial-gradient(circle at 25% 30%, var(--stroke) 0 3px, transparent 3px 12px),
+    repeating-linear-gradient(115deg, var(--stroke) 0 6px, transparent 6px 14px);
+  background-attachment: fixed;
+}
+html[data-stijl="vangogh"] h1,
+html[data-stijl="vangogh"] h2 {
+  font-family: 'Bonnetje Caveat Brush', 'Bradley Hand', cursive;
+  font-weight: 400;
+  color: var(--heading);
+  letter-spacing: 0.3px;
+}
+html[data-stijl="vangogh"] h1 { font-size: 1.6rem; }
+html[data-stijl="vangogh"] h2 { font-size: 1.6rem; }
+html[data-stijl="vangogh"] strong, html[data-stijl="vangogh"] b, html[data-stijl="vangogh"] .btn { font-weight: 800; }
+html[data-stijl="vangogh"] .app-header { border-bottom: 3px solid var(--accent); }
+html[data-stijl="vangogh"] :is(.card, .item-card, .total-check-card, .person-summary-card, .split-card, .pay-progress) {
+  border: 2px solid var(--border);
+  border-radius: 20px 16px 22px 18px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+}
+html[data-stijl="vangogh"] .btn-primary,
+html[data-stijl="vangogh"] .chip-btn.active {
+  background-image: repeating-linear-gradient(105deg, rgba(255, 255, 255, 0.10) 0 4px, transparent 4px 10px);
+}
+html[data-stijl="vangogh"] .chip-btn, html[data-stijl="vangogh"] .btn-secondary { border-width: 2px; }
+html[data-stijl="vangogh"] .step-pill.active .step-dot { box-shadow: 0 0 12px var(--sun); }
+html[data-stijl="vangogh"] .pay-progress-bar > span {
+  background: repeating-linear-gradient(110deg, #f4c430 0 6px, #e8a61e 6px 10px);
+}
+html[data-stijl="vangogh"] .brand-icon { filter: hue-rotate(47deg) saturate(1.3); }
+
+/* ---------- Rembrandt: licht-donker, goud en olieverf ---------- */
+html[data-stijl="rembrandt"] body {
+  font-family: 'Bonnetje EB Garamond', Georgia, 'Times New Roman', serif;
+  font-size: 1.12rem;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 90% 60% at 20% 8%, var(--light), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, var(--shade) 100%);
+  background-attachment: fixed;
+}
+html[data-stijl="rembrandt"] h1,
+html[data-stijl="rembrandt"] h2,
+html[data-stijl="rembrandt"] h3 {
+  font-family: 'Bonnetje Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  color: var(--heading);
+}
+html[data-stijl="rembrandt"] h1 { font-variant: small-caps; letter-spacing: 2px; font-size: 1.55rem; }
+html[data-stijl="rembrandt"] h2 { font-size: 1.6rem; }
+html[data-stijl="rembrandt"] .app-header { border-bottom: 1px solid var(--gold); box-shadow: 0 1px 0 var(--surface), 0 2px 0 var(--gold); }
+html[data-stijl="rembrandt"] :is(.card, .item-card, .total-check-card, .person-summary-card, .split-card, .pay-progress) {
+  border: 1px solid var(--gold);
+  /* vergulde lijst: dunne binnenrand */
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border), 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+html[data-stijl="rembrandt"] .btn-primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.12));
+  letter-spacing: 0.5px;
+}
+html[data-stijl="rembrandt"] .chip-btn, html[data-stijl="rembrandt"] .btn-secondary { border-color: var(--gold); }
+html[data-stijl="rembrandt"] .chip-btn { border-radius: 4px; }
+html[data-stijl="rembrandt"] .step-dot { border-color: var(--gold); border-radius: 4px; }
+html[data-stijl="rembrandt"] .pay-progress-bar > span { background: linear-gradient(90deg, #8a6a2c, #e3c477); }
+html[data-stijl="rembrandt"] .brand-icon { filter: sepia(0.9) hue-rotate(-12deg) saturate(1.4) brightness(0.8); }
+
+/* ---------- Straatkunst: stencil, beton, één rode kleur ---------- */
+html[data-stijl="straat"] body {
+  font-family: 'Bonnetje Archivo', 'Arial Narrow', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  background-color: var(--bg);
+  /* betonblokken van 64 x 128 px */
+  background-image:
+    linear-gradient(0deg, transparent 0 62px, var(--brick) 62px 64px),
+    linear-gradient(90deg, transparent 0 126px, var(--brick) 126px 128px);
+  background-size: 100% 64px, 128px 100%;
+}
+html[data-stijl="straat"] h1,
+html[data-stijl="straat"] h2 {
+  font-family: 'Bonnetje Stardos Stencil', Impact, 'Arial Black', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+html[data-stijl="straat"] h1 { font-size: 1.55rem; }
+html[data-stijl="straat"] .app-header { border-bottom: 4px solid var(--border); }
+html[data-stijl="straat"] :is(.card, .item-card, .total-check-card, .person-summary-card, .split-card, .pay-progress) {
+  border: 2px solid var(--border);
+  box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.22);
+}
+html[data-stijl="straat"] .btn-primary {
+  font-family: 'Bonnetje Stardos Stencil', Impact, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 4px 4px 0 var(--red);
+}
+html[data-stijl="straat"] .btn-secondary, html[data-stijl="straat"] .chip-btn { border: 2px solid var(--border); }
+html[data-stijl="straat"] .chip-btn.active { background: var(--red); border-color: var(--red); color: var(--red-text); }
+html[data-stijl="straat"] .step-dot { border-radius: 0; border-color: var(--border); }
+html[data-stijl="straat"] .step-pill.active .step-dot { background: var(--red); border-color: var(--red); color: var(--red-text); }
+html[data-stijl="straat"] .person-summary-card.is-settled .person-status {
+  font-family: 'Bonnetje Stardos Stencil', Impact, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--red);
+}
+html[data-stijl="straat"] .person-check input[type="checkbox"] { accent-color: var(--red); }
+html[data-stijl="straat"] .pay-progress-bar { border-radius: 0; border: 2px solid var(--border); background: var(--surface); }
+html[data-stijl="straat"] .pay-progress-bar > span { border-radius: 0; background: var(--primary); }
+html[data-stijl="straat"] .brand-icon { filter: grayscale(1) contrast(1.3); border-radius: 0; }
+
+/* ---------- Mondriaan: zwarte lijnen, rood, geel en blauw ---------- */
+html[data-stijl="mondriaan"] body {
+  font-family: 'Bonnetje Archivo', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  background-color: var(--bg);
+}
+html[data-stijl="mondriaan"] h1,
+html[data-stijl="mondriaan"] h2 {
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+html[data-stijl="mondriaan"] .app-header {
+  border-bottom: 6px solid var(--line);
+  /* rood vlak links en geel vlak rechts in de kop */
+  background-image:
+    linear-gradient(90deg, var(--red) 0 10px, var(--line) 10px 16px, transparent 16px),
+    linear-gradient(270deg, var(--yellow) 0 10px, var(--line) 10px 16px, transparent 16px);
+}
+html[data-stijl="mondriaan"] :is(.card, .item-card, .total-check-card, .person-summary-card, .split-card, .pay-progress) {
+  border: 4px solid var(--line);
+  box-shadow: none;
+}
+html[data-stijl="mondriaan"] .btn, html[data-stijl="mondriaan"] .chip-btn { border: 3px solid var(--line); border-radius: 0; font-weight: 800; }
+html[data-stijl="mondriaan"] .chip-btn.active { background: var(--yellow); color: #111111; border-color: var(--line); }
+html[data-stijl="mondriaan"] .btn-danger-outline { border-color: var(--red); }
+html[data-stijl="mondriaan"] input[type="text"],
+html[data-stijl="mondriaan"] input[type="number"],
+html[data-stijl="mondriaan"] textarea,
+html[data-stijl="mondriaan"] select { border: 3px solid var(--line); border-radius: 0; }
+html[data-stijl="mondriaan"] .step-dot { border-radius: 0; border: 3px solid var(--line); }
+html[data-stijl="mondriaan"] .step-pill.done .step-dot { background: var(--yellow); color: #111111; border-color: var(--line); }
+html[data-stijl="mondriaan"] .step-pill.active .step-dot { background: var(--red); color: #ffffff; border-color: var(--line); }
+html[data-stijl="mondriaan"] .person-summary-card { padding: 0 0.5rem 0 0; }
+html[data-stijl="mondriaan"] .person-details { margin: 0 0 0.5rem 0.75rem; }
+html[data-stijl="mondriaan"] .btn { font-weight: 700; }
+html[data-stijl="mondriaan"] .person-summary-card.is-settled .person-check { background: var(--yellow); }
+html[data-stijl="mondriaan"] .person-check { border-right: 4px solid var(--line); align-self: stretch; height: auto; width: 52px; }
+html[data-stijl="mondriaan"] .person-check input[type="checkbox"] { accent-color: #111111; }
+html[data-stijl="mondriaan"] .pay-progress-bar { height: 14px; border-radius: 0; border: 3px solid var(--line); background: var(--surface); }
+html[data-stijl="mondriaan"] .pay-progress-bar > span { border-radius: 0; background: var(--primary); }
+html[data-stijl="mondriaan"] .brand-icon { border-radius: 0; filter: hue-rotate(47deg) saturate(1.4); }
+
+/* ---------- Gemeenschappelijk voor alle stijlen ---------- */
+html[data-stijl]:not([data-stijl="standaard"]) :is(button, input, textarea, select) {
+  font-family: inherit;
+}
+.stijl-swatch.vangogh { background: conic-gradient(#1f3f9a 0 50%, #f4c430 0); }
+.stijl-swatch.rembrandt { background: radial-gradient(circle at 35% 35%, #e3c477 0 30%, #3d2914 60%); }
+.stijl-swatch.straat { background: linear-gradient(135deg, #111111 0 50%, #c81e17 50%); }
+.stijl-swatch.mondriaan { background: conic-gradient(#d52b1e 0 25%, #ffffff 0 50%, #f7d117 0 75%, #1d4fa3 0); }
+
