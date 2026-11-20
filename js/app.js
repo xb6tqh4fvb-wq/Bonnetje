@@ -22,7 +22,9 @@ import {
   emptyFileMessage,
   wrongFileTypeMessage,
   pdfReaderLoadFailedMessage,
-  scannedPdfWithoutGeminiMessage
+  scannedPdfWithoutGeminiMessage,
+  unreadableFileMessage,
+  localModelsOfflineMessage
 } from './errors.js';
 import { runLocalBackupOcr } from './local-ocr.js';
 import {
@@ -342,35 +344,76 @@ function applyLineType(item, newType) {
   }
 }
 
+// v27: meldingen over het bestand zelf zijn al in gewone taal en blijven de hoofdtekst;
+// alle andere (technische) meldingen gaan achter "Meer info".
+function isPlainFileMessage(message) {
+  return [
+    unreadableFileMessage(false),
+    unreadableFileMessage(true),
+    emptyFileMessage(),
+    wrongFileTypeMessage(),
+    localModelsOfflineMessage(),
+    scannedPdfWithoutGeminiMessage(),
+    pdfReaderLoadFailedMessage()
+  ].includes(message);
+}
+
+function openPasteBox() {
+  const box = document.querySelector('details.paste-box');
+  if (box) {
+    box.open = true;
+    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  const area = $('#live-text-paste');
+  if (area) area.focus();
+}
+
 function showScanError(message, { isPdf = false } = {}) {
+  const lang = settings.lang;
   render();
   const errStatus = $('#scan-status');
   errStatus.hidden = false;
-  errStatus.className = 'status-box error';
+  errStatus.className = 'status-box error scan-error';
   errStatus.innerHTML = '';
-  errStatus.appendChild(el('p', { text: message }));
+  const plain = isPlainFileMessage(message);
+  errStatus.appendChild(el('p', { className: 'scan-error-title', text: t(lang, 'scanFailedTitle') }));
+  errStatus.appendChild(el('p', { text: plain ? message : t(lang, 'scanFailedHelp') }));
+
+  const actions = el('div', { className: 'action-row' });
+  actions.appendChild(
+    el('button', { type: 'button', className: 'btn btn-sm btn-primary', text: t(lang, 'scanFailedPaste'), onClick: openPasteBox })
+  );
   if (lastReceiptFile && isAiConfigured()) {
-    errStatus.appendChild(
+    actions.appendChild(
       el('button', {
         type: 'button',
         className: 'btn btn-sm btn-secondary',
-        text: '↻ Opnieuw proberen',
+        text: t(lang, 'scanFailedRetry'),
         onClick: () => handleReceiptFile(lastReceiptFile)
       })
     );
   }
   // Punt 6 (v9): geen doodlopende route — bied altijd de lokale backup aan bij foto's
   if (lastReceiptFile && !isPdf) {
-    errStatus.appendChild(
+    actions.appendChild(
       el('button', {
         type: 'button',
-        className: 'btn btn-sm btn-primary',
-        text: '⚡ Lokale backup starten (niets gaat naar buiten)',
+        className: 'btn btn-sm btn-secondary',
+        text: t(lang, 'scanFailedLocal'),
         onClick: () => runLocalBackupFlow(lastReceiptFile)
       })
     );
   }
-  announce(message);
+  errStatus.appendChild(actions);
+  if (!plain && message) {
+    errStatus.appendChild(
+      el('details', { className: 'scan-error-details' }, [
+        el('summary', { text: t(lang, 'moreInfo') }),
+        el('p', { text: message })
+      ])
+    );
+  }
+  announce(`${t(lang, 'scanFailedTitle')} ${plain ? message : t(lang, 'scanFailedHelp')}`);
 }
 
 /**
@@ -689,7 +732,7 @@ function renderStep1(container) {
   }
 
   // Groot plakvak voor iPhone Live Text / Tekst van camera
-  const pasteDetails = el('details', { className: 'card mt' });
+  const pasteDetails = el('details', { className: 'card mt paste-box' });
   pasteDetails.appendChild(el('summary', { text: '📋 Plak bontekst (iPhone Live Text / Tekst van camera)' }));
   const pasteArea = el('textarea', {
     id: 'live-text-paste',

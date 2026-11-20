@@ -1060,3 +1060,10 @@ select {
   html.large-text .step-pill:not(.active) .step-label { visibility: hidden; }
   html.large-text .step-pill.active .step-label { overflow: visible; }
 }
+
+/* v27: scanfout in gewone taal; techniek achter "Meer info" */
+.scan-error p { margin: 0 0 0.4rem; }
+.scan-error .scan-error-title { font-weight: 700; }
+.scan-error .action-row { margin: 0.5rem 0 0.25rem; }
+.scan-error-details { margin-top: 0.4rem; font-size: 0.88rem; }
+.scan-error-details summary { cursor: pointer; min-height: var(--tap-min); display: flex; align-items: center; }
