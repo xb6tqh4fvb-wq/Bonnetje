@@ -473,26 +473,6 @@ export function calculateSettlement(state) {
     }
   }
 
-  // 2b. v24 (verzoek Henk): contant meerdere als fooi i.p.v. retour. Heeft een
-  // deelnemer meer contant ingevuld dan zijn deel en koos hij "Fooi", dan telt
-  // het meerdere als fooi (zijn wisselgeld wordt 0). Keuze staat los van de
-  // fooimodi hierboven; de cent-invariant blijft kloppen want totalTipCents
-  // groeit even hard mee als de eindsom.
-  const excessTipCentsById = {};
-  for (const p of participants) {
-    excessTipCentsById[p.id] = 0;
-    if (!p.excessAsTip) continue;
-    const cash = Number.isInteger(p.paidCashCents) ? p.paidCashCents : null;
-    if (cash === null) continue;
-    const basis = subtotals[p.id] + (receiptExtras[p.id] || 0) + tips[p.id];
-    const extra = cash - basis;
-    if (extra > 0) {
-      excessTipCentsById[p.id] = extra;
-      tips[p.id] += extra;
-      totalTipCents += extra;
-    }
-  }
-
   // 3. Per persoon eindbedrag en contant wisselgeld
   const perPerson = participants.map((p) => {
     const subtotalCents = subtotals[p.id];
@@ -511,7 +491,7 @@ export function calculateSettlement(state) {
       totalCents,
       paidCashCents,
       changeCents,
-      excessTipCents: excessTipCentsById[p.id] || 0,
+      excessTipCents: 0,
       settled: Boolean(p.settled),
       hosted: false,
       hostedAmountCents: 0,
@@ -655,6 +635,28 @@ export function calculateSettlement(state) {
   // bedrag volledig terug (eindbedrag 0).
   for (const row of perPerson) {
     row.changeCents = Number.isInteger(row.paidCashCents) ? row.paidCashCents - row.totalCents : null;
+  }
+
+  // 5b. v24 (verzoek Henk): contant meerdere als fooi i.p.v. retour. Pas HIER
+  // rekenen, ná de hosted-overname: het eindbedrag van een drager is dan
+  // definitief, dus het meerdere = contant - eindbedrag (niet contant - eigen
+  // verbruik, dan zou een overgenomen gastdeel fout als fooi boeken). Een gast
+  // heeft geen contante afrekening: excessAsTip geldt voor hem nooit. De
+  // cent-invariant blijft kloppen want totalTipCents groeit even hard mee als
+  // de eindsom.
+  for (const row of perPerson) {
+    if (row.hosted) continue;
+    const p = participants.find((pp) => pp.id === row.id);
+    if (!p || !p.excessAsTip) continue;
+    if (!Number.isInteger(row.paidCashCents)) continue;
+    const extra = row.paidCashCents - row.totalCents;
+    if (extra > 0) {
+      row.excessTipCents = extra;
+      row.tipCents += extra;
+      row.totalCents += extra;
+      row.changeCents = 0;
+      totalTipCents += extra;
+    }
   }
 
   const grandTotalCents = perPerson.reduce((sum, p) => sum + p.totalCents, 0);

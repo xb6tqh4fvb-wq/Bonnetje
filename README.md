@@ -9,11 +9,12 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 
 ## Wijzigingen in v24 (verzoek Henk: "Laat het totaal bedrag invullen, zoals nu. Alleen een optie fooi of retour.")
 
-Regressietests: 112/112 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de nieuwe fooi/retour-flow).
+Regressietests: 114/114 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de nieuwe fooi/retour-flow).
 
 - **Stap 4, contant betaald:** het veld werkt precies zoals voorheen. Alleen als iemand méér contant inlegt dan zijn deel verschijnt er één keuze onder het bedrag: **Retour** (standaard — hij krijgt het meerdere terug, zoals het altijd was) of **Fooi** (het meerdere wordt fooi, wisselgeld € 0,00). De keuze staat in dezelfde regel als het wisselgeld, met 44px tikknoppen. Terugschakelen kan altijd: bij Fooi blijft de keuze zichtbaar en toont de regel "Als fooi geboekt: € X".
 - **Rekenkern:** bij Fooi wordt het meerdere bij de fooi van die persoon opgeteld (vóór de hosted-verdeling, dus het werkt ook goed samen met gasten). Zijn totaal wordt daarmee precies zijn contante bedrag; de eindsom stijgt evenveel — de cent-invariant (som per persoon = bontotaal + fooi + extra's) blijft exact bewaakt door de bestaande testset.
 - **Aanpassen en wissen:** wordt het contante bedrag later verlaagd of gewist, dan verdwijnt de keuze (en een geboekte fooi) vanzelf; geen restbedragen of verborgen fooien. Tests V24.1 (kern: fooi aan/uit, bedrag verlagen, bedrag wissen, invariant) en V24.2 (bronchecks) bewaken dit.
+- **Review-ronde:** het meerdere wordt nu pas ná de gast-overname berekend (contant min het eindbedrag van de drager, niet min zijn eigen verbruik — anders boekte een overgenomen gastdeel fout mee als fooi), een gast kan de keuze nooit krijgen en zijn `excessAsTip` wordt genegeerd, en de Fooi-vlag reset vanzelf zodra het bedrag niet meer boven het deel ligt (stijgt het daarna weer, dan staat Retour weer standaard aan). Test V24.1b dekt het reviewer-voorbeeld (drager 20 + gast 20, contant 50: fooi 10, niet 30) en V24.3 is een rekenproef met 3000 willekeurige bonnen (2-5 personen, 0-2 gasten, alle fooimodi, Retour/Fooi): som per persoon = bon + fooi, bij Fooi wisselgeld exact 0, nooit negatief.
 - Techniek: cache `bonnetje-v24`. Geen wijziging aan opgeslagen data (`excessAsTip` is een optionele vlag op de deelnemer in de sessie).
 
 ## Wijzigingen in v23 (verzoek Henk: "die gast optie is raar, dat moet beter")

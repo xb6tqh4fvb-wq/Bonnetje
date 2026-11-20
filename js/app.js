@@ -2043,6 +2043,16 @@ function renderStep4(container) {
       const raw = e.target.value.trim();
       mutate(() => {
         participantObj.paidCashCents = raw === '' ? null : parseEuroToCents(raw);
+        // v24 (review): de Fooi-keuze mag niet stiekem blijven hangen. Zakt het
+        // bedrag tot onder zijn deel (of wordt het gewist), dan gaat de vlag uit;
+        // stijgt het daarna weer, dan verschijnt de keuze opnieuw met Retour aan.
+        const deelZonderFooi = row.totalCents - (row.excessTipCents || 0);
+        if (
+          participantObj.excessAsTip &&
+          (!Number.isInteger(participantObj.paidCashCents) || participantObj.paidCashCents <= deelZonderFooi)
+        ) {
+          participantObj.excessAsTip = false;
+        }
       });
     });
     card.appendChild(
@@ -2056,7 +2066,7 @@ function renderStep4(container) {
     // keuze met twee opties: Retour (standaard, huidig gedrag) of Fooi (het
     // meerdere wordt fooi, wisselgeld 0). Geen afrondknoppen.
     const meerdere = row.changeCents !== null && row.changeCents > 0 ? row.changeCents : (row.excessTipCents || 0);
-    if (meerdere > 0) {
+    if (!row.hosted && meerdere > 0) {
       const alsFooi = Boolean(participantObj.excessAsTip);
       card.appendChild(
         el('div', { className: 'excess-choice' }, [

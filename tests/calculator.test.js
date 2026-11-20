@@ -1462,12 +1462,155 @@ PIN 43,00`);
     assertTrue(res.invariantExact, 'invariant houdt bij gewist bedrag');
   });
 
+  test('V24.1b reviewer-voorbeeld: drager met gast, fooi pas na overname', () => {
+    const maak = (extra) => ({
+      items: [
+        { id: '1', description: 'A', qty: 1, unitPriceCents: 2000, lineTotalCents: 2000, assignedTo: ['anna'] },
+        { id: '2', description: 'B', qty: 1, unitPriceCents: 2000, lineTotalCents: 2000, assignedTo: ['bram'] }
+      ],
+      receiptTotalCents: 4000,
+      participants: [
+        { id: 'anna', name: 'Anna' },
+        { id: 'bram', name: 'Bram', ...extra }
+      ],
+      tipMode: 'none',
+      hosted: { anna: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} } }
+    });
+    // Bram: eigen 20 + overgenomen 20 = 40. Contant 50, Retour: wisselgeld 10.
+    let res = calculateSettlement(maak({ paidCashCents: 5000 }));
+    let bram = res.perPerson.find((r) => r.id === 'bram');
+    assertEqual(bram.totalCents, 4000, 'drager eindbedrag 40 incl. overname');
+    assertEqual(bram.changeCents, 1000, 'retour: wisselgeld 10');
+    // Fooi: fooi 10 (50 - 40), niet 30 (50 - 20). Totaal 50, wisselgeld 0.
+    res = calculateSettlement(maak({ paidCashCents: 5000, excessAsTip: true }));
+    bram = res.perPerson.find((r) => r.id === 'bram');
+    assertEqual(bram.excessTipCents, 1000, 'fooi = meerdere boven het eindbedrag');
+    assertEqual(bram.totalCents, 5000, 'totaal = contant');
+    assertEqual(bram.changeCents, 0);
+    assertTrue(res.invariantExact && res.canFinalize, 'invariant houdt met gast + fooi');
+    // Contant precies 40 + Fooi: geen fooi, geen "nog bijbetalen".
+    res = calculateSettlement(maak({ paidCashCents: 4000, excessAsTip: true }));
+    bram = res.perPerson.find((r) => r.id === 'bram');
+    assertEqual(bram.excessTipCents, 0, 'geen fooi als contant exact het eindbedrag is');
+    assertEqual(bram.changeCents, 0, 'precies gepast, geen tekort');
+    // Gast met contant + Fooi: vlag genegeerd, contant volledig terug.
+    res = calculateSettlement(maak({}));
+    res = calculateSettlement({
+      ...maak({}),
+      participants: [
+        { id: 'anna', name: 'Anna', paidCashCents: 3000, excessAsTip: true },
+        { id: 'bram', name: 'Bram' }
+      ]
+    });
+    const anna = res.perPerson.find((r) => r.id === 'anna');
+    assertEqual(anna.excessTipCents, 0, 'gast boekt nooit fooi');
+    assertEqual(anna.totalCents, 0);
+    assertEqual(anna.changeCents, 3000, 'gast krijgt contant volledig terug');
+    assertEqual(res.totalTipCents, 0, 'geen fooi ontstaan uit gastcontant');
+  });
+
+  test('V24.3 rekenproef: duizenden willekeurige bonnen met gasten, fooimodi en Retour/Fooi', () => {
+    // Vaste seed: een falende run is exact te reproduceren.
+    let seed = 20261120;
+    const rnd = () => {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let z = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      z = (z + Math.imul(z ^ (z >>> 7), 61 | z)) ^ z;
+      return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+    };
+    const randInt = (min, max) => min + Math.floor(rnd() * (max - min + 1));
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+    for (let iter = 0; iter < 3000; iter++) {
+      const nPers = randInt(2, 5);
+      const participants = [];
+      for (let i = 0; i < nPers; i++) participants.push({ id: `p${i}`, name: `P${i}` });
+      // 1-6 regels, elk volledig toegewezen aan een willekeurige niet-lege deelverzameling
+      const items = [];
+      let bill = 0;
+      const nItems = randInt(1, 6);
+      for (let i = 0; i < nItems; i++) {
+        const price = randInt(150, 3000);
+        const shuffled = [...participants].sort(() => rnd() - 0.5);
+        const k = randInt(1, nPers);
+        items.push({ id: `i${i}`, description: `Regel ${i}`, qty: 1, unitPriceCents: price, lineTotalCents: price, assignedTo: shuffled.slice(0, k).map((p) => p.id) });
+        bill += price;
+      }
+      // 0-2 gasten (nooit iedereen: er moet een drager overblijven)
+      const hosted = {};
+      const nGasten = randInt(0, Math.min(2, nPers - 1));
+      const gastIds = [...participants].sort(() => rnd() - 0.5).slice(0, nGasten).map((p) => p.id);
+      for (const gid of gastIds) hosted[gid] = { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} };
+      // fooimodus: geen / per persoon / rond totaalbedrag
+      const tipMode = pick(['none', 'per_person', 'target_total']);
+      const state = {
+        items,
+        receiptTotalCents: bill,
+        participants: participants.map((p) => ({ ...p })),
+        tipMode,
+        tipPerPersonCents: {},
+        hosted
+      };
+      if (tipMode === 'per_person') {
+        for (const p of state.participants) state.tipPerPersonCents[p.id] = rnd() < 0.5 ? randInt(0, 500) : 0;
+      } else if (tipMode === 'target_total') {
+        state.targetTotalCents = bill + randInt(0, 1000);
+        state.includeZeroConsumersInSharedTip = rnd() < 0.5;
+      }
+
+      // Fase 1: basisrun zonder contant/keuzes geeft het definitieve deel per persoon
+      const basis = calculateSettlement(state);
+      assertTrue(basis.invariantExact && basis.canFinalize, `iter ${iter}: basis invariant`);
+      const basisTotaal = {};
+      for (const r of basis.perPerson) basisTotaal[r.id] = r.totalCents;
+
+      // Fase 2: contant = deel + willekeurige delta, per deelnemer Retour of Fooi
+      const keuze = {};
+      for (const p of state.participants) {
+        const delta = randInt(-300, 1500);
+        p.paidCashCents = Math.max(0, basisTotaal[p.id] + delta);
+        p.excessAsTip = rnd() < 0.5;
+        keuze[p.id] = p.excessAsTip;
+      }
+      const res = calculateSettlement(state);
+      assertTrue(res.invariantExact && res.canFinalize, `iter ${iter}: invariant met fooi/retour`);
+      const som = res.perPerson.reduce((s, r) => s + r.totalCents, 0);
+      assertEqual(som, res.grandTotalCents, `iter ${iter}: som per persoon = eindsom`);
+      assertEqual(res.grandTotalCents, bill + res.totalTipCents, `iter ${iter}: eindsom = bon + fooi`);
+      for (const r of res.perPerson) {
+        assertTrue(r.totalCents >= 0 && r.tipCents >= 0, `iter ${iter}: nooit negatief`);
+        const cash = r.paidCashCents;
+        const deel = basisTotaal[r.id];
+        if (r.hosted) {
+          // een gast heeft geen contante afrekening: Fooi doet niets, contant komt terug
+          assertEqual(r.totalCents, 0, `iter ${iter}: gast betaalt 0`);
+          assertEqual(r.excessTipCents, 0, `iter ${iter}: gast boekt nooit fooi`);
+          assertEqual(r.changeCents, cash, `iter ${iter}: gast krijgt contant volledig terug`);
+        } else if (keuze[r.id] && cash > deel) {
+          // Fooi: meerdere wordt fooi, wisselgeld exact 0, totaal = contant
+          assertEqual(r.excessTipCents, cash - deel, `iter ${iter}: fooi = meerdere (ook met overgenomen gastdeel)`);
+          assertEqual(r.totalCents, cash, `iter ${iter}: bij Fooi totaal = contant`);
+          assertEqual(r.changeCents, 0, `iter ${iter}: bij Fooi wisselgeld 0`);
+        } else {
+          // Retour (of Fooi zonder meerdere): geen extra fooi, wisselgeld = contant - deel
+          assertEqual(r.excessTipCents, 0, `iter ${iter}: retour boekt geen fooi`);
+          assertEqual(r.totalCents, deel, `iter ${iter}: retour totaal = deel`);
+          assertEqual(r.changeCents, cash - deel, `iter ${iter}: wisselgeld = contant - deel`);
+        }
+      }
+    }
+  });
+
   test('V24.2 keuze fooi/retour alleen bij een meerdere, schakelbaar', async () => {
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
     const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
     assertTrue(app.includes('excess-choice'), 'keuzerij in de persoonskaart');
     assertTrue(app.includes('excessTipCents'), 'keuze blijft zichtbaar als fooi actief is (terugschakelen kan)');
+    assertTrue(app.includes('!row.hosted && meerdere > 0'), 'geen keuze bij een gast (geen contante afrekening)');
+    assertTrue(app.includes('participantObj.excessAsTip = false;'), 'vlag reset zodra het bedrag niet meer boven het deel ligt');
+    const kern = fs.readFileSync(new URL('../js/calculator.js', import.meta.url), 'utf8');
+    assertTrue(kern.indexOf('row.hosted) continue') > kern.indexOf('hostedSummaries.push'), 'meerdere pas ná de hosted-overname berekend');
     assertEqual(app.split('excess-toggle').length - 1, 2, 'precies twee opties: retour en fooi');
     assertTrue(i18n.includes("excessRetour: 'Retour'") && i18n.includes("excessFooi: 'Fooi'"), 'NL-labels aanwezig');
     assertTrue(i18n.includes("excessRetour: 'Change back'"), 'EN-labels aanwezig');

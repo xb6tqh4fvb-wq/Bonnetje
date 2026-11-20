@@ -74,6 +74,8 @@ PASS: V22.5 bonfoto blijft zichtbaar, overleeft herlaad (IndexedDB), verdwijnt b
 PASS: V23.1 stap 2: één kleine Gast-schakelaar per deelnemer, uitleg één keer
 PASS: V23.2 × wist direct zonder regels, vraagt één keer bij toewijzingen (review)
 PASS: V24.1 meerdere als fooi: wisselgeld 0, cent-invariant houdt
+PASS: V24.1b reviewer-voorbeeld: drager met gast, fooi pas na overname
+PASS: V24.3 rekenproef: duizenden willekeurige bonnen met gasten, fooimodi en Retour/Fooi
 PASS: V24.2 keuze fooi/retour alleen bij een meerdere, schakelbaar
 PASS: V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan
 PASS: V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)
@@ -111,4 +113,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 112/112 geslaagd.
+Resultaat: 114/114 geslaagd.
