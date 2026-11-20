@@ -10,7 +10,8 @@ import {
   validateReceiptTotal,
   calculateSettlement,
   buildSettlementShareText,
-  payerOutstandingCents
+  payerOutstandingCents,
+  roundAmountSuggestions
 } from './calculator.js';
 import { t, STRINGS } from './i18n.js';
 import { shortDisplayNames } from './names.js';
@@ -22,7 +23,9 @@ import {
   emptyFileMessage,
   wrongFileTypeMessage,
   pdfReaderLoadFailedMessage,
-  scannedPdfWithoutGeminiMessage
+  scannedPdfWithoutGeminiMessage,
+  unreadableFileMessage,
+  localModelsOfflineMessage
 } from './errors.js';
 import { runLocalBackupOcr } from './local-ocr.js';
 import {
@@ -342,35 +345,76 @@ function applyLineType(item, newType) {
   }
 }
 
+// v27: meldingen over het bestand zelf zijn al in gewone taal en blijven de hoofdtekst;
+// alle andere (technische) meldingen gaan achter "Meer info".
+function isPlainFileMessage(message) {
+  return [
+    unreadableFileMessage(false),
+    unreadableFileMessage(true),
+    emptyFileMessage(),
+    wrongFileTypeMessage(),
+    localModelsOfflineMessage(),
+    scannedPdfWithoutGeminiMessage(),
+    pdfReaderLoadFailedMessage()
+  ].includes(message);
+}
+
+function openPasteBox() {
+  const box = document.querySelector('details.paste-box');
+  if (box) {
+    box.open = true;
+    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  const area = $('#live-text-paste');
+  if (area) area.focus();
+}
+
 function showScanError(message, { isPdf = false } = {}) {
+  const lang = settings.lang;
   render();
   const errStatus = $('#scan-status');
   errStatus.hidden = false;
-  errStatus.className = 'status-box error';
+  errStatus.className = 'status-box error scan-error';
   errStatus.innerHTML = '';
-  errStatus.appendChild(el('p', { text: message }));
+  const plain = isPlainFileMessage(message);
+  errStatus.appendChild(el('p', { className: 'scan-error-title', text: t(lang, 'scanFailedTitle') }));
+  errStatus.appendChild(el('p', { text: plain ? message : t(lang, 'scanFailedHelp') }));
+
+  const actions = el('div', { className: 'action-row' });
+  actions.appendChild(
+    el('button', { type: 'button', className: 'btn btn-sm btn-primary', text: t(lang, 'scanFailedPaste'), onClick: openPasteBox })
+  );
   if (lastReceiptFile && isAiConfigured()) {
-    errStatus.appendChild(
+    actions.appendChild(
       el('button', {
         type: 'button',
         className: 'btn btn-sm btn-secondary',
-        text: '↻ Opnieuw proberen',
+        text: t(lang, 'scanFailedRetry'),
         onClick: () => handleReceiptFile(lastReceiptFile)
       })
     );
   }
   // Punt 6 (v9): geen doodlopende route — bied altijd de lokale backup aan bij foto's
   if (lastReceiptFile && !isPdf) {
-    errStatus.appendChild(
+    actions.appendChild(
       el('button', {
         type: 'button',
-        className: 'btn btn-sm btn-primary',
-        text: '⚡ Lokale backup starten (niets gaat naar buiten)',
+        className: 'btn btn-sm btn-secondary',
+        text: t(lang, 'scanFailedLocal'),
         onClick: () => runLocalBackupFlow(lastReceiptFile)
       })
     );
   }
-  announce(message);
+  errStatus.appendChild(actions);
+  if (!plain && message) {
+    errStatus.appendChild(
+      el('details', { className: 'scan-error-details' }, [
+        el('summary', { text: t(lang, 'moreInfo') }),
+        el('p', { text: message })
+      ])
+    );
+  }
+  announce(`${t(lang, 'scanFailedTitle')} ${plain ? message : t(lang, 'scanFailedHelp')}`);
 }
 
 /**
@@ -606,7 +650,7 @@ function renderStep1(container) {
   container.appendChild(
     el('p', {
       className: 'help-text',
-      text: 'Maak een foto van de bon of kies een foto of PDF met de knop hieronder (de camera zit in dezelfde kiezer), plak tekst via iPhone Live Text, of typ de regels handmatig in. Controleer herkende bedragen altijd zelf.'
+      text: t(lang, 'step1Intro')
     })
   );
 
@@ -689,7 +733,7 @@ function renderStep1(container) {
   }
 
   // Groot plakvak voor iPhone Live Text / Tekst van camera
-  const pasteDetails = el('details', { className: 'card mt' });
+  const pasteDetails = el('details', { className: 'card mt paste-box' });
   pasteDetails.appendChild(el('summary', { text: '📋 Plak bontekst (iPhone Live Text / Tekst van camera)' }));
   const pasteArea = el('textarea', {
     id: 'live-text-paste',
@@ -726,8 +770,17 @@ function renderStep1(container) {
 
   container.appendChild(el('div', { id: 'scan-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' }));
 
-  // Vertaalknop naar het Nederlands (kerneis, bewuste actie, alleen tekstregels)
-  if (session.items.length > 0) {
+  // Vertaalknop naar het Nederlands (kerneis, bewuste actie, alleen tekstregels).
+  // v27: alleen als de bon (waarschijnlijk) niet in het Nederlands is: de scan meldt de taal,
+  // en bij plakken/pdf (taal onbekend) kijken we of het ingebouwde woordenboek iets herkent.
+  const bonLijktAnderstalig =
+    session.receiptLanguage
+      ? !/^nl/i.test(session.receiptLanguage)
+      : session.items.some((it) => {
+          const tr = translateOffline(it.originalDescription || it.description, customDict);
+          return tr.translated && tr.text.toLowerCase() !== String(it.description || '').toLowerCase();
+        });
+  if (session.items.length > 0 && bonLijktAnderstalig) {
     const transBox = el('div', { className: 'action-row' });
     const transFeedback = el('div', { id: 'translate-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' });
     transBox.appendChild(
@@ -735,7 +788,7 @@ function renderStep1(container) {
         type: 'button',
         className: 'btn btn-secondary btn-sm',
         disabled: !isOnlineAiUsable(settings),
-        text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
+        text: t(lang, 'translateLinesBtn'),
         onClick: async () => {
           transFeedback.hidden = false;
           transFeedback.className = 'status-box info';
@@ -979,6 +1032,8 @@ function renderStep1(container) {
       const c = parseEuroToCents(e.target.value);
       if (c !== null) {
         mutate(() => {
+          // v27: negatief bedrag op een gewone regel = korting
+          if (c < 0 && (item.lineType || 'item') === 'item') applyLineType(item, 'discount');
           item.unitPriceCents = item.lineType === 'discount' ? -Math.abs(c) : c;
           if (item.qty === 1) item.lineTotalCents = item.unitPriceCents;
           item.lowConfidence = false;
@@ -998,6 +1053,7 @@ function renderStep1(container) {
       const c = parseEuroToCents(e.target.value);
       if (c !== null) {
         mutate(() => {
+          if (c < 0 && (item.lineType || 'item') === 'item') applyLineType(item, 'discount');
           item.lineTotalCents = item.lineType === 'discount' ? -Math.abs(c) : c;
           if (item.qty === 1) item.unitPriceCents = item.lineTotalCents;
           item.lowConfidence = false;
@@ -1090,7 +1146,9 @@ function renderStep1(container) {
     container.appendChild(details);
   }
 
-  // Knoppen regel / korting toevoegen
+  // v27: één knop "Regel toevoegen" (de aparte kortingsknop is weg; korting komt zelden voor).
+  // Een korting maak je door een negatief bedrag te typen (bijv. -5,00) of via Regeltype.
+  // De nieuwe regel staat meteen open, zodat je hem direct kunt invullen.
   container.appendChild(
     el('div', { className: 'action-row' }, [
       el('button', {
@@ -1099,16 +1157,9 @@ function renderStep1(container) {
         text: `+ ${t(lang, 'addLine')}`,
         onClick: () =>
           mutate(() => {
-            session.items.push(createNewItem(false));
-          })
-      }),
-      el('button', {
-        type: 'button',
-        className: 'btn btn-secondary',
-        text: `− ${t(lang, 'addDiscount')}`,
-        onClick: () =>
-          mutate(() => {
-            session.items.push(createNewItem(true));
+            const nieuw = createNewItem(false);
+            expandedItemIds.add(nieuw.id);
+            session.items.push(nieuw);
           })
       })
     ])
@@ -1420,6 +1471,12 @@ function renderStep2(container) {
 // ============================================================
 // STAP 3: VERDELEN
 // ============================================================
+// v27: stap 3 klapt volledig verdeelde regels in tot één regel. De regel waar je net op
+// tikte blijft open (je wilt misschien nog met − / + schuiven); pas als je een andere
+// regel aanraakt, klapt hij in. Alleen weergave: geen undo-stap, niet bewaard.
+let lastEditedSplitId = null;
+let splitScrollAnchor = null;
+
 function renderStep3(container) {
   const lang = settings.lang;
   container.appendChild(el('h2', { text: t(lang, 'step3Title') }));
@@ -1435,6 +1492,22 @@ function renderStep3(container) {
   // v22 (verzoek Henk): korte, altijd eenduidige labels op de chips; volledige
   // naam blijft in aria-label, "Toegewezen aan:" en het overzicht
   const korteNamen = shortDisplayNames(session.participants);
+
+  const isComplete = (item) => {
+    const qm = item.assignedQuantities || {};
+    const sum = Object.values(qm).reduce((s, q) => s + (Number.isInteger(q) ? q : 0), 0);
+    return sum > 0 ? sum === item.qty : (item.assignedTo || []).length > 0;
+  };
+  const doneCount = activeItems.filter(isComplete).length;
+  container.appendChild(
+    el('div', { className: `split-progress ${doneCount === activeItems.length ? 'all-done' : ''}` }, [
+      el('strong', {
+        text: doneCount === activeItems.length
+          ? t(lang, 'splitAllDone')
+          : t(lang, 'splitProgress', { done: doneCount, total: activeItems.length })
+      })
+    ])
+  );
 
   const list = el('div', { className: 'split-list' });
   activeItems.forEach((item) => {
@@ -1472,8 +1545,43 @@ function renderStep3(container) {
     // telt een tik als 1 stuk en verdeel je met − n + verder. "Hele tafel"
     // verdeelt de regel gelijk over iedereen. Geen actieve persoon meer.
     const card = el('div', {
-      className: `split-card ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`
+      className: `split-card ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`,
+      'data-item-id': item.id
     });
+    // onthoud welke kaart je aanraakt (en waar die op het scherm stond), vóór de knop zelf reageert
+    card.addEventListener(
+      'click',
+      () => {
+        lastEditedSplitId = item.id;
+        splitScrollAnchor = { id: item.id, top: card.getBoundingClientRect().top };
+      },
+      true
+    );
+
+    if (isComplete(item) && lastEditedSplitId !== item.id) {
+      const namen = usingQtyMode
+        ? session.participants.filter((p) => (qtyMap[p.id] || 0) > 0).map((p) => `${korteNamen.get(p.id) || p.name}${item.qty > 1 ? ` ${qtyMap[p.id]}×` : ''}`)
+        : isAll
+          ? [t(lang, 'wholeTable')]
+          : session.participants.filter((p) => assigned.includes(p.id)).map((p) => korteNamen.get(p.id) || p.name);
+      card.classList.add('is-collapsed');
+      card.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'split-collapsed',
+          'aria-label': `${labelText}: ${namen.join(', ')}. ${t(lang, 'editLine')}`,
+          onClick: () => render()
+        }, [
+          el('span', { className: 'split-collapsed-main' }, [
+            el('span', { className: 'split-desc', text: `${item.qty > 1 ? `${item.qty}× ` : ''}${labelText || '—'}` }),
+            el('span', { className: 'split-collapsed-names', text: `✓ ${namen.join(', ')}` })
+          ]),
+          el('strong', { className: 'split-price', text: formatCentsNL(item.lineTotalCents) })
+        ])
+      );
+      list.appendChild(card);
+      return;
+    }
 
     card.appendChild(
       el('div', { className: 'split-card-top' }, [
@@ -1497,19 +1605,8 @@ function renderStep3(container) {
           })
       })
     );
-    quick.appendChild(
-      el('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-secondary',
-        text: t(lang, 'nobody'),
-        disabled: !usingQtyMode && assigned.length === 0,
-        onClick: () =>
-          mutate(() => {
-            item.assignedQuantities = {};
-            item.assignedTo = [];
-          })
-      })
-    );
+    // v27: geen aparte "Niemand"-knop meer: een naam nog eens aantikken haalt hem weg,
+    // en "Hele tafel" nog eens aantikken maakt de regel leeg.
     card.appendChild(quick);
 
     const chips = el('div', { className: 'chip-wrap' });
@@ -1589,6 +1686,17 @@ function renderStep3(container) {
     list.appendChild(card);
   });
   container.appendChild(list);
+
+  // Inklappen van een kaart boven de aangetikte kaart mag de pagina niet onder je vinger
+  // laten verspringen: zet de aangetikte kaart terug op dezelfde plek in beeld.
+  if (splitScrollAnchor) {
+    const anchor = splitScrollAnchor;
+    splitScrollAnchor = null;
+    requestAnimationFrame(() => {
+      const now = document.querySelector(`.split-card[data-item-id="${CSS.escape(anchor.id)}"]`);
+      if (now) window.scrollBy(0, now.getBoundingClientRect().top - anchor.top);
+    });
+  }
 
   container.appendChild(
     el('div', { className: 'nav-row' }, [
@@ -1788,6 +1896,9 @@ function renderHostedCard(container, guest, result) {
   container.appendChild(card);
 }
 
+// Open/dicht van het blok "Fooi, gast of één betaalt" zoals de gebruiker het koos (null = automatisch).
+let step4SettingsOpenPref = null;
+
 // Welke personen in stap 4 opengeklapt staan (alleen weergave; geen undo-stap, niet bewaard).
 const openPersonDetails = new Set();
 
@@ -1821,6 +1932,40 @@ function renderStep4(container) {
     );
   }
 
+  // v27: fooi, "wie betaalt" en gasten zitten samen in één uitklapblok ONDER de uitslag.
+  // Meestal is het "geen fooi, iedereen zelf"; dan zie je meteen de bedragen. Is er iets
+  // ingesteld, dan staat het blok open (tenzij de gebruiker het zelf dichtklapte).
+  const isGastVoorBlok = (pid) => Boolean(session.hosted && session.hosted[pid] && session.hosted[pid].enabled);
+  const heeftGast = session.participants.some((p) => isGastVoorBlok(p.id));
+  const heeftBetaler = Boolean(session.paidById && session.participants.some((p) => p.id === session.paidById && !isGastVoorBlok(p.id)));
+  // Automatisch open alleen als er iets ingevuld moet worden (geen rond bedrag gekozen,
+  // fooifout, of een gast zonder overnemers); anders dicht met een samenvatting in de kop.
+  const gastZonderOvername = session.participants.some(
+    (p) => {
+      if (!isGastVoorBlok(p.id)) return false;
+      const h = (result.hostedSummaries || []).find((x) => x.guestId === p.id);
+      return !h || (h.amountCents > 0 && h.shares.length === 0);
+    }
+  );
+  const aandachtNodig =
+    (session.tipMode === 'target_total' && !Number.isInteger(session.targetTotalCents)) ||
+    Boolean(result.tipError) ||
+    gastZonderOvername;
+  const settingsWrap = el('details', { className: 'step4-settings' });
+  settingsWrap.open = aandachtNodig || (step4SettingsOpenPref ?? false);
+  settingsWrap.addEventListener('toggle', () => { step4SettingsOpenPref = settingsWrap.open; });
+  const samenvatting = [
+    session.tipMode === 'none' ? t(lang, 'tipNone') : session.tipMode === 'per_person' ? t(lang, 'tipPerPerson') : t(lang, 'tipTargetShort'),
+    heeftBetaler ? t(lang, 'paidByOneShort') : t(lang, 'paidBySelf'),
+    ...(heeftGast ? [t(lang, 'guestShort')] : [])
+  ].join(' · ');
+  settingsWrap.appendChild(
+    el('summary', {}, [
+      el('span', { className: 'step4-settings-title', text: t(lang, 'step4SettingsTitle') }),
+      el('span', { className: 'step4-settings-sum', text: samenvatting })
+    ])
+  );
+
   const tipCard = el('section', { className: 'card' });
   tipCard.appendChild(el('h3', { text: t(lang, 'tipSectionTitle') }));
 
@@ -1849,7 +1994,9 @@ function renderStep4(container) {
       type: 'text',
       inputmode: 'decimal',
       id: 'target-total-input',
-      placeholder: t(lang, 'targetTotalPlaceholder'),
+      placeholder: roundAmountSuggestions(result.billTotalCents)[0]
+        ? `${t(lang, 'examplePrefix')} ${(roundAmountSuggestions(result.billTotalCents)[0] / 100).toFixed(2).replace('.', ',')}`
+        : t(lang, 'targetTotalPlaceholder'),
       value:
         Number.isInteger(session.targetTotalCents)
           ? (session.targetTotalCents / 100).toFixed(2).replace('.', ',')
@@ -1861,6 +2008,21 @@ function renderStep4(container) {
         session.targetTotalCents = raw === '' ? null : parseEuroToCents(raw);
       });
     });
+    // v27: snelknoppen voor een rond bedrag net boven de bon (± 5, 10 en 15% hoger)
+    const quickRow = el('div', { className: 'chip-wrap round-quick' });
+    for (const cents of roundAmountSuggestions(result.billTotalCents)) {
+      const active = session.targetTotalCents === cents;
+      quickRow.appendChild(
+        el('button', {
+          type: 'button',
+          className: `chip-btn ${active ? 'active' : ''}`,
+          'aria-pressed': String(active),
+          text: formatCentsNL(cents),
+          onClick: () => mutate(() => { session.targetTotalCents = cents; })
+        })
+      );
+    }
+    tipCard.appendChild(quickRow);
     tipCard.appendChild(
       el('label', { for: 'target-total-input', className: 'field-wrap' }, [
         el('span', { text: t(lang, 'targetTotalLabel') }),
@@ -1919,7 +2081,7 @@ function renderStep4(container) {
       })
     );
   }
-  container.appendChild(tipCard);
+  settingsWrap.appendChild(tipCard);
 
   // v25 (verzoek Henk): "Betaald door" — één deelnemer heeft de hele bon
   // voorgeschoten; de rest rekent met hem/haar af. Presentatielaag: de
@@ -1957,22 +2119,32 @@ function renderStep4(container) {
     );
   });
   payerCard.appendChild(payerGroup);
-  container.appendChild(payerCard);
+  settingsWrap.appendChild(payerCard);
 
   // v13: per gast een instelkaart (wie neemt over, welk aandeel)
   session.participants
     .filter((p) => session.hosted && session.hosted[p.id] && session.hosted[p.id].enabled)
-    .forEach((guest) => renderHostedCard(container, guest, result));
+    .forEach((guest) => renderHostedCard(settingsWrap, guest, result));
 
+  // v27: zonder fooi alleen "Totaal"; met fooi bon, fooi en totaal
   container.appendChild(
-    el('div', { className: 'summary-kv total-check-card' }, [
-      el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
-      el('div', {}, [el('span', { text: t(lang, 'totalTipLabel') }), el('strong', { text: formatCentsNL(result.totalTipCents) })]),
-      el('div', { className: 'grand-row' }, [
-        el('span', { text: t(lang, 'grandTotalLabel') }),
-        el('strong', { text: formatCentsNL(result.grandTotalCents) })
-      ])
-    ])
+    el('div', { className: 'summary-kv total-check-card' },
+      result.totalTipCents > 0
+        ? [
+            el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
+            el('div', {}, [el('span', { text: t(lang, 'totalTipLabel') }), el('strong', { text: formatCentsNL(result.totalTipCents) })]),
+            el('div', { className: 'grand-row' }, [
+              el('span', { text: t(lang, 'totalWithTipLabel') }),
+              el('strong', { text: formatCentsNL(result.grandTotalCents) })
+            ])
+          ]
+        : [
+            el('div', { className: 'grand-row only' }, [
+              el('span', { text: t(lang, 'totalLabelShort') }),
+              el('strong', { text: formatCentsNL(result.grandTotalCents) })
+            ])
+          ]
+    )
   );
 
   // Deelknoppen (punt 6, v8): de uitslag als korte tekst via het deelmenu van het toestel,
@@ -1983,9 +2155,9 @@ function renderStep4(container) {
   resultShareRow.appendChild(
     el('button', {
       type: 'button',
-      className: 'btn btn-sm btn-secondary',
+      className: 'btn btn-primary btn-share-all',
       disabled: !result.canFinalize || !settlementText,
-      text: `\ud83d\udce4 ${t(lang, 'shareResult')}`,
+      text: t(lang, 'shareResult'),
       onClick: async () => {
         if (navigator.share) {
           try { await navigator.share({ title: t(lang, 'emailSubject'), text: settlementText }); } catch {}
@@ -2016,8 +2188,6 @@ function renderStep4(container) {
       })
     );
   }
-  container.appendChild(resultShareRow);
-  container.appendChild(resultShareFeedback);
 
   // Voortgang bovenaan de lijst: wie heeft al betaald en hoeveel staat nog open.
   {
@@ -2042,7 +2212,20 @@ function renderStep4(container) {
     );
   }
 
+  // v27: een gast betaalt niets; geen regel met vinkje in de betaallijst, maar één zin onder de lijst
+  const gastRegels = [];
   result.perPerson.forEach((row) => {
+    if (row.hosted) {
+      const summary = (result.hostedSummaries || []).find((h) => h.guestId === row.id);
+      const namen = summary && summary.shares.length > 0 ? summary.shares.map((sh) => sh.name) : [];
+      const lijst = namen.length > 1 ? `${namen.slice(0, -1).join(', ')} ${t(lang, 'andWord')} ${namen[namen.length - 1]}` : namen[0] || '';
+      gastRegels.push(
+        namen.length > 0
+          ? t(lang, 'guestCoveredLine', { name: row.name, amount: formatCentsNL(row.hostedAmountCents), names: lijst })
+          : t(lang, 'guestOpenLine', { name: row.name })
+      );
+      return;
+    }
     const participantObj = session.participants.find((p) => p.id === row.id);
     // Compacte regel (altijd zichtbaar): vinkje betaald, naam, bedrag, status en een knop
     // die de betaaldetails en deelknoppen opent. De details zelf zijn ongewijzigd.
@@ -2350,6 +2533,11 @@ function renderStep4(container) {
     container.appendChild(card);
   });
 
+  for (const zin of gastRegels) container.appendChild(el('p', { className: 'guest-line', text: zin }));
+  container.appendChild(resultShareRow);
+  container.appendChild(resultShareFeedback);
+  container.appendChild(settingsWrap);
+
   container.appendChild(
     el('div', { className: 'nav-row' }, [
       el('button', {
@@ -2357,10 +2545,15 @@ function renderStep4(container) {
         className: 'btn btn-secondary',
         text: `← ${t(lang, 'back')}`,
         onClick: () => mutate(() => { session.step = 3; })
-      }),
+      })
+    ])
+  );
+  // v27: "Nieuwe bon" los van de navigatie, zodat je hem niet raakt als je terug wilt
+  container.appendChild(
+    el('div', { className: 'new-receipt-row' }, [
       el('button', {
         type: 'button',
-        className: 'btn btn-danger-outline',
+        className: 'btn btn-sm btn-danger-outline',
         text: t(lang, 'newReceiptBtn'),
         onClick: () => {
           if (window.confirm(t(lang, 'newReceiptConfirm'))) {
@@ -2369,6 +2562,8 @@ function renderStep4(container) {
               currentPhotoObjectUrl = null;
             }
             clearReceiptPhoto();
+            step4SettingsOpenPref = null;
+            lastEditedSplitId = null;
             mutate(() => { session = createEmptySession(); });
           }
         }

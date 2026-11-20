@@ -31,9 +31,10 @@ import {
   classifyReceiptLine,
   validateReceiptTotal,
   calculateSettlement,
-  buildSettlementShareText
+  buildSettlementShareText,
+  roundAmountSuggestions
 } from '../js/calculator.js';
-import { LOCAL_OCR_MODELS, CACHE_NAME, APP_VERSION } from '../js/assets-manifest.js';
+import { LOCAL_OCR_MODELS, CACHE_NAME, APP_VERSION, APP_SHELL_URLS } from '../js/assets-manifest.js';
 import {
   isItemExpanded,
   toggleItemExpanded,
@@ -100,11 +101,27 @@ function assertThrows(fn, msg = '') {
   if (!threw) throw new Error(msg || 'Verwachtte een foutmelding, maar er werd geen fout gegooid');
 }
 
+// v27: tests met `async () =>` in runAllTests gaven een promise terug waar niemand op wachtte,
+// zodat een mislukte controle nooit als FAIL telde. Zulke promises worden nu verzameld en
+// runAsyncTests wacht er eerst op; de uitslag wordt in hetzelfde resultaatobject bijgewerkt.
+const syncPending = [];
+
 export function runAllTests() {
   const results = [];
   function test(name, fn) {
     try {
-      fn();
+      const r = fn();
+      if (r && typeof r.then === 'function') {
+        const entry = { name, passed: true };
+        results.push(entry);
+        syncPending.push(
+          r.catch((err) => {
+            entry.passed = false;
+            entry.error = err.message;
+          })
+        );
+        return;
+      }
       results.push({ name, passed: true });
     } catch (err) {
       results.push({ name, passed: false, error: err.message });
@@ -1801,6 +1818,55 @@ PIN 43,00`);
     clearSavedNames();
   });
 
+  test('V27.2 rond bedrag: drie voorstellen boven de bon, op hele euro, vijftal of tiental', () => {
+    assertEqual(roundAmountSuggestions(5725).join(','), '6000,6500,7000', '€ 57,25 -> 60, 65, 70');
+    assertEqual(roundAmountSuggestions(13000).join(','), '14000,15000,16000', '€ 130,00 -> 140, 150, 160');
+    assertEqual(roundAmountSuggestions(1650).join(','), '1700,1800,1900', '€ 16,50 -> 17, 18, 19');
+    assertEqual(roundAmountSuggestions(6000)[0], 6500, 'precies rond: volgende stap, nooit gelijk aan de bon');
+    assertEqual(roundAmountSuggestions(0).length, 0, 'geen voorstellen zonder bedrag');
+    for (const b of [1, 999, 1999, 2000, 9999, 10000, 25555]) {
+      for (const c of roundAmountSuggestions(b)) assertTrue(c > b, `voorstel ${c} ligt boven ${b}`);
+    }
+  });
+
+  test('V27.3 praktischer: uitslag vóór instellingen, gasten zonder vinkje, Niemand weg, nette scanfout', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const step4 = app.slice(app.indexOf('function renderStep4'), app.indexOf('// INSTELLINGEN & PRIVACY MODAL'));
+    assertTrue(step4.indexOf('container.appendChild(settingsWrap)') > step4.indexOf('result.perPerson.forEach'), 'instellingenblok staat na de lijst met personen');
+    assertTrue(!step4.includes('container.appendChild(tipCard)') && !step4.includes('container.appendChild(payerCard)'), 'fooi en betaler niet meer los bovenaan');
+    assertTrue(step4.includes('if (row.hosted) {') && step4.includes('gastRegels.push('), 'gast wordt een zin, geen regel met vinkje');
+    const step3 = app.slice(app.indexOf('function renderStep3'), app.indexOf('function buildShareMessage'));
+    assertTrue(!step3.includes("t(lang, 'nobody')"), 'geen Niemand-knop meer');
+    assertTrue(step3.includes('is-collapsed') && step3.includes('lastEditedSplitId !== item.id'), 'afgeronde regels klappen in, behalve de net aangetikte');
+    assertTrue(app.includes("t(lang, 'scanFailedTitle')") && app.includes("t(lang, 'moreInfo')"), 'scanfout: gewone kop + Meer info');
+    assertTrue(app.includes('bonLijktAnderstalig'), 'vertaalknop alleen bij een anderstalige bon');
+    for (const lang of ['nl', 'en']) {
+      for (const k of ['scanFailedTitle', 'scanFailedHelp', 'moreInfo', 'step4SettingsTitle', 'splitProgress', 'splitAllDone', 'guestCoveredLine', 'totalLabelShort', 'step1Intro', 'translateLinesBtn']) {
+        assertTrue(typeof STRINGS[lang][k] === 'string' && STRINGS[lang][k].length > 0, `tekst ${lang}.${k}`);
+      }
+    }
+  });
+
+  test('V27.1 offline: elke module die app.js (in)direct importeert staat in de app-shell', async () => {
+    const fs = await import('node:fs');
+    const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+    const seen = new Set();
+    const queue = ['app.js'];
+    while (queue.length) {
+      const f = queue.shift();
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const src = fs.readFileSync(new URL(`../js/${f}`, import.meta.url), 'utf8');
+      // alleen statische imports; dynamische import() wordt pas bij gebruik geladen
+      for (const m of src.matchAll(/^import[^;]*?from\s+'\.\/([\w-]+\.js)'/gms)) queue.push(m[1]);
+    }
+    for (const f of seen) {
+      assertTrue(sw.includes(`'./js/${f}'`), `sw cachet ./js/${f} (anders lege app offline)`);
+      assertTrue(APP_SHELL_URLS.includes(`./js/${f}`), `manifest noemt ./js/${f}`);
+    }
+  });
+
   test('V26.1 stijlen: standaard is de huidige stijl, keuze wordt onthouden', () => {
     assertEqual(DEFAULT_SETTINGS.stijl, 'standaard', 'standaardstijl');
     const s = loadSettings();
@@ -1862,7 +1928,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v26', 'manifest-cache is actueel (v26)');
+    assertEqual(CACHE_NAME, 'bonnetje-v27', 'manifest-cache is actueel (v27)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1874,7 +1940,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '26', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '27', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
@@ -1962,6 +2028,7 @@ PIN 43,00`);
 
 export async function runAsyncTests() {
   const results = [];
+  await Promise.all(syncPending.splice(0));
   async function testAsync(name, fn) {
     try {
       await fn();

@@ -970,8 +970,10 @@ select {
   font-size: 0.95rem;
 }
 .app-footer .support-link {
-  color: var(--accent, #0b5ed7);
-  text-decoration: none;
+  /* v27: rustig, in de kleuren van de app (was fel blauw) */
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .app-footer .support-link:hover,
 .app-footer .support-link:focus-visible {
@@ -1060,3 +1062,78 @@ select {
   html.large-text .step-pill:not(.active) .step-label { visibility: hidden; }
   html.large-text .step-pill.active .step-label { overflow: visible; }
 }
+
+/* v27: scanfout in gewone taal; techniek achter "Meer info" */
+.scan-error p { margin: 0 0 0.4rem; }
+.scan-error .scan-error-title { font-weight: 700; }
+.scan-error .action-row { margin: 0.5rem 0 0.25rem; }
+.scan-error-details { margin-top: 0.4rem; font-size: 0.88rem; }
+.scan-error-details summary { cursor: pointer; min-height: var(--tap-min); display: flex; align-items: center; }
+
+/* v27: stap 4 — uitslag eerst; instellingen in één uitklapblok eronder */
+.total-check-card .grand-row.only { border-top: 0; margin-top: 0; padding-top: 0; }
+.btn-share-all { width: 100%; min-height: 52px; font-size: 1.05rem; }
+.guest-line { margin: 0 0 0.75rem; padding: 0 0.25rem; color: var(--text-muted); font-size: 0.95rem; }
+.step4-settings { margin: 1rem 0 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.step4-settings > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: var(--tap-min);
+  padding: 0.75rem 2.4rem 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.step4-settings > summary::-webkit-details-marker { display: none; }
+.step4-settings > summary::after {
+  content: '';
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+}
+.step4-settings[open] > summary::after { transform: translateY(-30%) rotate(-135deg); }
+.step4-settings-title { font-weight: 700; }
+.step4-settings-sum { font-size: 0.88rem; color: var(--text-muted); }
+.step4-settings > .card { margin: 0 0.6rem 0.6rem; }
+.new-receipt-row { display: flex; justify-content: center; margin: 2.25rem 0 0.5rem; }
+
+/* v27: stap 3 — voortgang en ingeklapte (volledig verdeelde) regels */
+.split-progress {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border: 1px solid var(--warn-border);
+  font-size: 0.95rem;
+}
+.split-progress.all-done { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-border); }
+.split-card.is-collapsed { padding: 0; }
+.split-collapsed {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.split-collapsed-main { display: flex; flex-direction: column; min-width: 0; }
+.split-collapsed-names { font-size: 0.88rem; color: var(--ok-text); overflow-wrap: anywhere; }
+.split-collapsed .split-price { white-space: nowrap; }
+.round-quick { margin: 0.25rem 0 0.6rem; }
+/* v27: binnen <details> erft box-sizing niet door (de inhoud hangt aan een slot in de
+   shadow-DOM van de browser); zonder deze regel steekt een invulveld 100% + padding uit. */
+details *, details *::before, details *::after { box-sizing: border-box; }
