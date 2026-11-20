@@ -31,7 +31,8 @@ import {
   classifyReceiptLine,
   validateReceiptTotal,
   calculateSettlement,
-  buildSettlementShareText
+  buildSettlementShareText,
+  roundAmountSuggestions
 } from '../js/calculator.js';
 import { LOCAL_OCR_MODELS, CACHE_NAME, APP_VERSION, APP_SHELL_URLS } from '../js/assets-manifest.js';
 import {
@@ -1815,6 +1816,36 @@ PIN 43,00`);
     removeSavedName('onbekend');
     assertEqual(loadSavedNames().join('|'), 'Bram', 'onbekende naam verwijderen is onschadelijk');
     clearSavedNames();
+  });
+
+  test('V27.2 rond bedrag: drie voorstellen boven de bon, op hele euro, vijftal of tiental', () => {
+    assertEqual(roundAmountSuggestions(5725).join(','), '6000,6500,7000', '€ 57,25 -> 60, 65, 70');
+    assertEqual(roundAmountSuggestions(13000).join(','), '14000,15000,16000', '€ 130,00 -> 140, 150, 160');
+    assertEqual(roundAmountSuggestions(1650).join(','), '1700,1800,1900', '€ 16,50 -> 17, 18, 19');
+    assertEqual(roundAmountSuggestions(6000)[0], 6500, 'precies rond: volgende stap, nooit gelijk aan de bon');
+    assertEqual(roundAmountSuggestions(0).length, 0, 'geen voorstellen zonder bedrag');
+    for (const b of [1, 999, 1999, 2000, 9999, 10000, 25555]) {
+      for (const c of roundAmountSuggestions(b)) assertTrue(c > b, `voorstel ${c} ligt boven ${b}`);
+    }
+  });
+
+  test('V27.3 praktischer: uitslag vóór instellingen, gasten zonder vinkje, Niemand weg, nette scanfout', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const step4 = app.slice(app.indexOf('function renderStep4'), app.indexOf('// INSTELLINGEN & PRIVACY MODAL'));
+    assertTrue(step4.indexOf('container.appendChild(settingsWrap)') > step4.indexOf('result.perPerson.forEach'), 'instellingenblok staat na de lijst met personen');
+    assertTrue(!step4.includes('container.appendChild(tipCard)') && !step4.includes('container.appendChild(payerCard)'), 'fooi en betaler niet meer los bovenaan');
+    assertTrue(step4.includes('if (row.hosted) {') && step4.includes('gastRegels.push('), 'gast wordt een zin, geen regel met vinkje');
+    const step3 = app.slice(app.indexOf('function renderStep3'), app.indexOf('function buildShareMessage'));
+    assertTrue(!step3.includes("t(lang, 'nobody')"), 'geen Niemand-knop meer');
+    assertTrue(step3.includes('is-collapsed') && step3.includes('lastEditedSplitId !== item.id'), 'afgeronde regels klappen in, behalve de net aangetikte');
+    assertTrue(app.includes("t(lang, 'scanFailedTitle')") && app.includes("t(lang, 'moreInfo')"), 'scanfout: gewone kop + Meer info');
+    assertTrue(app.includes('bonLijktAnderstalig'), 'vertaalknop alleen bij een anderstalige bon');
+    for (const lang of ['nl', 'en']) {
+      for (const k of ['scanFailedTitle', 'scanFailedHelp', 'moreInfo', 'step4SettingsTitle', 'splitProgress', 'splitAllDone', 'guestCoveredLine', 'totalLabelShort', 'step1Intro', 'translateLinesBtn']) {
+        assertTrue(typeof STRINGS[lang][k] === 'string' && STRINGS[lang][k].length > 0, `tekst ${lang}.${k}`);
+      }
+    }
   });
 
   test('V27.1 offline: elke module die app.js (in)direct importeert staat in de app-shell', async () => {

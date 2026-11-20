@@ -10,7 +10,8 @@ import {
   validateReceiptTotal,
   calculateSettlement,
   buildSettlementShareText,
-  payerOutstandingCents
+  payerOutstandingCents,
+  roundAmountSuggestions
 } from './calculator.js';
 import { t, STRINGS } from './i18n.js';
 import { shortDisplayNames } from './names.js';
@@ -649,7 +650,7 @@ function renderStep1(container) {
   container.appendChild(
     el('p', {
       className: 'help-text',
-      text: 'Maak een foto van de bon of kies een foto of PDF met de knop hieronder (de camera zit in dezelfde kiezer), plak tekst via iPhone Live Text, of typ de regels handmatig in. Controleer herkende bedragen altijd zelf.'
+      text: t(lang, 'step1Intro')
     })
   );
 
@@ -769,8 +770,17 @@ function renderStep1(container) {
 
   container.appendChild(el('div', { id: 'scan-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' }));
 
-  // Vertaalknop naar het Nederlands (kerneis, bewuste actie, alleen tekstregels)
-  if (session.items.length > 0) {
+  // Vertaalknop naar het Nederlands (kerneis, bewuste actie, alleen tekstregels).
+  // v27: alleen als de bon (waarschijnlijk) niet in het Nederlands is: de scan meldt de taal,
+  // en bij plakken/pdf (taal onbekend) kijken we of het ingebouwde woordenboek iets herkent.
+  const bonLijktAnderstalig =
+    session.receiptLanguage
+      ? !/^nl/i.test(session.receiptLanguage)
+      : session.items.some((it) => {
+          const tr = translateOffline(it.originalDescription || it.description, customDict);
+          return tr.translated && tr.text.toLowerCase() !== String(it.description || '').toLowerCase();
+        });
+  if (session.items.length > 0 && bonLijktAnderstalig) {
     const transBox = el('div', { className: 'action-row' });
     const transFeedback = el('div', { id: 'translate-status', className: 'status-box info', hidden: true, 'aria-live': 'polite' });
     transBox.appendChild(
@@ -778,7 +788,7 @@ function renderStep1(container) {
         type: 'button',
         className: 'btn btn-secondary btn-sm',
         disabled: !isOnlineAiUsable(settings),
-        text: '🌐 Vertaal regels naar Nederlands (alleen tekst via Gemini)',
+        text: t(lang, 'translateLinesBtn'),
         onClick: async () => {
           transFeedback.hidden = false;
           transFeedback.className = 'status-box info';
@@ -1930,9 +1940,21 @@ function renderStep4(container) {
   const isGastVoorBlok = (pid) => Boolean(session.hosted && session.hosted[pid] && session.hosted[pid].enabled);
   const heeftGast = session.participants.some((p) => isGastVoorBlok(p.id));
   const heeftBetaler = Boolean(session.paidById && session.participants.some((p) => p.id === session.paidById && !isGastVoorBlok(p.id)));
-  const ietsIngesteld = session.tipMode !== 'none' || heeftBetaler || heeftGast;
+  // Automatisch open alleen als er iets ingevuld moet worden (geen rond bedrag gekozen,
+  // fooifout, of een gast zonder overnemers); anders dicht met een samenvatting in de kop.
+  const gastZonderOvername = session.participants.some(
+    (p) => {
+      if (!isGastVoorBlok(p.id)) return false;
+      const h = (result.hostedSummaries || []).find((x) => x.guestId === p.id);
+      return !h || (h.amountCents > 0 && h.shares.length === 0);
+    }
+  );
+  const aandachtNodig =
+    (session.tipMode === 'target_total' && !Number.isInteger(session.targetTotalCents)) ||
+    Boolean(result.tipError) ||
+    gastZonderOvername;
   const settingsWrap = el('details', { className: 'step4-settings' });
-  settingsWrap.open = step4SettingsOpenPref ?? ietsIngesteld;
+  settingsWrap.open = aandachtNodig || (step4SettingsOpenPref ?? false);
   settingsWrap.addEventListener('toggle', () => { step4SettingsOpenPref = settingsWrap.open; });
   const samenvatting = [
     session.tipMode === 'none' ? t(lang, 'tipNone') : session.tipMode === 'per_person' ? t(lang, 'tipPerPerson') : t(lang, 'tipTargetShort'),
@@ -1974,7 +1996,9 @@ function renderStep4(container) {
       type: 'text',
       inputmode: 'decimal',
       id: 'target-total-input',
-      placeholder: t(lang, 'targetTotalPlaceholder'),
+      placeholder: roundAmountSuggestions(result.billTotalCents)[0]
+        ? `${t(lang, 'examplePrefix')} ${(roundAmountSuggestions(result.billTotalCents)[0] / 100).toFixed(2).replace('.', ',')}`
+        : t(lang, 'targetTotalPlaceholder'),
       value:
         Number.isInteger(session.targetTotalCents)
           ? (session.targetTotalCents / 100).toFixed(2).replace('.', ',')
@@ -1986,6 +2010,21 @@ function renderStep4(container) {
         session.targetTotalCents = raw === '' ? null : parseEuroToCents(raw);
       });
     });
+    // v27: snelknoppen voor een rond bedrag net boven de bon (± 5, 10 en 15% hoger)
+    const quickRow = el('div', { className: 'chip-wrap round-quick' });
+    for (const cents of roundAmountSuggestions(result.billTotalCents)) {
+      const active = session.targetTotalCents === cents;
+      quickRow.appendChild(
+        el('button', {
+          type: 'button',
+          className: `chip-btn ${active ? 'active' : ''}`,
+          'aria-pressed': String(active),
+          text: formatCentsNL(cents),
+          onClick: () => mutate(() => { session.targetTotalCents = cents; })
+        })
+      );
+    }
+    tipCard.appendChild(quickRow);
     tipCard.appendChild(
       el('label', { for: 'target-total-input', className: 'field-wrap' }, [
         el('span', { text: t(lang, 'targetTotalLabel') }),
@@ -2525,6 +2564,8 @@ function renderStep4(container) {
               currentPhotoObjectUrl = null;
             }
             clearReceiptPhoto();
+            step4SettingsOpenPref = null;
+            lastEditedSplitId = null;
             mutate(() => { session = createEmptySession(); });
           }
         }

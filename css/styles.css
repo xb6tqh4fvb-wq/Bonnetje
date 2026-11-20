@@ -970,8 +970,10 @@ select {
   font-size: 0.95rem;
 }
 .app-footer .support-link {
-  color: var(--accent, #0b5ed7);
-  text-decoration: none;
+  /* v27: rustig, in de kleuren van de app (was fel blauw) */
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .app-footer .support-link:hover,
 .app-footer .support-link:focus-visible {
@@ -1131,3 +1133,7 @@ select {
 .split-collapsed-main { display: flex; flex-direction: column; min-width: 0; }
 .split-collapsed-names { font-size: 0.88rem; color: var(--ok-text); overflow-wrap: anywhere; }
 .split-collapsed .split-price { white-space: nowrap; }
+.round-quick { margin: 0.25rem 0 0.6rem; }
+/* v27: binnen <details> erft box-sizing niet door (de inhoud hangt aan een slot in de
+   shadow-DOM van de browser); zonder deze regel steekt een invulveld 100% + padding uit. */
+details *, details *::before, details *::after { box-sizing: border-box; }

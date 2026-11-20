@@ -726,3 +726,15 @@ export function payerOutstandingCents(perPerson, participants, paidById) {
   }
   return sum;
 }
+
+/**
+ * v27: drie ronde bedragen boven het bontotaal ("maak er maar 60 van"): de eerstvolgende
+ * hele euro onder € 20, vijftal tot € 100, tiental daarboven, plus de twee stappen daarna.
+ * Alleen voorstellen: een vrij bedrag blijft mogelijk.
+ */
+export function roundAmountSuggestions(billCents) {
+  if (!Number.isInteger(billCents) || billCents <= 0) return [];
+  const step = billCents < 2000 ? 100 : billCents < 10000 ? 500 : 1000;
+  const first = (Math.floor(billCents / step) + 1) * step;
+  return [first, first + step, first + 2 * step];
+}

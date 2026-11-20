@@ -130,6 +130,9 @@ export const STRINGS = {
     shareEmail: 'E-mail',
     shareOther: 'Deel (o.a. Signal)',
     shareResult: 'Deel de uitslag met de groep',
+    step1Intro: 'Maak een foto van de bon, kies een pdf of plak de tekst. Controleer daarna de bedragen.',
+    translateLinesBtn: 'Vertaal de regels naar het Nederlands',
+    examplePrefix: 'bijv.',
     totalLabelShort: 'Totaal',
     totalWithTipLabel: 'Totaal met fooi',
     step4SettingsTitle: 'Fooi, gast of één betaalt',
@@ -189,7 +192,7 @@ export const STRINGS = {
     // v13: deelnemer betaalt niet mee (te gast, jarig, ...)
     guestToggle: 'Gast',
     guestHelp:
-      'Een gast betaalt niet mee: zijn hele deel (eigen regels, fooi en extra\'s) wordt verdeeld over de rest. Wie er precies voor betaalt kies je in stap 4.',
+      'Een gast betaalt niet mee; zijn deel wordt verdeeld over de rest. Wie precies, kies je in stap 4.',
     hostedCardTitle: '{name} betaalt niet mee',
     hostedShareOf: 'Het deel van {name}: {amount}',
     hostedCarriersLabel: 'Wie nemen dit over?',
@@ -337,6 +340,9 @@ export const STRINGS = {
     shareEmail: 'Email',
     shareOther: 'Share (incl. Signal)',
     shareResult: 'Share the result with the group',
+    step1Intro: 'Take a photo of the receipt, pick a PDF or paste the text. Then check the amounts.',
+    translateLinesBtn: 'Translate the lines into Dutch',
+    examplePrefix: 'e.g.',
     totalLabelShort: 'Total',
     totalWithTipLabel: 'Total with tip',
     step4SettingsTitle: 'Tip, guest or one person pays',
