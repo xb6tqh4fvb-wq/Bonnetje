@@ -248,14 +248,17 @@ function renderHeader() {
   }
   $('#app-tagline').textContent = t(lang, 'tagline');
 
+  // Compacte kop: korte tekst + lijnpictogram; de volledige naam staat in aria-label en title.
   const undoBtn = $('#btn-undo');
-  undoBtn.textContent = `↩ ${t(lang, 'undo')}`;
+  undoBtn.innerHTML = `${ICON_UNDO}<span>${t(lang, 'undoShort')}</span>`;
   undoBtn.disabled = !undoManager.canUndo();
   undoBtn.setAttribute('aria-label', t(lang, 'undo'));
+  undoBtn.title = t(lang, 'undo');
 
   const settingsBtn = $('#btn-settings');
-  settingsBtn.textContent = `⚙ ${t(lang, 'settings')}`;
+  settingsBtn.innerHTML = ICON_SETTINGS;
   settingsBtn.setAttribute('aria-label', t(lang, 'settings'));
+  settingsBtn.title = t(lang, 'settings');
 
   const stepper = $('#stepper');
   stepper.innerHTML = '';
@@ -263,13 +266,14 @@ function renderHeader() {
   stepNames.forEach((label, idx) => {
     const stepNum = idx + 1;
     const isCurrent = session.step === stepNum;
+    const isDone = stepNum < session.step;
     const allowed = canNavigateToStep(stepNum);
     const btn = el('button', {
       type: 'button',
-      className: `step-pill ${isCurrent ? 'active' : ''}`,
+      className: `step-pill ${isCurrent ? 'active' : ''} ${isDone ? 'done' : ''}`,
       disabled: !allowed,
       'aria-current': isCurrent ? 'step' : null,
-      text: label,
+      'aria-label': label,
       onClick: () => {
         if (session.step !== stepNum && canNavigateToStep(stepNum)) {
           mutate(() => {
@@ -278,9 +282,18 @@ function renderHeader() {
         }
       }
     });
+    // Bolletje met nummer (of vinkje als de stap achter je ligt) en een kort woord eronder.
+    btn.appendChild(el('span', { className: 'step-dot', 'aria-hidden': 'true', text: isDone ? '✓' : String(stepNum) }));
+    btn.appendChild(el('span', { className: 'step-label', 'aria-hidden': 'true', text: label.replace(/^\d+\.\s*/, '') }));
     stepper.appendChild(btn);
   });
 }
+
+// Lijnpictogrammen voor de kop (stroke = currentColor, dus licht/donker/hoog contrast werken vanzelf).
+const ICON_UNDO =
+  '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
+const ICON_SETTINGS =
+  '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
 // ============================================================
 // STAP 1: BON (GEMINI / PDF / PLAKVAK / HANDMATIG)
@@ -1771,6 +1784,9 @@ function renderHostedCard(container, guest, result) {
   container.appendChild(card);
 }
 
+// Welke personen in stap 4 opengeklapt staan (alleen weergave; geen undo-stap, niet bewaard).
+const openPersonDetails = new Set();
+
 function renderStep4(container) {
   const lang = settings.lang;
   const result = calculateSettlement(session);
@@ -1999,18 +2015,41 @@ function renderStep4(container) {
   container.appendChild(resultShareRow);
   container.appendChild(resultShareFeedback);
 
-  result.perPerson.forEach((row) => {
-    const participantObj = session.participants.find((p) => p.id === row.id);
-    const card = el('article', { className: `person-summary-card ${row.settled ? 'is-settled' : ''}` });
-
-    card.appendChild(
-      el('div', { className: 'person-head' }, [
-        el('h3', { text: row.name }),
-        el('strong', { className: 'person-total', text: formatCentsNL(row.totalCents) })
+  // Voortgang bovenaan de lijst: wie heeft al betaald en hoeveel staat nog open.
+  {
+    const payers = result.perPerson.filter((r) => r.totalCents > 0);
+    const paidCount = payers.filter((r) => r.settled).length;
+    const openCents = payers.filter((r) => !r.settled).reduce((sum, r) => sum + r.totalCents, 0);
+    const pct = payers.length ? Math.round((100 * paidCount) / payers.length) : 0;
+    const bar = el('div', { className: 'pay-progress-bar' }, [el('span', { style: `width:${pct}%` })]);
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', String(payers.length));
+    bar.setAttribute('aria-valuenow', String(paidCount));
+    bar.setAttribute('aria-label', t(lang, 'paidProgress', { paid: paidCount, total: payers.length }));
+    container.appendChild(
+      el('div', { className: `pay-progress ${payers.length && paidCount === payers.length ? 'all-paid' : ''}` }, [
+        el('div', { className: 'pay-progress-text' }, [
+          el('strong', { text: t(lang, 'paidProgress', { paid: paidCount, total: payers.length }) }),
+          el('span', { text: openCents > 0 ? t(lang, 'openAmount', { amount: formatCentsNL(openCents) }) : t(lang, 'allPaid') })
+        ]),
+        bar
       ])
     );
+  }
 
-    card.appendChild(
+  result.perPerson.forEach((row) => {
+    const participantObj = session.participants.find((p) => p.id === row.id);
+    // Compacte regel (altijd zichtbaar): vinkje betaald, naam, bedrag, status en een knop
+    // die de betaaldetails en deelknoppen opent. De details zelf zijn ongewijzigd.
+    const card = el('article', { className: `person-summary-card ${row.settled ? 'is-settled' : ''}` });
+    const detailsId = `person-details-${row.id}`;
+    const isOpen = openPersonDetails.has(row.id);
+    const details = el('div', { className: 'person-details', id: detailsId });
+    details.hidden = !isOpen;
+    const statusEl = el('span', { className: 'person-status' });
+
+    details.appendChild(
       el('div', { className: 'person-breakdown' }, [
         el('span', { text: `${t(lang, 'subtotalLabel')}: ${formatCentsNL(row.subtotalCents)}` }),
         el('span', { text: `${t(lang, 'tipLabel')}: ${formatCentsNL(row.tipCents)}` }),
@@ -2043,7 +2082,7 @@ function renderStep4(container) {
           })
         );
       }
-      card.appendChild(covered);
+      details.appendChild(covered);
     }
 
     // v13: drager ziet wat hij/zij voor gasten heeft overgenomen (incl. restcenten)
@@ -2058,7 +2097,7 @@ function renderStep4(container) {
           })
         );
       }
-      card.appendChild(carried);
+      details.appendChild(carried);
     }
 
     if (session.tipMode === 'per_person') {
@@ -2078,7 +2117,7 @@ function renderStep4(container) {
           mutate(() => { session.tipPerPersonCents[row.id] = c; });
         }
       });
-      card.appendChild(
+      details.appendChild(
         el('label', { className: 'field-wrap inline-field' }, [
           el('span', { text: `${t(lang, 'tipLabel')} (€)` }),
           tipInput
@@ -2090,7 +2129,7 @@ function renderStep4(container) {
     // de rest rekent af met de voorschietter. Contantveld en fooi/retour-keuze
     // vallen weg; in de plaats komt één duidelijke regel.
     if (payer && row.id !== payer.id && !row.hosted) {
-      card.appendChild(
+      details.appendChild(
         el('div', {
           className: 'change-info ok pay-to-info',
           text: t(lang, 'payToLine', { name: payer.name, amount: formatCentsNL(row.totalCents) })
@@ -2098,7 +2137,7 @@ function renderStep4(container) {
       );
     }
     if (payer && row.id === payer.id) {
-      card.appendChild(
+      details.appendChild(
         el('div', {
           className: 'change-info ok pay-to-info',
           text: t(lang, 'payerOwed', { amount: formatCentsNL(payerOutstandingCents(result.perPerson, session.participants, payer.id)) })
@@ -2131,7 +2170,7 @@ function renderStep4(container) {
       });
     });
     if (!payer) {
-      card.appendChild(
+      details.appendChild(
         el('label', { className: 'field-wrap inline-field' }, [
           el('span', { text: t(lang, 'cashPaidLabel') }),
           cashInput
@@ -2145,7 +2184,7 @@ function renderStep4(container) {
     const meerdere = row.changeCents !== null && row.changeCents > 0 ? row.changeCents : (row.excessTipCents || 0);
     if (!payer && !row.hosted && meerdere > 0) {
       const alsFooi = Boolean(participantObj.excessAsTip);
-      card.appendChild(
+      details.appendChild(
         el('div', { className: 'excess-choice' }, [
           el('span', { className: 'qty-label', text: t(lang, 'excessQuestion', { amount: formatCentsNL(meerdere) }) }),
           el('button', {
@@ -2181,29 +2220,12 @@ function renderStep4(container) {
         changeText = t(lang, 'changeExact');
         changeCls = 'change-info ok';
       }
-      card.appendChild(el('div', { className: changeCls, text: changeText }));
+      details.appendChild(el('div', { className: changeCls, text: changeText }));
     }
 
-    const paidBox = el('input', {
-      type: 'checkbox',
-      id: `paid-${row.id}`,
-      checked: Boolean(participantObj.settled)
-    });
-    paidBox.addEventListener('change', (e) => {
-      mutate(() => { participantObj.settled = e.target.checked; });
-    });
-    const paidLabel = payer && row.id !== payer.id && !row.hosted
-      ? t(lang, 'settledWith', { name: payer.name })
-      : t(lang, 'paidToggle');
-    card.appendChild(
-      el('label', { for: `paid-${row.id}`, className: 'checkbox-row' }, [
-        paidBox,
-        el('span', { text: paidLabel })
-      ])
-    );
 
     const msg = buildShareMessage(row);
-    card.appendChild(el('p', { className: 'share-preview', text: `Voorbeeldbericht: "${msg}"` }));
+    details.appendChild(el('p', { className: 'share-preview', text: `Voorbeeldbericht: "${msg}"` }));
 
     const shareRow = el('div', { className: 'share-row' });
     const waLink = `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -2266,8 +2288,61 @@ function renderStep4(container) {
       })
     );
 
-    card.appendChild(shareRow);
-    card.appendChild(shareFeedback);
+    details.appendChild(shareRow);
+    details.appendChild(shareFeedback);
+
+    // Statusregel onder de naam: dezelfde gegevens als in de details, kort samengevat.
+    let statusText;
+    if (row.hosted) statusText = t(lang, 'statusGuest');
+    else if (payer && row.id === payer.id) statusText = t(lang, 'statusPayer');
+    else if (payer) statusText = t(lang, 'settledWith', { name: payer.name });
+    else if (row.changeCents !== null) {
+      const cash = `${t(lang, 'statusCash')} ${formatCentsNL(participantObj.paidCashCents)}`;
+      if (row.excessTipCents > 0) statusText = `${cash} · ${t(lang, 'statusTip')} ${formatCentsNL(row.excessTipCents)}`;
+      else if (row.changeCents > 0) statusText = `${cash} · ${t(lang, 'statusChange')} ${formatCentsNL(row.changeCents)}`;
+      else if (row.changeCents < 0) statusText = `${cash} · ${t(lang, 'statusShort')} ${formatCentsNL(Math.abs(row.changeCents))}`;
+      else statusText = `${cash} · ${t(lang, 'statusExact')}`;
+    } else statusText = row.settled ? t(lang, 'paidToggle') : t(lang, 'statusOpen');
+    statusEl.textContent = statusText.replace(/€ /g, '€\u00A0'); // bedrag nooit over twee regels
+    if (row.changeCents !== null && row.changeCents < 0 && !payer) statusEl.classList.add('is-short');
+
+    const paidBox = el('input', {
+      type: 'checkbox',
+      id: `paid-${row.id}`,
+      checked: Boolean(participantObj.settled),
+      'aria-label': `${row.name}: ${payer && row.id !== payer.id && !row.hosted ? t(lang, 'settledWith', { name: payer.name }) : t(lang, 'paidToggle')}`
+    });
+    paidBox.addEventListener('change', (e) => {
+      mutate(() => { participantObj.settled = e.target.checked; });
+    });
+
+    const toggleBtn = el('button', {
+      type: 'button',
+      className: 'person-toggle',
+      'aria-expanded': String(isOpen),
+      'aria-controls': detailsId,
+      'aria-label': `${row.name}: ${t(lang, 'detailsToggle')}`,
+      onClick: () => {
+        const open = details.hidden;
+        details.hidden = !open;
+        toggleBtn.setAttribute('aria-expanded', String(open));
+        if (open) openPersonDetails.add(row.id);
+        else openPersonDetails.delete(row.id);
+      }
+    }, [el('span', { className: 'chevron', 'aria-hidden': 'true' })]);
+
+    card.appendChild(
+      el('div', { className: 'person-row' }, [
+        el('label', { className: 'person-check', for: `paid-${row.id}` }, [paidBox]),
+        el('div', { className: 'person-main' }, [
+          el('label', { className: 'person-name', for: `paid-${row.id}`, text: row.name }),
+          statusEl
+        ]),
+        el('strong', { className: 'person-total', text: formatCentsNL(row.totalCents) }),
+        toggleBtn
+      ])
+    );
+    card.appendChild(details);
     container.appendChild(card);
   });
 
