@@ -9,11 +9,12 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 
 ## Wijzigingen in v25 (verzoek Henk: "Betaald door" — één deelnemer schiet de hele bon voor)
 
-Regressietests: 116/116 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de betaald-door-flow).
+Regressietests: 118/118 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de betaald-door-flow).
 
 - **Stap 4, nieuwe keuze "Wie betaalt de bon?":** standaard "Iedereen zelf" (werking zoals altijd). Kies je een deelnemer, dan betaalde die de hele bon bij het restaurant en rekent de rest met hem/haar af. Een gast kan geen voorschietter zijn (verschijnt niet in de keuze; wordt de betaler later gast of verwijderd, dan springt de keuze terug naar "Iedereen zelf").
 - **In die stand:** de contantvelden en de fooi/retour-keuze vallen weg (er is geen contante afrekening in de app). Elke andere deelnemer ziet "Aan X betalen: € …" met het vinkje "Afgerekend met X"; de betaler ziet "Nog tegoed van de rest: € …" dat daalt zodra iemand afvinkt. De deeltekst krijgt de regel "Betalen aan X." erbij. Geen IBAN, geen betaallinks.
 - **Rekenkern ongewijzigd:** `paidById` is alleen presentatie; V25.1 bewijst dat de uitslag met en zonder keuze identiek is (ook met gast + meerdere-fooi) en test de tegoed-helper. Cent-invariant onaangetast.
+- **Review-ronde:** een eerder ingevuld contant bedrag of Fooi-keuze (v24) telde onzichtbaar mee als je daarna een betaler koos — de velden verdwenen uit beeld maar de waarden bleven in de kern werken (Bram deel 18, contant 50 + Fooi -> "Aan Anna betalen: 50,00" i.p.v. 18,00). Nu ruimt het kiezen van een betaler `paidCashCents` en `excessAsTip` van iedereen op; terug naar "Iedereen zelf" begint leeg. Tests V25.3 (het reviewer-scenario) en V25.4 (rekenproef: 3000 willekeurige bonnen met rommel, betaler kiezen = exact de schone basisuitslag) bewaken dit.
 - Ook meegenomen (review v24): bij fooimodus "rond bedrag" met daarbovenop een meerdere-fooi staat er nu de neutrale tekst "Totale fooi van …" in plaats van "eerlijk verdeeld".
 - Techniek: cache `bonnetje-v25`. Tests V25.1 (kern + helper) en V25.2 (bronchecks).
 

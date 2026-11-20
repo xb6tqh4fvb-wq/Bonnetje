@@ -78,6 +78,8 @@ PASS: V24.1b reviewer-voorbeeld: drager met gast, fooi pas na overname
 PASS: V24.3 rekenproef: duizenden willekeurige bonnen met gasten, fooimodi en Retour/Fooi
 PASS: V24.2 keuze fooi/retour alleen bij een meerdere, schakelbaar
 PASS: V25.1 Betaald door: kern ongewijzigd, tegoed-helper klopt (ook met gast en fooi)
+PASS: V25.3 review: eerdere Fooi/contant telt niet onzichtbaar mee na keuze van een betaler
+PASS: V25.4 rekenproef: betaler kiezen na willekeurige Fooi/contant = schone basisuitslag
 PASS: V25.2 Betaald door in de UI: keuze, regels, deeltekst en resets (bron)
 PASS: V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan
 PASS: V20.2 bewaarde namen overleven een nieuwe bon (aparte sleutel)
@@ -115,4 +117,4 @@ PASS: V11.7 Privacytekst zegt eerlijk dat PDF.js bij eerste bezoek wordt geprefe
 PASS: V11.8a N6-meting: model + echte usageMetadata uit de respons worden vastgelegd
 PASS: V11.8b N6-meting: zonder usageMetadata komt er een duidelijk gelabelde schatting
 
-Resultaat: 116/116 geslaagd.
+Resultaat: 118/118 geslaagd.

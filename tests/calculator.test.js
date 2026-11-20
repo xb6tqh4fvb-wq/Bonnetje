@@ -1648,6 +1648,102 @@ PIN 43,00`);
     assertEqual(payerOutstandingCents(met.perPerson, state.participants, 'bram'), 0, 'afgerekend deelnemer valt uit het tegoed');
   });
 
+
+  test('V25.3 review: eerdere Fooi/contant telt niet onzichtbaar mee na keuze van een betaler', async () => {
+    const { payerOutstandingCents } = await import('../js/calculator.js');
+    // Reviewer-scenario: Bram deel 18,00, contant 50, Fooi (fooi 32,00)
+    const state = {
+      items: [
+        { id: '1', description: 'A', qty: 1, unitPriceCents: 1301, lineTotalCents: 1301, assignedTo: ['anna'] },
+        { id: '2', description: 'B', qty: 1, unitPriceCents: 1800, lineTotalCents: 1800, assignedTo: ['bram'] }
+      ],
+      receiptTotalCents: 3101,
+      participants: [
+        { id: 'anna', name: 'Anna' },
+        { id: 'bram', name: 'Bram', paidCashCents: 5000, excessAsTip: true }
+      ],
+      tipMode: 'none'
+    };
+    // Zo ziet de sessie eruit NADAT de UI bij het kiezen van betaler Anna heeft
+    // opgeruimd (app.js: paidCashCents=null, excessAsTip=false voor iedereen)
+    for (const p of state.participants) { p.paidCashCents = null; p.excessAsTip = false; }
+    state.paidById = 'anna';
+    const res = calculateSettlement(state);
+    const bram = res.perPerson.find((r) => r.id === 'bram');
+    assertEqual(bram.totalCents, 1800, 'Bram "Aan Anna betalen" is zijn deel, niet zijn oude contant');
+    assertEqual(bram.excessTipCents, 0, 'geen fooi meer uit de oude keuze');
+    assertEqual(res.totalTipCents, 0, 'totale fooi 0 na het kiezen van een betaler');
+    assertEqual(payerOutstandingCents(res.perPerson, state.participants, 'anna'), 1800, 'Anna heeft alleen Brams echte deel tegoed');
+    assertTrue(res.invariantExact && res.canFinalize, 'invariant houdt');
+  });
+
+  test('V25.4 rekenproef: betaler kiezen na willekeurige Fooi/contant = schone basisuitslag', async () => {
+    const { payerOutstandingCents } = await import('../js/calculator.js');
+    let seed = 20261120;
+    const rnd = () => {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let z = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      z = (z + Math.imul(z ^ (z >>> 7), 61 | z)) ^ z;
+      return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+    };
+    const randInt = (min, max) => min + Math.floor(rnd() * (max - min + 1));
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+    for (let iter = 0; iter < 3000; iter++) {
+      const nPers = randInt(2, 5);
+      const participants = [];
+      for (let i = 0; i < nPers; i++) participants.push({ id: `p${i}`, name: `P${i}` });
+      const items = [];
+      let bill = 0;
+      for (let i = 0, n = randInt(1, 6); i < n; i++) {
+        const price = randInt(150, 3000);
+        const shuffled = [...participants].sort(() => rnd() - 0.5);
+        items.push({ id: `i${i}`, description: `R${i}`, qty: 1, unitPriceCents: price, lineTotalCents: price, assignedTo: shuffled.slice(0, randInt(1, nPers)).map((p) => p.id) });
+        bill += price;
+      }
+      const hosted = {};
+      const gastIds = [...participants].sort(() => rnd() - 0.5).slice(0, randInt(0, Math.min(2, nPers - 1))).map((p) => p.id);
+      for (const gid of gastIds) hosted[gid] = { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} };
+      const tipMode = pick(['none', 'per_person', 'target_total']);
+      const state = {
+        items, receiptTotalCents: bill, participants: participants.map((p) => ({ ...p })),
+        tipMode, tipPerPersonCents: {}, hosted
+      };
+      if (tipMode === 'per_person') {
+        for (const p of state.participants) state.tipPerPersonCents[p.id] = rnd() < 0.5 ? randInt(0, 500) : 0;
+      } else if (tipMode === 'target_total') {
+        state.targetTotalCents = bill + randInt(0, 1000);
+      }
+      // eerst rommel: willekeurige contantbedragen en Fooi-keuzes (v24)
+      for (const p of state.participants) {
+        p.paidCashCents = randInt(0, 9000);
+        p.excessAsTip = rnd() < 0.5;
+        p.settled = rnd() < 0.3;
+      }
+      // UI kiest een betaler: opruimen zoals app.js dat doet
+      const nietGasten = state.participants.filter((p) => !hosted[p.id]);
+      const betaler = pick(nietGasten);
+      for (const p of state.participants) { p.paidCashCents = null; p.excessAsTip = false; }
+      state.paidById = betaler.id;
+      // vergelijk met de schone basis (nooit contant gehad)
+      const basis = calculateSettlement({
+        ...state,
+        participants: state.participants.map((p) => ({ ...p, settled: p.settled }))
+      });
+      const res = calculateSettlement(state);
+      assertTrue(res.invariantExact && res.canFinalize, `iter ${iter}: invariant met betaler`);
+      assertEqual(res.totalTipCents, basis.totalTipCents, `iter ${iter}: geen fooi uit oude keuzes`);
+      assertEqual(res.perPerson.map((r) => r.totalCents).join('|'), basis.perPerson.map((r) => r.totalCents).join('|'), `iter ${iter}: bedragen als zonder oude rommel`);
+      for (const r of res.perPerson) {
+        assertEqual(r.excessTipCents, 0, `iter ${iter}: geen meerdere-fooi meer`);
+        assertEqual(r.changeCents, null, `iter ${iter}: geen contant meer`);
+      }
+      const verwachtTegoed = res.perPerson
+        .filter((r) => r.id !== betaler.id && !r.hosted && !state.participants.find((p) => p.id === r.id).settled)
+        .reduce((s, r) => s + r.totalCents, 0);
+      assertEqual(payerOutstandingCents(res.perPerson, state.participants, betaler.id), verwachtTegoed, `iter ${iter}: tegoed klopt`);
+    }
+  });
+
   test('V25.2 Betaald door in de UI: keuze, regels, deeltekst en resets (bron)', async () => {
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
@@ -1656,6 +1752,7 @@ PIN 43,00`);
     assertTrue(app.includes('paidby-toggle'), 'keuzerij "Wie betaalt de bon?" in stap 4');
     assertTrue(app.includes('pay-to-info'), 'regel "Aan X betalen" / "Nog tegoed" in de kaart');
     assertTrue(app.includes("session.paidById === p.id) session.paidById = null"), 'verwijderen van de betaler zet de keuze terug');
+    assertTrue(app.includes('pp.paidCashCents = null;') && app.includes('pp.excessAsTip = false;'), 'kiezen van een betaler ruimt oude contant/Fooi op');
     assertTrue(app.includes('payerOutstandingCents'), 'tegoed via pure helper');
     assertTrue(storage.includes('paidById: null'), 'Nieuwe bon begint op "Iedereen zelf"');
     assertTrue(i18n.includes("paidBySelf: 'Iedereen zelf'") && i18n.includes("sharePayLine: 'Betalen aan {name}.'"), 'NL-teksten aanwezig');

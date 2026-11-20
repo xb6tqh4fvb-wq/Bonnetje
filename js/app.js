@@ -1920,7 +1920,19 @@ function renderStep4(container) {
         'aria-checked': String(active),
         className: `chip-btn paidby-toggle ${active ? 'active' : ''}`,
         text: `${active ? '✓ ' : ''}${label}`,
-        onClick: () => mutate(() => { session.paidById = pid; })
+        onClick: () => mutate(() => {
+          session.paidById = pid;
+          // v25 (review): een eerder ingevuld contant bedrag of Fooi-keuze (v24)
+          // mag niet onzichtbaar meetellen zodra iemand de bon voorschiet — de
+          // velden verdwijnen uit beeld, dus de waarden moeten ook echt weg.
+          // Terug naar "Iedereen zelf" begint daarom leeg.
+          if (pid !== null) {
+            for (const pp of session.participants) {
+              pp.paidCashCents = null;
+              pp.excessAsTip = false;
+            }
+          }
+        })
       })
     );
   });
