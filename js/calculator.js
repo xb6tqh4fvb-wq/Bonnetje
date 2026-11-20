@@ -710,3 +710,19 @@ export function buildSettlementShareText(result, totalWord = 'totaal') {
   parts.push(`${totalWord} ${formatCentsNL(result.grandTotalCents)}`);
   return parts.join(' \u00b7 ');
 }
+
+// v25 (verzoek Henk): "Betaald door". Eén deelnemer schiet de hele bon voor;
+// de rest rekent met hem/haar af. Dit is presentatie bovenop de verdeling: de
+// kern blijft exact hetzelfde. Deze helper telt wat de voorschietter nog
+// tegoed heeft: de eindbedragen van alle niet-gasten die nog niet met hem
+// afgerekend zijn (settled).
+export function payerOutstandingCents(perPerson, participants, paidById) {
+  let sum = 0;
+  for (const row of perPerson) {
+    if (row.id === paidById || row.hosted) continue;
+    const p = participants.find((pp) => pp.id === row.id);
+    if (p && p.settled) continue;
+    sum += row.totalCents;
+  }
+  return sum;
+}

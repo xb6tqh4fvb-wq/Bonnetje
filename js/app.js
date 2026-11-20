@@ -9,7 +9,8 @@ import {
   isLineActive,
   validateReceiptTotal,
   calculateSettlement,
-  buildSettlementShareText
+  buildSettlementShareText,
+  payerOutstandingCents
 } from './calculator.js';
 import { t, STRINGS } from './i18n.js';
 import { shortDisplayNames } from './names.js';
@@ -1301,7 +1302,11 @@ function renderStep2(container) {
             'aria-label': `${t(lang, 'guestToggle')} ${p.name}`,
             text: `${isGast ? '✓ ' : ''}${t(lang, 'guestToggle')}`,
             onClick: () =>
-              mutate(() => { getHostedRule(p.id).enabled = !isGast; })
+              mutate(() => {
+                getHostedRule(p.id).enabled = !isGast;
+                // v25: een gast kan geen voorschietter zijn
+                if (!isGast && session.paidById === p.id) session.paidById = null;
+              })
           }),
           el('button', {
             type: 'button',
@@ -1327,6 +1332,8 @@ function renderStep2(container) {
                   }
                 });
                 cleanupHostedForRemoved(p.id);
+                // v25: de voorschietter is weg, dus de betaald-door-keuze ook
+                if (session.paidById === p.id) session.paidById = null;
                 if (session.activeParticipantId === p.id) {
                   session.activeParticipantId = session.participants[0]?.id || null;
                 }
@@ -1611,12 +1618,18 @@ function buildShareMessage(personRow) {
     const names = personRow.carries.map((c) => c.guestName).join(' & ');
     carriedPart = t(lang, 'shareCarriedPart', { amount: formatCentsNL(carriedSum), names });
   }
-  return t(lang, 'shareMessageTemplate', {
+  const base = t(lang, 'shareMessageTemplate', {
     name: personRow.name,
     total: formatCentsNL(personRow.totalCents),
     subtotal: formatCentsNL(personRow.subtotalCents),
     tipPart: tipPart + receiptExtraPart + carriedPart
   });
+  // v25: bij "Betaald door" hoort in de deeltekst aan wie er betaald wordt
+  if (session.paidById && personRow.id !== session.paidById) {
+    const payerObj = session.participants.find((p) => p.id === session.paidById);
+    if (payerObj) return `${base} ${t(lang, 'sharePayLine', { name: payerObj.name })}`;
+  }
+  return base;
 }
 
 // v13: instelkaart per gast in stap 4 (dragers + aandeel per drager)
@@ -1863,13 +1876,18 @@ function renderStep4(container) {
       );
     } else if (result.totalTipCents > 0) {
       const tippedCount = result.perPerson.filter((p) => p.tipCents > 0).length;
+      const heeftExtraFooi = result.perPerson.some((p) => p.excessTipCents > 0);
       tipCard.appendChild(
         el('p', {
           className: 'tip-note',
-          text: t(lang, 'tipSummaryTarget', {
-            tip: formatCentsNL(result.totalTipCents),
-            count: tippedCount
-          })
+          // v24/v25 (review): komt er bij iemand nog een meerdere-fooi bovenop,
+          // dan is "eerlijk verdeeld" niet meer accuraat -> neutrale tekst
+          text: heeftExtraFooi
+            ? t(lang, 'tipSummaryTargetNeutral', { tip: formatCentsNL(result.totalTipCents) })
+            : t(lang, 'tipSummaryTarget', {
+                tip: formatCentsNL(result.totalTipCents),
+                count: tippedCount
+              })
         })
       );
     }
@@ -1882,6 +1900,32 @@ function renderStep4(container) {
     );
   }
   container.appendChild(tipCard);
+
+  // v25 (verzoek Henk): "Betaald door" — één deelnemer heeft de hele bon
+  // voorgeschoten; de rest rekent met hem/haar af. Presentatielaag: de
+  // verdeling (kern) verandert niet. Een gast kan geen voorschietter zijn.
+  const isGast = (pid) => Boolean(session.hosted && session.hosted[pid] && session.hosted[pid].enabled);
+  const payer = session.paidById
+    ? session.participants.find((p) => p.id === session.paidById && !isGast(p.id)) || null
+    : null;
+  const payerCard = el('section', { className: 'card' });
+  payerCard.appendChild(el('h3', { text: t(lang, 'paidByLabel') }));
+  const payerGroup = el('div', { className: 'radio-row', role: 'radiogroup', 'aria-label': t(lang, 'paidByLabel') });
+  [[null, t(lang, 'paidBySelf')], ...session.participants.filter((p) => !isGast(p.id)).map((p) => [p.id, p.name])].forEach(([pid, label]) => {
+    const active = pid === null ? !payer : Boolean(payer && pid === payer.id);
+    payerGroup.appendChild(
+      el('button', {
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(active),
+        className: `chip-btn paidby-toggle ${active ? 'active' : ''}`,
+        text: `${active ? '✓ ' : ''}${label}`,
+        onClick: () => mutate(() => { session.paidById = pid; })
+      })
+    );
+  });
+  payerCard.appendChild(payerGroup);
+  container.appendChild(payerCard);
 
   // v13: per gast een instelkaart (wie neemt over, welk aandeel)
   session.participants
@@ -2030,6 +2074,25 @@ function renderStep4(container) {
       );
     }
 
+    // v25: in de betaald-door-stand is er geen contante afrekening in de app —
+    // de rest rekent af met de voorschietter. Contantveld en fooi/retour-keuze
+    // vallen weg; in de plaats komt één duidelijke regel.
+    if (payer && row.id !== payer.id && !row.hosted) {
+      card.appendChild(
+        el('div', {
+          className: 'change-info ok pay-to-info',
+          text: t(lang, 'payToLine', { name: payer.name, amount: formatCentsNL(row.totalCents) })
+        })
+      );
+    }
+    if (payer && row.id === payer.id) {
+      card.appendChild(
+        el('div', {
+          className: 'change-info ok pay-to-info',
+          text: t(lang, 'payerOwed', { amount: formatCentsNL(payerOutstandingCents(result.perPerson, session.participants, payer.id)) })
+        })
+      );
+    }
     const cashInput = el('input', {
       type: 'text',
       inputmode: 'decimal',
@@ -2055,18 +2118,20 @@ function renderStep4(container) {
         }
       });
     });
-    card.appendChild(
-      el('label', { className: 'field-wrap inline-field' }, [
-        el('span', { text: t(lang, 'cashPaidLabel') }),
-        cashInput
-      ])
-    );
+    if (!payer) {
+      card.appendChild(
+        el('label', { className: 'field-wrap inline-field' }, [
+          el('span', { text: t(lang, 'cashPaidLabel') }),
+          cashInput
+        ])
+      );
+    }
 
     // v24 (verzoek Henk): is het contante bedrag hoger dan zijn deel, dan één
     // keuze met twee opties: Retour (standaard, huidig gedrag) of Fooi (het
     // meerdere wordt fooi, wisselgeld 0). Geen afrondknoppen.
     const meerdere = row.changeCents !== null && row.changeCents > 0 ? row.changeCents : (row.excessTipCents || 0);
-    if (!row.hosted && meerdere > 0) {
+    if (!payer && !row.hosted && meerdere > 0) {
       const alsFooi = Boolean(participantObj.excessAsTip);
       card.appendChild(
         el('div', { className: 'excess-choice' }, [
@@ -2089,7 +2154,7 @@ function renderStep4(container) {
       );
     }
 
-    if (row.changeCents !== null) {
+    if (!payer && row.changeCents !== null) {
       let changeText, changeCls;
       if (row.excessTipCents > 0) {
         changeText = `${t(lang, 'excessBookedAsTip')} ${formatCentsNL(row.excessTipCents)}`;
@@ -2115,10 +2180,13 @@ function renderStep4(container) {
     paidBox.addEventListener('change', (e) => {
       mutate(() => { participantObj.settled = e.target.checked; });
     });
+    const paidLabel = payer && row.id !== payer.id && !row.hosted
+      ? t(lang, 'settledWith', { name: payer.name })
+      : t(lang, 'paidToggle');
     card.appendChild(
       el('label', { for: `paid-${row.id}`, className: 'checkbox-row' }, [
         paidBox,
-        el('span', { text: t(lang, 'paidToggle') })
+        el('span', { text: paidLabel })
       ])
     );
 

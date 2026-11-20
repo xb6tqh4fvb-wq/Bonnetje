@@ -7,6 +7,16 @@ Gratis, statische webapp voor GitHub Pages zonder eigen server en zonder account
 2. **Lokale backup (`ppu-paddle-ocr/web` met zelf-gehost `PP-OCRv6_tiny`):** Start automatisch als de online aanroep mislukt of het maandmaximum bereikt is (quotum/spend cap, storing, geen internet, ontbrekende config). Draait volledig lokaal op je toestel en stuurt niets naar buiten. Alle benodigde bestanden (modellen ~6 MB, woordenboek, browsermodule en onnxruntime-WASM ~24 MB) staan in de repo zelf en komen dus van dezelfde server als de app. Vertaalt niet.
 3. **Plakvak (iPhone Live Text / Tekst van camera)** en **handmatig invoeren** werken altijd.
 
+## Wijzigingen in v25 (verzoek Henk: "Betaald door" — één deelnemer schiet de hele bon voor)
+
+Regressietests: 116/116 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de betaald-door-flow).
+
+- **Stap 4, nieuwe keuze "Wie betaalt de bon?":** standaard "Iedereen zelf" (werking zoals altijd). Kies je een deelnemer, dan betaalde die de hele bon bij het restaurant en rekent de rest met hem/haar af. Een gast kan geen voorschietter zijn (verschijnt niet in de keuze; wordt de betaler later gast of verwijderd, dan springt de keuze terug naar "Iedereen zelf").
+- **In die stand:** de contantvelden en de fooi/retour-keuze vallen weg (er is geen contante afrekening in de app). Elke andere deelnemer ziet "Aan X betalen: € …" met het vinkje "Afgerekend met X"; de betaler ziet "Nog tegoed van de rest: € …" dat daalt zodra iemand afvinkt. De deeltekst krijgt de regel "Betalen aan X." erbij. Geen IBAN, geen betaallinks.
+- **Rekenkern ongewijzigd:** `paidById` is alleen presentatie; V25.1 bewijst dat de uitslag met en zonder keuze identiek is (ook met gast + meerdere-fooi) en test de tegoed-helper. Cent-invariant onaangetast.
+- Ook meegenomen (review v24): bij fooimodus "rond bedrag" met daarbovenop een meerdere-fooi staat er nu de neutrale tekst "Totale fooi van …" in plaats van "eerlijk verdeeld".
+- Techniek: cache `bonnetje-v25`. Tests V25.1 (kern + helper) en V25.2 (bronchecks).
+
 ## Wijzigingen in v24 (verzoek Henk: "Laat het totaal bedrag invullen, zoals nu. Alleen een optie fooi of retour.")
 
 Regressietests: 114/114 groen in Node (`node tests/calculator.test.js`), jsdom-smoke groen (inclusief de nieuwe fooi/retour-flow).

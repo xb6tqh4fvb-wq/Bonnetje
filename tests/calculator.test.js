@@ -1616,6 +1616,52 @@ PIN 43,00`);
     assertTrue(i18n.includes("excessRetour: 'Change back'"), 'EN-labels aanwezig');
   });
 
+  test('V25.1 Betaald door: kern ongewijzigd, tegoed-helper klopt (ook met gast en fooi)', async () => {
+    const { payerOutstandingCents } = await import('../js/calculator.js');
+    const basis = () => ({
+      items: [
+        { id: '1', description: 'A', qty: 1, unitPriceCents: 2000, lineTotalCents: 2000, assignedTo: ['anna'] },
+        { id: '2', description: 'B', qty: 1, unitPriceCents: 2000, lineTotalCents: 2000, assignedTo: ['bram'] },
+        { id: '3', description: 'C', qty: 1, unitPriceCents: 1000, lineTotalCents: 1000, assignedTo: ['cara'] }
+      ],
+      receiptTotalCents: 5000,
+      participants: [
+        { id: 'anna', name: 'Anna' },
+        { id: 'bram', name: 'Bram', paidCashCents: 3000, excessAsTip: true },
+        { id: 'cara', name: 'Cara' }
+      ],
+      tipMode: 'none',
+      hosted: { anna: { enabled: true, carrierIds: null, mode: 'equal', percent: {}, fixedCents: {} } }
+    });
+    // paidById is een presentatieveld: de uitslag moet er volledig door ongemoeid blijven
+    const zonder = calculateSettlement(basis());
+    const state = { ...basis(), paidById: 'bram' };
+    const met = calculateSettlement(state);
+    assertEqual(met.grandTotalCents, zonder.grandTotalCents, 'eindsom ongewijzigd door paidById');
+    assertEqual(met.totalTipCents, zonder.totalTipCents, 'fooi ongewijzigd');
+    assertEqual(met.perPerson.map((r) => `${r.id}:${r.totalCents}:${r.changeCents}`).join('|'),
+                zonder.perPerson.map((r) => `${r.id}:${r.totalCents}:${r.changeCents}`).join('|'), 'per persoon identiek');
+    assertTrue(met.invariantExact && met.canFinalize, 'cent-invariant houdt met gast + fooi + paidById');
+    // tegoed: Bram schoot voor; Anna is gast (0), Cara nog niet afgerekend (10)
+    assertEqual(payerOutstandingCents(met.perPerson, state.participants, 'bram'), 2000, 'tegoed = alleen open delen van niet-gasten (Cara: eigen 10 + helft gastdeel 10)');
+    state.participants.find((p) => p.id === 'cara').settled = true;
+    assertEqual(payerOutstandingCents(met.perPerson, state.participants, 'bram'), 0, 'afgerekend deelnemer valt uit het tegoed');
+  });
+
+  test('V25.2 Betaald door in de UI: keuze, regels, deeltekst en resets (bron)', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+    const storage = fs.readFileSync(new URL('../js/storage.js', import.meta.url), 'utf8');
+    assertTrue(app.includes('paidby-toggle'), 'keuzerij "Wie betaalt de bon?" in stap 4');
+    assertTrue(app.includes('pay-to-info'), 'regel "Aan X betalen" / "Nog tegoed" in de kaart');
+    assertTrue(app.includes("session.paidById === p.id) session.paidById = null"), 'verwijderen van de betaler zet de keuze terug');
+    assertTrue(app.includes('payerOutstandingCents'), 'tegoed via pure helper');
+    assertTrue(storage.includes('paidById: null'), 'Nieuwe bon begint op "Iedereen zelf"');
+    assertTrue(i18n.includes("paidBySelf: 'Iedereen zelf'") && i18n.includes("sharePayLine: 'Betalen aan {name}.'"), 'NL-teksten aanwezig');
+    assertTrue(i18n.includes("paidBySelf: 'Each their own'") && i18n.includes("sharePayLine: 'Pay {name}.'"), 'EN-teksten aanwezig');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
@@ -1679,7 +1725,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v24', 'manifest-cache is actueel (v24)');
+    assertEqual(CACHE_NAME, 'bonnetje-v25', 'manifest-cache is actueel (v25)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1691,7 +1737,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '24', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '25', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

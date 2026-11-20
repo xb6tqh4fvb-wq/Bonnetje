@@ -35,7 +35,9 @@ export function createEmptySession() {
     includeZeroConsumersInSharedTip: false,
     // v13: per deelnemer-id een regel voor "betaalt niet mee" (te gast, jarig, ...)
     // { enabled, carrierIds: null | [id], mode: 'equal' | 'percent' | 'fixed', percent: {id: %}, fixedCents: {id: centen} }
-    hosted: {}
+    hosted: {},
+    // v25: id van wie de hele bon heeft voorgeschoten; null = iedereen betaalt zelf
+    paidById: null
   };
 }
 
