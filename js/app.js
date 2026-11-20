@@ -1032,6 +1032,8 @@ function renderStep1(container) {
       const c = parseEuroToCents(e.target.value);
       if (c !== null) {
         mutate(() => {
+          // v27: negatief bedrag op een gewone regel = korting
+          if (c < 0 && (item.lineType || 'item') === 'item') applyLineType(item, 'discount');
           item.unitPriceCents = item.lineType === 'discount' ? -Math.abs(c) : c;
           if (item.qty === 1) item.lineTotalCents = item.unitPriceCents;
           item.lowConfidence = false;
@@ -1051,6 +1053,7 @@ function renderStep1(container) {
       const c = parseEuroToCents(e.target.value);
       if (c !== null) {
         mutate(() => {
+          if (c < 0 && (item.lineType || 'item') === 'item') applyLineType(item, 'discount');
           item.lineTotalCents = item.lineType === 'discount' ? -Math.abs(c) : c;
           if (item.qty === 1) item.unitPriceCents = item.lineTotalCents;
           item.lowConfidence = false;
@@ -1143,7 +1146,9 @@ function renderStep1(container) {
     container.appendChild(details);
   }
 
-  // Knoppen regel / korting toevoegen
+  // v27: één knop "Regel toevoegen" (de aparte kortingsknop is weg; korting komt zelden voor).
+  // Een korting maak je door een negatief bedrag te typen (bijv. -5,00) of via Regeltype.
+  // De nieuwe regel staat meteen open, zodat je hem direct kunt invullen.
   container.appendChild(
     el('div', { className: 'action-row' }, [
       el('button', {
@@ -1152,16 +1157,9 @@ function renderStep1(container) {
         text: `+ ${t(lang, 'addLine')}`,
         onClick: () =>
           mutate(() => {
-            session.items.push(createNewItem(false));
-          })
-      }),
-      el('button', {
-        type: 'button',
-        className: 'btn btn-secondary',
-        text: `− ${t(lang, 'addDiscount')}`,
-        onClick: () =>
-          mutate(() => {
-            session.items.push(createNewItem(true));
+            const nieuw = createNewItem(false);
+            expandedItemIds.add(nieuw.id);
+            session.items.push(nieuw);
           })
       })
     ])
