@@ -1,0 +1,333 @@
+/* Bonnetje - Stijlen (v26): Delfts blauw en Cartoon.
+   Een stijl is een laag bovenop styles.css: andere kleuren (dezelfde tokens), letters en
+   vormen. De schermindeling en alle berekeningen blijven gelijk. Elke stijl heeft een
+   lichte en een donkere versie en volgt dezelfde themakeuze (Automatisch/Licht/Donker).
+   Letters worden zelf meegeleverd (css/fonts/, zie README daar): geen verkeer naar Google,
+   en de browser haalt een lettertype pas op als die stijl gekozen is. */
+
+@font-face {
+  font-family: 'Bonnetje Source Sans 3';
+  src: url('./fonts/source-sans-3.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Libre Baskerville';
+  src: url('./fonts/libre-baskerville-700.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Fredoka';
+  src: url('./fonts/fredoka.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bonnetje Luckiest Guy';
+  src: url('./fonts/luckiest-guy.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ============================================================
+   DELFTS BLAUW — kobalt op wit, tegelpatroon, klassieke koppen
+   ============================================================ */
+html[data-stijl="delft"] {
+  --bg: #f2f5fb;
+  --surface: #ffffff;
+  --surface-alt: #e6ecf8;
+  --text: #12245a;
+  --text-muted: #43547f;
+  --border: #9fb1da;
+  --primary: #1f3f8f;
+  --primary-hover: #162f6c;
+  --primary-text: #ffffff;
+  --focus: #c2410c;
+  --radius: 6px;
+  --tile-line: rgba(31, 63, 143, 0.12);
+  --tile-dot: rgba(31, 63, 143, 0.2);
+  --frame: #c9d5ef;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="delft"]:not([data-theme="light"]) {
+    --bg: #0c1530;
+    --surface: #14204a;
+    --surface-alt: #1b2a5c;
+    --text: #eef2fc;
+    --text-muted: #b6c3e8;
+    --border: #3d5296;
+    --primary: #93b2ff;
+    --primary-hover: #b6caff;
+    --primary-text: #0b1430;
+    --focus: #ffb37a;
+    --tile-line: rgba(147, 178, 255, 0.08);
+    --tile-dot: rgba(147, 178, 255, 0.14);
+    --frame: #24366f;
+  }
+}
+html[data-stijl="delft"][data-theme="dark"] {
+  --bg: #0c1530;
+  --surface: #14204a;
+  --surface-alt: #1b2a5c;
+  --text: #eef2fc;
+  --text-muted: #b6c3e8;
+  --border: #3d5296;
+  --primary: #93b2ff;
+  --primary-hover: #b6caff;
+  --primary-text: #0b1430;
+  --focus: #ffb37a;
+  --tile-line: rgba(147, 178, 255, 0.08);
+  --tile-dot: rgba(147, 178, 255, 0.14);
+  --frame: #24366f;
+}
+
+html[data-stijl="delft"] body {
+  font-family: 'Bonnetje Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  /* tegels van 78 px met een rondje in elke hoek */
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 0 0, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 100% 0, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 0 100%, var(--tile-dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 100% 100%, var(--tile-dot) 0 8px, transparent 9px),
+    linear-gradient(0deg, var(--tile-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tile-line) 1px, transparent 1px);
+  background-size: 78px 78px;
+}
+html[data-stijl="delft"] h1,
+html[data-stijl="delft"] h2 {
+  font-family: 'Bonnetje Libre Baskerville', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0;
+}
+html[data-stijl="delft"] h3 { color: var(--primary); }
+html[data-stijl="delft"] .app-header {
+  border-bottom: 2px solid var(--primary);
+}
+html[data-stijl="delft"] .card,
+html[data-stijl="delft"] .item-card,
+html[data-stijl="delft"] .total-check-card,
+html[data-stijl="delft"] .person-summary-card,
+html[data-stijl="delft"] .split-card,
+html[data-stijl="delft"] .pay-progress {
+  border: 1.5px solid var(--primary);
+  /* dubbele rand zoals een tegel */
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--frame);
+}
+html[data-stijl="delft"] .btn-secondary,
+html[data-stijl="delft"] .chip-btn {
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+}
+html[data-stijl="delft"] .chip-btn.active {
+  color: var(--primary-text);
+}
+html[data-stijl="delft"] .btn-primary {
+  box-shadow: inset 0 0 0 2px var(--primary), inset 0 0 0 3px var(--primary-text);
+}
+html[data-stijl="delft"] input[type="text"],
+html[data-stijl="delft"] input[type="number"],
+html[data-stijl="delft"] textarea,
+html[data-stijl="delft"] select {
+  border-color: var(--border);
+}
+html[data-stijl="delft"] .step-dot { border-color: var(--primary); }
+html[data-stijl="delft"] .pay-progress-bar { border: 1px solid var(--primary); background: var(--surface); }
+html[data-stijl="delft"] .person-total { font-family: 'Bonnetje Libre Baskerville', Georgia, serif; }
+
+/* ============================================================
+   CARTOON — dikke inktlijnen, harde schaduw, vrolijke kleuren
+   ============================================================ */
+html[data-stijl="cartoon"] {
+  --bg: #fff3c4;
+  --surface: #ffffff;
+  --surface-alt: #fff8de;
+  --text: #111111;
+  --text-muted: #3d3a33;
+  --border: #111111;
+  --primary: #ff5d8f;
+  --primary-hover: #ff7ba3;
+  --primary-text: #111111;
+  --whatsapp: #34c26b;
+  --ok-bg: #c9f2d6;
+  --ok-border: #111111;
+  --ok-text: #0b3d20;
+  --focus: #1d6fd8;
+  --radius: 16px;
+  --ink: #111111;
+  --dots: #f2d27a;
+  --accent-2: #3ec5e0;
+  --accent-3: #ffd23f;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-stijl="cartoon"]:not([data-theme="light"]) {
+    --bg: #1d1934;
+    --surface: #2a2548;
+    --surface-alt: #332d58;
+    --text: #fff8e7;
+    --text-muted: #ddd5f5;
+    --border: #fff8e7;
+    --primary: #ff7aa6;
+    --primary-hover: #ff9cbd;
+    --primary-text: #111111;
+    --whatsapp: #4fd685;
+    --ok-bg: #1f4a33;
+    --ok-border: #fff8e7;
+    --ok-text: #c9f7d9;
+    --focus: #7cd9ff;
+    --ink: #fff8e7;
+    --dots: #2e2950;
+    --accent-2: #3ec5e0;
+    --accent-3: #ffd23f;
+  }
+}
+html[data-stijl="cartoon"][data-theme="dark"] {
+  --bg: #1d1934;
+  --surface: #2a2548;
+  --surface-alt: #332d58;
+  --text: #fff8e7;
+  --text-muted: #ddd5f5;
+  --border: #fff8e7;
+  --primary: #ff7aa6;
+  --primary-hover: #ff9cbd;
+  --primary-text: #111111;
+  --whatsapp: #4fd685;
+  --ok-bg: #1f4a33;
+  --ok-border: #fff8e7;
+  --ok-text: #c9f7d9;
+  --focus: #7cd9ff;
+  --ink: #fff8e7;
+  --dots: #2e2950;
+  --accent-2: #3ec5e0;
+  --accent-3: #ffd23f;
+}
+
+html[data-stijl="cartoon"] body {
+  font-family: 'Bonnetje Fredoka', 'Trebuchet MS', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-weight: 500;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dots) 1.6px, transparent 1.7px);
+  background-size: 14px 14px;
+}
+html[data-stijl="cartoon"] h1,
+html[data-stijl="cartoon"] h2 {
+  font-family: 'Bonnetje Luckiest Guy', 'Bonnetje Fredoka', 'Trebuchet MS', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+html[data-stijl="cartoon"] h1 {
+  color: var(--primary);
+  -webkit-text-stroke: 1px #111111;
+  text-shadow: 2px 2px 0 #111111;
+}
+html[data-stijl="cartoon"] .app-header {
+  border-bottom: 3px solid var(--ink);
+}
+html[data-stijl="cartoon"] .brand-icon {
+  transform: rotate(-6deg);
+  border: 2px solid var(--ink);
+}
+html[data-stijl="cartoon"] .card,
+html[data-stijl="cartoon"] .item-card,
+html[data-stijl="cartoon"] .total-check-card,
+html[data-stijl="cartoon"] .person-summary-card,
+html[data-stijl="cartoon"] .split-card,
+html[data-stijl="cartoon"] .pay-progress {
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .person-summary-card.is-settled { background: var(--ok-bg); }
+html[data-stijl="cartoon"] .btn,
+html[data-stijl="cartoon"] .chip-btn {
+  border: 2.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 600;
+}
+html[data-stijl="cartoon"] .btn:active:not(:disabled),
+html[data-stijl="cartoon"] .chip-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .btn-primary { font-weight: 700; }
+html[data-stijl="cartoon"] .btn-whatsapp { color: #111111; }
+html[data-stijl="cartoon"] .btn-danger { color: #ffffff; }
+html[data-stijl="cartoon"] .btn-danger-outline { color: var(--error-text); background: var(--surface); }
+html[data-stijl="cartoon"] .chip-btn.active {
+  background: var(--accent-3);
+  color: #111111;
+}
+html[data-stijl="cartoon"] .header-btn { border-radius: 999px; }
+html[data-stijl="cartoon"] input[type="text"],
+html[data-stijl="cartoon"] input[type="number"],
+html[data-stijl="cartoon"] textarea,
+html[data-stijl="cartoon"] select {
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+}
+html[data-stijl="cartoon"] .step-dot {
+  border: 2.5px solid var(--ink);
+  color: var(--text);
+}
+html[data-stijl="cartoon"] .step-pill.done .step-dot {
+  background: var(--whatsapp);
+  border-color: var(--ink);
+  color: #111111;
+}
+html[data-stijl="cartoon"] .step-pill.active .step-dot {
+  background: var(--accent-3);
+  border-color: var(--ink);
+  color: #111111;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+html[data-stijl="cartoon"] .pay-progress-bar {
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 10px;
+  background: var(--surface);
+}
+html[data-stijl="cartoon"] .pay-progress-bar > span {
+  border-radius: 0;
+  background: repeating-linear-gradient(45deg, #34c26b 0 8px, #2aa85b 8px 16px);
+}
+html[data-stijl="cartoon"] .person-check input[type="checkbox"] { accent-color: #34c26b; }
+
+/* Stijlkeuze in Instellingen: elke knop toont een klein voorbeeld van zijn stijl */
+.stijl-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex-shrink: 0;
+}
+.stijl-swatch.standaard { background: #0f5132; }
+.stijl-swatch.delft { background: radial-gradient(circle, #ffffff 0 30%, #1f3f8f 31%); }
+.stijl-swatch.cartoon { background: conic-gradient(#ff5d8f 0 33%, #ffd23f 0 66%, #3ec5e0 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-stijl="cartoon"] .btn:active:not(:disabled),
+  html[data-stijl="cartoon"] .chip-btn:active { transform: none; }
+}
+
+/* Fijnafstelling na de schermtest */
+html[data-stijl="cartoon"] .assign-qty-row .btn {
+  /* dikkere rand + schaduw maakte de −/+ rij breder, waardoor + naar een nieuwe regel sprong */
+  border-width: 2px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+html[data-stijl="delft"] .brand-icon {
+  /* het groenblauwe app-icoon in kobalt (alleen kleurverschuiving, zelfde bestand) */
+  filter: hue-rotate(47deg) saturate(1.2);
+}
+html[data-stijl="delft"] :is(button, input, textarea, select),
+html[data-stijl="cartoon"] :is(button, input, textarea, select) {
+  /* knoppen en velden nemen standaard de systeemletter; in een stijl de letter van de stijl */
+  font-family: inherit;
+}

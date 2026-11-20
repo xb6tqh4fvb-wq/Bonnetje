@@ -5,6 +5,7 @@ const APP_SHELL = [
   './',
   './index.html',
   './css/styles.css',
+  './css/stijlen.css',
   './js/assets-manifest.js',
   './js/app.js',
   './js/calculator.js',

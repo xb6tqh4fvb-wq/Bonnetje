@@ -133,10 +133,14 @@ function mutate(fn, announcementText = null) {
   if (announcementText) announce(announcementText);
 }
 
+const STIJLEN = ['standaard', 'delft', 'cartoon'];
+
 function applyThemeAndPrefs() {
   const html = document.documentElement;
   html.lang = settings.lang;
   html.dataset.theme = settings.theme;
+  // v26: vormgevingsstijl; onbekende of ontbrekende waarde = de standaardstijl
+  html.dataset.stijl = STIJLEN.includes(settings.stijl) ? settings.stijl : 'standaard';
   html.classList.toggle('large-text', Boolean(settings.largeText));
 }
 
@@ -2473,6 +2477,32 @@ function openSettingsModal() {
     );
   });
   body.appendChild(themeRow);
+
+  // v26: stijlkeuze (alleen vormgeving; bedragen en schermen blijven gelijk)
+  body.appendChild(el('h3', { text: t(lang, 'stijlLabel') }));
+  const stijlRow = el('div', { className: 'chip-wrap', role: 'radiogroup', 'aria-label': t(lang, 'stijlLabel') });
+  const huidigeStijl = STIJLEN.includes(settings.stijl) ? settings.stijl : 'standaard';
+  [
+    ['standaard', t(lang, 'stijlStandaard')],
+    ['delft', t(lang, 'stijlDelft')],
+    ['cartoon', t(lang, 'stijlCartoon')]
+  ].forEach(([stijl, label]) => {
+    stijlRow.appendChild(
+      el('button', {
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(huidigeStijl === stijl),
+        className: `chip-btn ${huidigeStijl === stijl ? 'active' : ''}`,
+        onClick: () => {
+          settings.stijl = stijl;
+          saveSettings(settings);
+          applyThemeAndPrefs();
+          openSettingsModal();
+        }
+      }, [el('span', { className: `stijl-swatch ${stijl}`, 'aria-hidden': 'true' }), label])
+    );
+  });
+  body.appendChild(stijlRow);
 
   const bigTextCb = el('input', {
     type: 'checkbox',

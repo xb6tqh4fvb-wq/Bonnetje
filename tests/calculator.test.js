@@ -1801,6 +1801,43 @@ PIN 43,00`);
     clearSavedNames();
   });
 
+  test('V26.1 stijlen: standaard is de huidige stijl, keuze wordt onthouden', () => {
+    assertEqual(DEFAULT_SETTINGS.stijl, 'standaard', 'standaardstijl');
+    const s = loadSettings();
+    s.stijl = 'delft';
+    saveSettings(s);
+    assertEqual(loadSettings().stijl, 'delft', 'Delfts blauw wordt onthouden');
+    const s2 = loadSettings();
+    s2.stijl = 'standaard';
+    saveSettings(s2);
+    assertEqual(loadSettings().stijl, 'standaard', 'terug naar standaard');
+    for (const lang of ['nl', 'en']) {
+      for (const k of ['stijlLabel', 'stijlStandaard', 'stijlDelft', 'stijlCartoon']) {
+        assertTrue(typeof STRINGS[lang][k] === 'string' && STRINGS[lang][k].length > 0, `tekst ${lang}.${k}`);
+      }
+    }
+  });
+
+  test('V26.2 stijlen: licht én donker per stijl, letters zelf meegeleverd, offline gecachet', async () => {
+    const fs = await import('node:fs');
+    const css = fs.readFileSync(new URL('../css/stijlen.css', import.meta.url), 'utf8');
+    for (const stijl of ['delft', 'cartoon']) {
+      assertTrue(css.includes(`html[data-stijl="${stijl}"] {`), `${stijl}: lichte kleuren`);
+      assertTrue(css.includes(`html[data-stijl="${stijl}"]:not([data-theme="light"])`), `${stijl}: donker via systeem`);
+      assertTrue(css.includes(`html[data-stijl="${stijl}"][data-theme="dark"]`), `${stijl}: donker via keuze`);
+    }
+    assertTrue(!/googleapis|gstatic/.test(css), 'geen Google Fonts-verbinding');
+    const fonts = [...css.matchAll(/url\('\.\/fonts\/([^']+)'\)/g)].map((m) => m[1]);
+    assertEqual(fonts.length, 4, 'vier lettertypes');
+    for (const f of fonts) {
+      assertTrue(fs.existsSync(new URL(`../css/fonts/${f}`, import.meta.url)), `lettertype ${f} staat in de repo`);
+    }
+    const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+    const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assertTrue(sw.includes("'./css/stijlen.css'"), 'sw cachet stijlen.css');
+    assertTrue(html.includes('href="./css/stijlen.css"'), 'index laadt stijlen.css');
+  });
+
   test('V20.6/V26 stappenbalk: één regel die kan krimpen (geen horizontale scroll bij grote tekst)', async () => {
     const fs = await import('node:fs');
     const css = fs.readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
