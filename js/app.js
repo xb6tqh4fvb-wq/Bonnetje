@@ -2052,9 +2052,39 @@ function renderStep4(container) {
       ])
     );
 
+    // v24 (verzoek Henk): is het contante bedrag hoger dan zijn deel, dan één
+    // keuze met twee opties: Retour (standaard, huidig gedrag) of Fooi (het
+    // meerdere wordt fooi, wisselgeld 0). Geen afrondknoppen.
+    const meerdere = row.changeCents !== null && row.changeCents > 0 ? row.changeCents : (row.excessTipCents || 0);
+    if (meerdere > 0) {
+      const alsFooi = Boolean(participantObj.excessAsTip);
+      card.appendChild(
+        el('div', { className: 'excess-choice' }, [
+          el('span', { className: 'qty-label', text: t(lang, 'excessQuestion', { amount: formatCentsNL(meerdere) }) }),
+          el('button', {
+            type: 'button',
+            className: `chip-btn excess-toggle ${!alsFooi ? 'active' : ''}`,
+            'aria-pressed': String(!alsFooi),
+            text: `${!alsFooi ? '✓ ' : ''}${t(lang, 'excessRetour')}`,
+            onClick: () => mutate(() => { participantObj.excessAsTip = false; })
+          }),
+          el('button', {
+            type: 'button',
+            className: `chip-btn excess-toggle ${alsFooi ? 'active' : ''}`,
+            'aria-pressed': String(alsFooi),
+            text: `${alsFooi ? '✓ ' : ''}${t(lang, 'excessFooi')}`,
+            onClick: () => mutate(() => { participantObj.excessAsTip = true; })
+          })
+        ])
+      );
+    }
+
     if (row.changeCents !== null) {
       let changeText, changeCls;
-      if (row.changeCents > 0) {
+      if (row.excessTipCents > 0) {
+        changeText = `${t(lang, 'excessBookedAsTip')} ${formatCentsNL(row.excessTipCents)}`;
+        changeCls = 'change-info ok';
+      } else if (row.changeCents > 0) {
         changeText = `${t(lang, 'changeReturn')} ${formatCentsNL(row.changeCents)}`;
         changeCls = 'change-info ok';
       } else if (row.changeCents < 0) {

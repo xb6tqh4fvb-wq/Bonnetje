@@ -1418,6 +1418,61 @@ PIN 43,00`);
     assertTrue(i18n.includes('heeft regels. Toch verwijderen?'), 'NL-tekst kort en duidelijk');
   });
 
+  test('V24.1 meerdere als fooi: wisselgeld 0, cent-invariant houdt', () => {
+    const basis = (extra) => ({
+      items: [
+        { id: '1', description: 'Soep', qty: 1, unitPriceCents: 820, lineTotalCents: 820, assignedTo: ['a'] },
+        { id: '2', description: 'Burger', qty: 1, unitPriceCents: 1250, lineTotalCents: 1250, assignedTo: ['b'] }
+      ],
+      receiptTotalCents: 2070,
+      participants: [
+        { id: 'a', name: 'Anna', paidCashCents: 1000, ...extra },
+        { id: 'b', name: 'Bram' }
+      ],
+      tipMode: 'none'
+    });
+    // retour (standaard): geen fooi, 1,80 wisselgeld
+    let res = calculateSettlement(basis({}));
+    assertEqual(res.perPerson[0].tipCents, 0, 'zonder keuze geen fooi');
+    assertEqual(res.perPerson[0].changeCents, 180, 'retour is het meerdere');
+    assertEqual(res.perPerson[0].excessTipCents, 0);
+    assertTrue(res.invariantExact && res.canFinalize, 'invariant houdt bij retour');
+    // fooi: meerdere wordt fooi, wisselgeld 0, totaal klopt nog steeds exact
+    res = calculateSettlement(basis({ excessAsTip: true }));
+    assertEqual(res.perPerson[0].excessTipCents, 180, 'meerdere als fooi geboekt');
+    assertEqual(res.perPerson[0].tipCents, 180);
+    assertEqual(res.perPerson[0].totalCents, 1000, 'hij betaalt precies zijn contante bedrag');
+    assertEqual(res.perPerson[0].changeCents, 0, 'geen wisselgeld meer');
+    assertEqual(res.grandTotalCents, 2250, 'eindsom = bon + fooi');
+    assertEqual(res.totalTipCents, 180);
+    assertTrue(res.invariantExact && res.canFinalize, 'cent-invariant houdt met fooi');
+    // bedrag later verlagen onder het deel: fooi verdwijnt vanzelf, geen rare rest
+    const lager = basis({ excessAsTip: true });
+    lager.participants[0].paidCashCents = 800;
+    res = calculateSettlement(lager);
+    assertEqual(res.perPerson[0].tipCents, 0, 'geen fooi als contant lager is dan het deel');
+    assertEqual(res.perPerson[0].changeCents, -20, 'gewoon tekort');
+    assertTrue(res.invariantExact, 'invariant houdt bij verlaagd bedrag');
+    // bedrag wissen: helemaal geen fooi, geen wisselgeldregel
+    const gewist = basis({ excessAsTip: true });
+    gewist.participants[0].paidCashCents = null;
+    res = calculateSettlement(gewist);
+    assertEqual(res.perPerson[0].tipCents, 0, 'gewist bedrag boekt geen fooi');
+    assertEqual(res.perPerson[0].changeCents, null);
+    assertTrue(res.invariantExact, 'invariant houdt bij gewist bedrag');
+  });
+
+  test('V24.2 keuze fooi/retour alleen bij een meerdere, schakelbaar', async () => {
+    const fs = await import('node:fs');
+    const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+    const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+    assertTrue(app.includes('excess-choice'), 'keuzerij in de persoonskaart');
+    assertTrue(app.includes('excessTipCents'), 'keuze blijft zichtbaar als fooi actief is (terugschakelen kan)');
+    assertEqual(app.split('excess-toggle').length - 1, 2, 'precies twee opties: retour en fooi');
+    assertTrue(i18n.includes("excessRetour: 'Retour'") && i18n.includes("excessFooi: 'Fooi'"), 'NL-labels aanwezig');
+    assertTrue(i18n.includes("excessRetour: 'Change back'"), 'EN-labels aanwezig');
+  });
+
   test('V20.1 bewaarde namen: genormaliseerd, ontdubbeld, nieuwste vooraan', () => {
     clearSavedNames();
     saveNameToHistory('  Anna   de  Vries ');
@@ -1481,7 +1536,7 @@ PIN 43,00`);
   test('V19.1 service worker: v19 kan oude clients nooit vasthouden', async () => {
     const fs = await import('node:fs');
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-    assertEqual(CACHE_NAME, 'bonnetje-v23', 'manifest-cache is actueel (v23)');
+    assertEqual(CACHE_NAME, 'bonnetje-v24', 'manifest-cache is actueel (v24)');
     assertTrue(sw.includes(`const CACHE_NAME = '${CACHE_NAME}';`), 'sw-cache volgt de manifest-cache');
     assertTrue(sw.includes("req.mode === 'navigate'"), 'navigaties gaan network-first');
     assertTrue(sw.indexOf('fetch(req)') < sw.indexOf('caches.match(req'), 'network komt vóór cache in de navigatie-route');
@@ -1493,7 +1548,7 @@ PIN 43,00`);
   });
 
   test('V19.2 zichtbaar versienummer + sw.js altijd vers opgehaald', async () => {
-    assertEqual(APP_VERSION, '23', 'versienummer afgeleid van cache-naam');
+    assertEqual(APP_VERSION, '24', 'versienummer afgeleid van cache-naam');
     assertTrue(/^\d+$/.test(APP_VERSION), 'versienummer is een nummer');
     const fs = await import('node:fs');
     const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');

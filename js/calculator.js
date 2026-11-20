@@ -473,6 +473,26 @@ export function calculateSettlement(state) {
     }
   }
 
+  // 2b. v24 (verzoek Henk): contant meerdere als fooi i.p.v. retour. Heeft een
+  // deelnemer meer contant ingevuld dan zijn deel en koos hij "Fooi", dan telt
+  // het meerdere als fooi (zijn wisselgeld wordt 0). Keuze staat los van de
+  // fooimodi hierboven; de cent-invariant blijft kloppen want totalTipCents
+  // groeit even hard mee als de eindsom.
+  const excessTipCentsById = {};
+  for (const p of participants) {
+    excessTipCentsById[p.id] = 0;
+    if (!p.excessAsTip) continue;
+    const cash = Number.isInteger(p.paidCashCents) ? p.paidCashCents : null;
+    if (cash === null) continue;
+    const basis = subtotals[p.id] + (receiptExtras[p.id] || 0) + tips[p.id];
+    const extra = cash - basis;
+    if (extra > 0) {
+      excessTipCentsById[p.id] = extra;
+      tips[p.id] += extra;
+      totalTipCents += extra;
+    }
+  }
+
   // 3. Per persoon eindbedrag en contant wisselgeld
   const perPerson = participants.map((p) => {
     const subtotalCents = subtotals[p.id];
@@ -491,6 +511,7 @@ export function calculateSettlement(state) {
       totalCents,
       paidCashCents,
       changeCents,
+      excessTipCents: excessTipCentsById[p.id] || 0,
       settled: Boolean(p.settled),
       hosted: false,
       hostedAmountCents: 0,

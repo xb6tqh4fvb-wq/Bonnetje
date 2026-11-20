@@ -845,3 +845,18 @@ select {
   margin: 0;
   padding: 0;
 }
+
+/* v24: meerdere als fooi of retour */
+.excess-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+.excess-toggle {
+  min-height: var(--tap-min);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
