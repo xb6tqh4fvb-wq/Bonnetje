@@ -1463,6 +1463,12 @@ function renderStep2(container) {
 // ============================================================
 // STAP 3: VERDELEN
 // ============================================================
+// v27: stap 3 klapt volledig verdeelde regels in tot één regel. De regel waar je net op
+// tikte blijft open (je wilt misschien nog met − / + schuiven); pas als je een andere
+// regel aanraakt, klapt hij in. Alleen weergave: geen undo-stap, niet bewaard.
+let lastEditedSplitId = null;
+let splitScrollAnchor = null;
+
 function renderStep3(container) {
   const lang = settings.lang;
   container.appendChild(el('h2', { text: t(lang, 'step3Title') }));
@@ -1478,6 +1484,22 @@ function renderStep3(container) {
   // v22 (verzoek Henk): korte, altijd eenduidige labels op de chips; volledige
   // naam blijft in aria-label, "Toegewezen aan:" en het overzicht
   const korteNamen = shortDisplayNames(session.participants);
+
+  const isComplete = (item) => {
+    const qm = item.assignedQuantities || {};
+    const sum = Object.values(qm).reduce((s, q) => s + (Number.isInteger(q) ? q : 0), 0);
+    return sum > 0 ? sum === item.qty : (item.assignedTo || []).length > 0;
+  };
+  const doneCount = activeItems.filter(isComplete).length;
+  container.appendChild(
+    el('div', { className: `split-progress ${doneCount === activeItems.length ? 'all-done' : ''}` }, [
+      el('strong', {
+        text: doneCount === activeItems.length
+          ? t(lang, 'splitAllDone')
+          : t(lang, 'splitProgress', { done: doneCount, total: activeItems.length })
+      })
+    ])
+  );
 
   const list = el('div', { className: 'split-list' });
   activeItems.forEach((item) => {
@@ -1515,8 +1537,43 @@ function renderStep3(container) {
     // telt een tik als 1 stuk en verdeel je met − n + verder. "Hele tafel"
     // verdeelt de regel gelijk over iedereen. Geen actieve persoon meer.
     const card = el('div', {
-      className: `split-card ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`
+      className: `split-card ${isUnassigned || isQtyMismatch ? 'unassigned' : ''}`,
+      'data-item-id': item.id
     });
+    // onthoud welke kaart je aanraakt (en waar die op het scherm stond), vóór de knop zelf reageert
+    card.addEventListener(
+      'click',
+      () => {
+        lastEditedSplitId = item.id;
+        splitScrollAnchor = { id: item.id, top: card.getBoundingClientRect().top };
+      },
+      true
+    );
+
+    if (isComplete(item) && lastEditedSplitId !== item.id) {
+      const namen = usingQtyMode
+        ? session.participants.filter((p) => (qtyMap[p.id] || 0) > 0).map((p) => `${korteNamen.get(p.id) || p.name}${item.qty > 1 ? ` ${qtyMap[p.id]}×` : ''}`)
+        : isAll
+          ? [t(lang, 'wholeTable')]
+          : session.participants.filter((p) => assigned.includes(p.id)).map((p) => korteNamen.get(p.id) || p.name);
+      card.classList.add('is-collapsed');
+      card.appendChild(
+        el('button', {
+          type: 'button',
+          className: 'split-collapsed',
+          'aria-label': `${labelText}: ${namen.join(', ')}. ${t(lang, 'editLine')}`,
+          onClick: () => render()
+        }, [
+          el('span', { className: 'split-collapsed-main' }, [
+            el('span', { className: 'split-desc', text: `${item.qty > 1 ? `${item.qty}× ` : ''}${labelText || '—'}` }),
+            el('span', { className: 'split-collapsed-names', text: `✓ ${namen.join(', ')}` })
+          ]),
+          el('strong', { className: 'split-price', text: formatCentsNL(item.lineTotalCents) })
+        ])
+      );
+      list.appendChild(card);
+      return;
+    }
 
     card.appendChild(
       el('div', { className: 'split-card-top' }, [
@@ -1540,19 +1597,8 @@ function renderStep3(container) {
           })
       })
     );
-    quick.appendChild(
-      el('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-secondary',
-        text: t(lang, 'nobody'),
-        disabled: !usingQtyMode && assigned.length === 0,
-        onClick: () =>
-          mutate(() => {
-            item.assignedQuantities = {};
-            item.assignedTo = [];
-          })
-      })
-    );
+    // v27: geen aparte "Niemand"-knop meer: een naam nog eens aantikken haalt hem weg,
+    // en "Hele tafel" nog eens aantikken maakt de regel leeg.
     card.appendChild(quick);
 
     const chips = el('div', { className: 'chip-wrap' });
@@ -1632,6 +1678,17 @@ function renderStep3(container) {
     list.appendChild(card);
   });
   container.appendChild(list);
+
+  // Inklappen van een kaart boven de aangetikte kaart mag de pagina niet onder je vinger
+  // laten verspringen: zet de aangetikte kaart terug op dezelfde plek in beeld.
+  if (splitScrollAnchor) {
+    const anchor = splitScrollAnchor;
+    splitScrollAnchor = null;
+    requestAnimationFrame(() => {
+      const now = document.querySelector(`.split-card[data-item-id="${CSS.escape(anchor.id)}"]`);
+      if (now) window.scrollBy(0, now.getBoundingClientRect().top - anchor.top);
+    });
+  }
 
   container.appendChild(
     el('div', { className: 'nav-row' }, [
@@ -1831,6 +1888,9 @@ function renderHostedCard(container, guest, result) {
   container.appendChild(card);
 }
 
+// Open/dicht van het blok "Fooi, gast of één betaalt" zoals de gebruiker het koos (null = automatisch).
+let step4SettingsOpenPref = null;
+
 // Welke personen in stap 4 opengeklapt staan (alleen weergave; geen undo-stap, niet bewaard).
 const openPersonDetails = new Set();
 
@@ -1863,6 +1923,28 @@ function renderStep4(container) {
       })
     );
   }
+
+  // v27: fooi, "wie betaalt" en gasten zitten samen in één uitklapblok ONDER de uitslag.
+  // Meestal is het "geen fooi, iedereen zelf"; dan zie je meteen de bedragen. Is er iets
+  // ingesteld, dan staat het blok open (tenzij de gebruiker het zelf dichtklapte).
+  const isGastVoorBlok = (pid) => Boolean(session.hosted && session.hosted[pid] && session.hosted[pid].enabled);
+  const heeftGast = session.participants.some((p) => isGastVoorBlok(p.id));
+  const heeftBetaler = Boolean(session.paidById && session.participants.some((p) => p.id === session.paidById && !isGastVoorBlok(p.id)));
+  const ietsIngesteld = session.tipMode !== 'none' || heeftBetaler || heeftGast;
+  const settingsWrap = el('details', { className: 'step4-settings' });
+  settingsWrap.open = step4SettingsOpenPref ?? ietsIngesteld;
+  settingsWrap.addEventListener('toggle', () => { step4SettingsOpenPref = settingsWrap.open; });
+  const samenvatting = [
+    session.tipMode === 'none' ? t(lang, 'tipNone') : session.tipMode === 'per_person' ? t(lang, 'tipPerPerson') : t(lang, 'tipTargetShort'),
+    heeftBetaler ? t(lang, 'paidByOneShort') : t(lang, 'paidBySelf'),
+    ...(heeftGast ? [t(lang, 'guestShort')] : [])
+  ].join(' · ');
+  settingsWrap.appendChild(
+    el('summary', {}, [
+      el('span', { className: 'step4-settings-title', text: t(lang, 'step4SettingsTitle') }),
+      el('span', { className: 'step4-settings-sum', text: samenvatting })
+    ])
+  );
 
   const tipCard = el('section', { className: 'card' });
   tipCard.appendChild(el('h3', { text: t(lang, 'tipSectionTitle') }));
@@ -1962,7 +2044,7 @@ function renderStep4(container) {
       })
     );
   }
-  container.appendChild(tipCard);
+  settingsWrap.appendChild(tipCard);
 
   // v25 (verzoek Henk): "Betaald door" — één deelnemer heeft de hele bon
   // voorgeschoten; de rest rekent met hem/haar af. Presentatielaag: de
@@ -2000,22 +2082,32 @@ function renderStep4(container) {
     );
   });
   payerCard.appendChild(payerGroup);
-  container.appendChild(payerCard);
+  settingsWrap.appendChild(payerCard);
 
   // v13: per gast een instelkaart (wie neemt over, welk aandeel)
   session.participants
     .filter((p) => session.hosted && session.hosted[p.id] && session.hosted[p.id].enabled)
-    .forEach((guest) => renderHostedCard(container, guest, result));
+    .forEach((guest) => renderHostedCard(settingsWrap, guest, result));
 
+  // v27: zonder fooi alleen "Totaal"; met fooi bon, fooi en totaal
   container.appendChild(
-    el('div', { className: 'summary-kv total-check-card' }, [
-      el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
-      el('div', {}, [el('span', { text: t(lang, 'totalTipLabel') }), el('strong', { text: formatCentsNL(result.totalTipCents) })]),
-      el('div', { className: 'grand-row' }, [
-        el('span', { text: t(lang, 'grandTotalLabel') }),
-        el('strong', { text: formatCentsNL(result.grandTotalCents) })
-      ])
-    ])
+    el('div', { className: 'summary-kv total-check-card' },
+      result.totalTipCents > 0
+        ? [
+            el('div', {}, [el('span', { text: t(lang, 'billTotalLabel') }), el('strong', { text: formatCentsNL(result.billTotalCents) })]),
+            el('div', {}, [el('span', { text: t(lang, 'totalTipLabel') }), el('strong', { text: formatCentsNL(result.totalTipCents) })]),
+            el('div', { className: 'grand-row' }, [
+              el('span', { text: t(lang, 'totalWithTipLabel') }),
+              el('strong', { text: formatCentsNL(result.grandTotalCents) })
+            ])
+          ]
+        : [
+            el('div', { className: 'grand-row only' }, [
+              el('span', { text: t(lang, 'totalLabelShort') }),
+              el('strong', { text: formatCentsNL(result.grandTotalCents) })
+            ])
+          ]
+    )
   );
 
   // Deelknoppen (punt 6, v8): de uitslag als korte tekst via het deelmenu van het toestel,
@@ -2026,9 +2118,9 @@ function renderStep4(container) {
   resultShareRow.appendChild(
     el('button', {
       type: 'button',
-      className: 'btn btn-sm btn-secondary',
+      className: 'btn btn-primary btn-share-all',
       disabled: !result.canFinalize || !settlementText,
-      text: `\ud83d\udce4 ${t(lang, 'shareResult')}`,
+      text: t(lang, 'shareResult'),
       onClick: async () => {
         if (navigator.share) {
           try { await navigator.share({ title: t(lang, 'emailSubject'), text: settlementText }); } catch {}
@@ -2059,8 +2151,6 @@ function renderStep4(container) {
       })
     );
   }
-  container.appendChild(resultShareRow);
-  container.appendChild(resultShareFeedback);
 
   // Voortgang bovenaan de lijst: wie heeft al betaald en hoeveel staat nog open.
   {
@@ -2085,7 +2175,20 @@ function renderStep4(container) {
     );
   }
 
+  // v27: een gast betaalt niets; geen regel met vinkje in de betaallijst, maar één zin onder de lijst
+  const gastRegels = [];
   result.perPerson.forEach((row) => {
+    if (row.hosted) {
+      const summary = (result.hostedSummaries || []).find((h) => h.guestId === row.id);
+      const namen = summary && summary.shares.length > 0 ? summary.shares.map((sh) => sh.name) : [];
+      const lijst = namen.length > 1 ? `${namen.slice(0, -1).join(', ')} ${t(lang, 'andWord')} ${namen[namen.length - 1]}` : namen[0] || '';
+      gastRegels.push(
+        namen.length > 0
+          ? t(lang, 'guestCoveredLine', { name: row.name, amount: formatCentsNL(row.hostedAmountCents), names: lijst })
+          : t(lang, 'guestOpenLine', { name: row.name })
+      );
+      return;
+    }
     const participantObj = session.participants.find((p) => p.id === row.id);
     // Compacte regel (altijd zichtbaar): vinkje betaald, naam, bedrag, status en een knop
     // die de betaaldetails en deelknoppen opent. De details zelf zijn ongewijzigd.
@@ -2393,6 +2496,11 @@ function renderStep4(container) {
     container.appendChild(card);
   });
 
+  for (const zin of gastRegels) container.appendChild(el('p', { className: 'guest-line', text: zin }));
+  container.appendChild(resultShareRow);
+  container.appendChild(resultShareFeedback);
+  container.appendChild(settingsWrap);
+
   container.appendChild(
     el('div', { className: 'nav-row' }, [
       el('button', {
@@ -2400,10 +2508,15 @@ function renderStep4(container) {
         className: 'btn btn-secondary',
         text: `← ${t(lang, 'back')}`,
         onClick: () => mutate(() => { session.step = 3; })
-      }),
+      })
+    ])
+  );
+  // v27: "Nieuwe bon" los van de navigatie, zodat je hem niet raakt als je terug wilt
+  container.appendChild(
+    el('div', { className: 'new-receipt-row' }, [
       el('button', {
         type: 'button',
-        className: 'btn btn-danger-outline',
+        className: 'btn btn-sm btn-danger-outline',
         text: t(lang, 'newReceiptBtn'),
         onClick: () => {
           if (window.confirm(t(lang, 'newReceiptConfirm'))) {
